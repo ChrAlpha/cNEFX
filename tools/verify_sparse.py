@@ -14,6 +14,7 @@ from dataclasses import asdict, replace
 from pathlib import Path
 
 from sparse_reference import Selection, repair
+from sparse_thresholds import cases as threshold_cases
 
 DLL_SHA256 = "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c"
 WIDTH, HEIGHT = 16, 12
@@ -81,6 +82,7 @@ def main() -> int:
     parser.add_argument("--wine-prefix", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--cases", type=int, default=10000)
+    parser.add_argument("--thresholds", action="store_true")
     parser.add_argument("--wine", default="/usr/lib/wine/wine64")
     args = parser.parse_args()
     if digest(args.dll) != DLL_SHA256:
@@ -88,7 +90,7 @@ def main() -> int:
     if not 1 <= args.cases <= 90000:
         parser.error("Case count must be in 1..90000.")
     args.output.mkdir(parents=True, exist_ok=False)
-    cases = fixtures(args.cases)
+    cases = threshold_cases() if args.thresholds else fixtures(args.cases)
     input_path = args.output / "input.bin"
     output_path = args.output / "output.bin"
     report: dict[str, object] = {
@@ -99,6 +101,10 @@ def main() -> int:
         "reference_sha256": digest(Path(__file__).with_name("sparse_reference.py")),
         "runner_sha256": digest(Path(__file__)),
         "seed": 0x34BA60,
+        "fixture_set": "threshold_neighborhoods" if args.thresholds else "random",
+        "threshold_builder_sha256": digest(
+            Path(__file__).with_name("sparse_thresholds.py")
+        ),
         "width": WIDTH,
         "height": HEIGHT,
         "cases": len(cases),

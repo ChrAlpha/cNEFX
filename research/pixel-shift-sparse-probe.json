@@ -51,8 +51,25 @@
     "cases_description": "12 constant planes and 10000 fixed-seed cases: full 14-bit random values, boundary-value palettes, low-contrast values, and zero-heavy values. Twelve selector configurations include cumulative rows, repeated rows, first/last safe row, reference dimension changes, horizontal filtering, and no selections.",
     "coverage_limit": "All 13 recorded write/keep action categories ran in every frame. These counters instrument the reference, not vendor machine-code edge coverage. Random and boundary-value fixtures do not prove all representable inputs."
   },
+  "threshold_neighborhoods": {
+    "tool": "tools/verify_sparse.py --thresholds",
+    "builder": "tools/sparse_thresholds.py",
+    "cases": 168,
+    "samples": 129024,
+    "selected_sample_visits": 4032,
+    "samples_changed_by_vendor": 130,
+    "different_samples": 0,
+    "construction": "Four frame orientations, fourteen controlled neighborhoods each, three neighboring integer settings per neighborhood. Exact rational construction ensures 14-bit integer fixture samples; the vendor and reference then perform the actual binary floating-point calculations.",
+    "boundaries": ["six 0.1 ratio comparisons", "0.3 displaced ratio", "0.4 color ratio", "mean intensity 2000", "estimate delta 500", "diagonal delta 300", "guard delta 2000", "diagonal ratio 1.1", "upper clipping path"],
+    "distinguishable_target_triplets": 52,
+    "total_target_triplets": 56,
+    "limit": "The t=r+0.1 triplet keeps the same output in each orientation, so those four triplets verify values but do not distinguish branch direction. The upper clipping triplet exercises the cap path, not every possible representable cap crossing.",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/sparse-thresholds-v3/report.json",
+    "input_sha256": "cd7b4d9e82b0d20a799b7150b544534bb9fc560a92b8eea8b3ae393e3891c223",
+    "output_sha256": "9f45e7d3176f466e33560c5e346b03954d379dc7925005d988f11c159436e160"
+  },
   "remaining": [
-    "Exact threshold-focused neighborhoods and independent branch review",
+    "Exhaustive representable-value coverage is not established by these finite fixtures",
     "Broader full-file metadata variants beyond the cases in pixel-shift-sparse-pipeline.json",
     "Authentic Z8 sequence metadata, firmware/compression variants, and Lightroom Classic acceptance"
   ]
