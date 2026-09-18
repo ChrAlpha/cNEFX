@@ -38,8 +38,8 @@ static bool decision(uint32_t code) {
 }
 
 int main(int argc, char **argv) {
-    if (argc < 4) {
-        fprintf(stderr, "Usage: probe_pixelshift DLL MODE OUTPUT [INPUT...]\n");
+    if (argc < 5) {
+        fprintf(stderr, "Usage: probe_pixelshift DLL MODE OUTPUT_COUNT OUTPUT [INPUT...]\n");
         return 2;
     }
     if (strcmp(argv[2], "normal") && strcmp(argv[2], "cancel") &&
@@ -47,9 +47,28 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Unknown probe mode.\n");
         return 2;
     }
-    if (GetFileAttributesA(argv[3]) != INVALID_FILE_ATTRIBUTES) {
-        fprintf(stderr, "Output already exists; refusing to overwrite.\n");
+    char *end;
+    unsigned long output_count = strtoul(argv[3], &end, 10);
+    if (*end || (output_count != 1 && output_count != 2 &&
+                 output_count != 4 && output_count != 8)) {
+        fprintf(stderr, "Invalid output count.\n");
         return 2;
+    }
+    char names[8][4096];
+    const char *outputs[8];
+    for (unsigned long index = 0; index < output_count; ++index) {
+        int size = output_count == 1
+            ? snprintf(names[index], sizeof(names[index]), "%s", argv[4])
+            : snprintf(names[index], sizeof(names[index]), "%s.part-%lu.nefx", argv[4], index + 1);
+        if (size < 0 || size >= (int)sizeof(names[index])) {
+            fprintf(stderr, "Output path is too long.\n");
+            return 2;
+        }
+        outputs[index] = names[index];
+        if (GetFileAttributesA(outputs[index]) != INVALID_FILE_ATTRIBUTES) {
+            fprintf(stderr, "Output already exists; refusing to overwrite.\n");
+            return 2;
+        }
     }
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
     HMODULE module = LoadLibraryA(argv[1]);
@@ -68,11 +87,10 @@ int main(int argc, char **argv) {
     fflush(stdout);
     MsvcString temporary = { .storage.inline_data = "NX Ctudio probe",
                              .length = 15, .capacity = 15 };
-    const char *outputs[] = { argv[3] };
-    uint32_t count = (uint32_t)(argc - 4);
+    uint32_t count = (uint32_t)(argc - 5);
     cancel_requested = strcmp(argv[2], "cancel") == 0;
     if (strcmp(argv[2], "invalid-count") == 0) count = 3;
-    bool result = combine(count, (const char **)&argv[4], 1, outputs,
+    bool result = combine(count, (const char **)&argv[5], (uint32_t)output_count, outputs,
                           &temporary, strcmp(argv[2], "correct") == 0,
                           progress, decision);
     printf("{\"event\":\"return\",\"success\":%s}\n", result ? "true" : "false");

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-18",
+  "evidence_kind": "live_vendor_dll_synthetic_distinct_frame_matrix",
+  "dll_sha256": "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c",
+  "probe_sha256": "815bcab1399de3175c0f4af3ca553b1fa0d141ee40ceb2b6cf447a9d641e262c",
+  "manifest_sha256": "ba6f1febee3e27337a492df5f74004894fc29339b6132701f8298a7413497720",
+  "report_sha256": "b817ca546258c3e70e5ef3e762613d7499e8ed48a34ef0bfd73bd8d09c5f982b",
+  "report_path_outside_repository": "/workspaces/LumaForge/nxc-data/scratch/matrix-distinct-v2/report.json",
+  "fixture_builder": "tools/build_packed14_fixtures.py",
+  "verifier": "tools/verify_vendor_matrix.py",
+  "fixture_contract": {
+    "kind": "Synthetic packed-14 raw data with metadata and previews inherited from a real Z8 NEF.",
+    "raw_shape": [432,640],
+    "crop_left_top_width_height": [4,4,632,424],
+    "sample_formula": "Independent PCG64(seed=20260918+frame_index) uint16 samples in [0,16384). Row 8, columns 8..15 explicitly contain 0,1,1007,1008,1009,8191,16382,16383.",
+    "independent_decode": "LibRaw 0.22.1 through rawpy 0.27.1 decoded all 60 input files with zero differences from the intended 16588800 samples.",
+    "distinct_inputs": true,
+    "sparse_repair_fields": "All row-selection counts remain zero.",
+    "radial_correction": false,
+    "prm_bin": "Present beside the host probe executable."
+  },
+  "results": [
+    {"input_count":4,"output_count":1,"samples_compared":803904,"different_samples":0,"max_abs_error":0},
+    {"input_count":8,"output_count":1,"samples_compared":803904,"different_samples":0,"max_abs_error":0},
+    {"input_count":8,"output_count":2,"samples_compared":1607808,"different_samples":0,"max_abs_error":0},
+    {"input_count":16,"output_count":1,"samples_compared":3215616,"different_samples":0,"max_abs_error":0},
+    {"input_count":16,"output_count":4,"samples_compared":3215616,"different_samples":0,"max_abs_error":0},
+    {"input_count":32,"output_count":1,"samples_compared":3215616,"different_samples":0,"max_abs_error":0},
+    {"input_count":32,"output_count":2,"samples_compared":6431232,"different_samples":0,"max_abs_error":0},
+    {"input_count":32,"output_count":4,"samples_compared":3215616,"different_samples":0,"max_abs_error":0},
+    {"input_count":32,"output_count":8,"samples_compared":6431232,"different_samples":0,"max_abs_error":0}
+  ],
+  "totals": {"cases":9,"outputs":24,"samples_compared":28940544,"different_samples":0,"max_abs_error":0},
+  "negative_controls": {
+    "reversed_frame_order": "All 24 comparisons detect an incorrect reversed frame order; the smallest mismatch count is 803818.",
+    "swapped_pair_halves": "All six outputs that use 8/32-input averaging detect exchanged pair halves; the smallest mismatch count is 803820.",
+    "acceptance": "The verifier requires zero normal-path differences and nonzero differences for every applicable negative control.",
+    "pilot_limit": "An earlier additive-offset fixture could not distinguish pair direction; it is superseded by the independently varying spatial textures in this report."
+  },
+  "confirmed_for_these_inputs": [
+    "All nine count/output-count combinations execute successfully without NX Studio.",
+    "Distinct frame values validate the recovered array grouping, including nonconsecutive 32-to-four grouping.",
+    "Four-phase spatial reconstruction, two-row pair averaging, integer green averaging, and final crop match the vendor output exactly.",
+    "16/32-input full-resolution outputs have twice the crop width and height."
+  ],
+  "not_covered": [
+    "Authentic pixel-shift captures or realistic sensor-movement errors",
+    "Nonzero sparse-repair metadata and all low-ISO correction branches",
+    "Nonzero chromatic correction and its floating-point rounding",
+    "Camera-specific decoder calibration across compression and firmware variants",
+    "Metadata fidelity in Lightroom Classic"
+  ]
+}

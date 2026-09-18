@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["numpy==2.4.6", "rawpy==0.27.1"]
 # ///
-"""Compare a repeated-frame probe with the recovered four-input sampling rules.
+"""Compare a repeated-frame probe with the recovered four/eight-input rules.
 
 This does not validate authentic pixel-shift quality or sparse sample repair.
 The source must have no selected repair rows, and correction must be disabled.
@@ -22,7 +22,7 @@ def digest(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def compare(source: Path, output: Path) -> dict[str, object]:
+def compare(source: Path, output: Path, frames: int) -> dict[str, object]:
     with rawpy.imread(str(source)) as image:
         image.unpack()
         raw = image.raw_image.copy()
@@ -34,9 +34,11 @@ def compare(source: Path, output: Path) -> dict[str, object]:
         actual = image.raw_image[..., :3].copy()
     height, width = actual.shape[:2]
     if raw.ndim != 2 or (height, width) != (crop.crop_height, crop.crop_width):
-        raise ValueError("Source and four-input output geometry do not match.")
+        raise ValueError("Source and single-resolution output geometry do not match.")
     if crop.crop_left_margin < 1 or crop.crop_top_margin < 1:
         raise ValueError("The recovered crop requires positive source margins.")
+    if frames == 8:
+        raw[2:] = ((raw[2:].astype(np.uint32) + raw[:-2]) >> 1).astype(np.uint16)
     phase_x = (0, 1, 1, 0)
     phase_y = (0, 0, 1, 1)
     channels = ((2, 1, 0, 1), (1, 2, 1, 0), (0, 1, 2, 1), (1, 0, 1, 2))
@@ -65,6 +67,7 @@ def compare(source: Path, output: Path) -> dict[str, object]:
     differences, counts = np.unique(diff, return_counts=True)
     return {
         "evidence_kind": "synthetic_repeated_frame_comparison",
+        "input_count": frames,
         "source_sha256": digest(source),
         "output_sha256": digest(output),
         "decoder": {"rawpy": rawpy.__version__, "libraw": list(rawpy.libraw_version)},
@@ -83,8 +86,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--frames", type=int, choices=(4, 8), default=4)
     args = parser.parse_args()
-    report = compare(args.source, args.output)
+    report = compare(args.source, args.output, args.frames)
     print(json.dumps(report, indent=2))
     return int(report["different_samples"] != 0)
 
