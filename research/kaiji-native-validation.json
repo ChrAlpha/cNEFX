@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "live_vendor_oracles_with_runtime_dependency_pins",
+  "supersedes": "Earlier table-generation reports lacking prm.bin/Moon2 hashes remain historical artifacts; these runs verify dependency provenance before and after execution.",
+  "runtime": {
+    "rome2_sha256": "45c8b91ddd61a103711d755a57c45db4ce8431b9ec9ce7a1f4fac28fe25582e2",
+    "moon2_sha256": "f02f7499564c14f18933ee2b0bda961c25889f0240a30bfe042fa165ba2e8da0",
+    "prm_sha256": "8d6f1bf219561f3c7c11c61b9b9e3317a369c9b5be5089ddffd82db96ca7f707",
+    "resource_resolution": "prm.bin beside the probe executable; actual loaded Moon2 path is reported by the probe and checked against the pinned provider.",
+    "native_coefficient_sha256": "d44561f16bf877a264ecfbb947f5b6635d6b0e9151fa70ca601d9b131804822f"
+  },
+  "artifact_directory": "/workspaces/LumaForge/nxc-data/scratch",
+  "runs": [
+    {"stage": "grading", "report": "kaiji-pinned-grading-v1/report.json", "sha256": "9567c929e57fec61f186d7e05adce288d259403ae3a8e3ad81dcc3e9b6d3e353", "cases": 40, "words": 499320, "different_words": 0},
+    {"stage": "blender", "report": "kaiji-pinned-blender-v1/report.json", "sha256": "e724603c00b9fecd65d495b261a46fa61f3cab0738ee88e9c6ff039d200c340d", "cases": 61, "words": 11712, "different_words": 0},
+    {"stage": "tone", "report": "kaiji-pinned-tone-v1/report.json", "sha256": "b74b847b85f5815dfe2a886e2478f56912fc98979a2b5447be487e16207857b9", "cases": 97, "words": 422241, "different_words": 0},
+    {"stage": "input_matrix", "report": "kaiji-pinned-input-v1/report.json", "sha256": "f53c026f73153e959d8917bffa5ce3ccf125befdd7bbd5b53ad43ae4c9a1adbe", "cases": 45, "words": 405, "different_words": 0},
+    {"stage": "contrast", "report": "kaiji-pinned-contrast-v1/report.json", "sha256": "87c281c679da565ccfe84aa2d7f2a4f2e4bec6c27ac361a0cf0ee8645f80896f", "cases": 27, "words": 248940, "different_words": 0},
+    {"stage": "custom_curve", "report": "kaiji-pinned-curve-v1/report.json", "sha256": "28ff7a434c3a1880b59bf6e85527b3e485745d0f253454b3e7f63bbe18167f49", "cases": 46, "words": 200238, "different_words": 0},
+    {"stage": "composition", "report": "kaiji-pinned-composition-v1/report.json", "sha256": "f5234a3a49637d05b707708ab6ad0fdd1a4f02c986a4922555a716caaa835f43", "cases": 17, "native_range_bytes": 69670, "known_range_different_bytes": 0, "unexplained_change_bytes": 0}
+  ],
+  "independent_review": {
+    "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
+    "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",
+    "findings_fixed": ["Hash the actual imported curve implementation.", "Pin prm.bin and Moon2 and verify the loaded provider path."],
+    "tests": "uv run pytest -q:250passed after provenance fixes."
+  },
+  "limits": [
+    "All five parameter-stage runs use recovered model14 and full effect strength; other state fields remain synthetic.",
+    "These are tables and curve replacement, not full application import or image rendering.",
+    "The composite experiment uses an external vendor-generated neutral baseline for unrecovered constant sections.",
+    "An artificial model14 state produced achromatic output in a scalar test; complete initialization remains unresolved.",
+    "Authentic captures, HE/HE*, Lightroom acceptance and complete native rendering remain unverified."
+  ]
+}
