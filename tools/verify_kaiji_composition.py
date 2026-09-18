@@ -9,15 +9,14 @@ import os
 import random
 import struct
 import subprocess
+import sys
 from pathlib import Path
 
 from flexible_math import round_divide32
-from kaiji_blender import blender_tables
-from kaiji_contrast import contrast_tables
-from kaiji_grading import COEFFICIENT_HASH, grading_tables
-from kaiji_input import input_matrix
+from kaiji_grading import COEFFICIENT_HASH
 from kaiji_oracle import dependency_hashes, loaded_provider_matches
-from kaiji_tone import tone_tables
+from kaiji_table import generate_table
+from kaiji_table import parameter_ranges as expected_ranges
 from verify_np3_header import DLL_HASH, digest, windows
 
 
@@ -36,50 +35,11 @@ def controls() -> list[list[int]]:
     return result
 
 
-def expected_ranges(coefficients: bytes, values: list[int]) -> list[tuple[int, bytes]]:
-    """Known generator ranges for model14, strength256, selector0, brightness6."""
-    result = []
-
-    def words(offset: int, data, code: str = "H") -> None:
-        result.append((offset, struct.pack(f"<{len(data)}{code}", *data)))
-
-    groups = [values[30 + i * 3 : 33 + i * 3] for i in range(3)]
-    sources, expanded = grading_tables(coefficients, groups, values[39], values[40])
-    for offset, row in zip(
-        (0x4E, 0xD0, 0x152, 0x1D4, 0x21D4, 0x41D4), sources + expanded, strict=True
-    ):
-        words(offset, row)
-    words(0x61D4, input_matrix(coefficients, values[5], 256, 0), "h")
-    regions = [values[6 + i * 3 : 9 + i * 3] for i in range(8)]
-    for channel, row in enumerate(
-        blender_tables(coefficients, regions, model_index=14)
-    ):
-        words(0x6228 + channel * 128, row, "h")
-        words(0x6268 + channel * 128, row, "h")
-        words(0x213C6 + channel * 64, [max(-512, min(511, v)) for v in row], "h")
-    contrast = round_divide32(values[0] * 64, 25)
-    sources, expanded = contrast_tables(coefficients, contrast, 6, model_index=14)
-    words(0x25836, [256 - abs(contrast), abs(contrast)])
-    for offset, row in zip((0x2583A, 0x25A3C, 0x25C3E, 0x25E40), sources, strict=True):
-        words(offset, row)
-    for offset, row in zip((0x26044, 0x2A044), expanded, strict=True):
-        words(offset, row, "i")
-    source, expanded_tone = tone_tables(
-        coefficients,
-        round_divide32(values[1] * 6, 5),
-        round_divide32(values[2] * 6, 5),
-        values[3],
-        values[4],
-    )
-    words(0x2E044, source)
-    words(0x2E246, expanded_tone)
-    return result
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("dll", "probe", "coefficients", "wine-prefix", "output"):
         parser.add_argument(f"--{name}", type=Path, required=True)
+    parser.add_argument("--native-complete", action="store_true")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     if args.output.exists() or args.output.resolve().is_relative_to(root):
@@ -95,17 +55,19 @@ def main() -> int:
         args.coefficients,
         Path(__file__),
         *(
-            root / "tools" / name
+            Path(sys.modules[name].__file__)
             for name in (
-                "kaiji_blender.py",
-                "kaiji_contrast.py",
-                "kaiji_grading.py",
-                "kaiji_input.py",
-                "kaiji_tone.py",
-                "flexible_math.py",
-                "probe_kaiji_state.c",
+                "kaiji_blender",
+                "kaiji_camera",
+                "kaiji_contrast",
+                "kaiji_grading",
+                "kaiji_input",
+                "kaiji_table",
+                "kaiji_tone",
+                "flexible_math",
             )
         ),
+        root / "tools/probe_kaiji_state.c",
     ]
     hashes = {str(p.resolve()): digest(p) for p in paths}
     hashes[str((root / "tools/kaiji_oracle.py").resolve())] = digest(
@@ -113,30 +75,49 @@ def main() -> int:
     )
     hashes.update(dependency_hashes(args.dll, args.probe))
     report = {
-        "evidence_kind": "combined_native_controls_vs_vendor_table_ranges",
+        "evidence_kind": (
+            "complete_native_synthetic_table_vs_live_vendor"
+            if args.native_complete
+            else "combined_native_controls_vs_vendor_table_ranges"
+        ),
         "input_hashes": hashes,
         "cases": [],
         "passed": False,
         "seed": 20260919,
-        "limits": [
-            "Manual field mapping, model14/strength256/selector0/brightness6.",
-            "Unchanged bytes outside recovered ranges remain vendor-derived.",
-            "Complete native table generation is not established by delta coverage.",
-            "No complete application import or rendered-image comparison.",
-        ],
+        "limits": (
+            [
+                "Model14/family12, strength256/selector0/brightness6/hue128.",
+                "Camera state+1528/+152a/+152c/+1533/+153e is synthetic zero.",
+                "External coefficients; no application import or custom curve.",
+                "Leading output-space matrix is zero, suitable for scalar RGB only.",
+            ]
+            if args.native_complete
+            else [
+                "Manual field mapping, model14/strength256/selector0/brightness6.",
+                "Unchanged bytes outside recovered ranges remain vendor-derived.",
+                "Delta coverage does not establish complete native tables.",
+                "No complete application import or rendered-image comparison.",
+            ]
+        ),
     }
     args.output.mkdir(parents=True)
     baseline = None
     mask = bytearray(0x34370)
     try:
         for index, values in enumerate(controls()):
-            ranges = expected_ranges(coefficients, values)
+            ranges = (
+                [(0, generate_table(coefficients, values))]
+                if args.native_complete
+                else expected_ranges(coefficients, values)
+            )
             if index == 0:
                 for offset, data in ranges:
                     if any(mask[offset : offset + len(data)]):
                         raise ValueError("Native table ranges overlap.")
                     mask[offset : offset + len(data)] = bytes([1]) * len(data)
                 report["native_range_bytes"] = sum(mask)
+                if sum(mask) != (0x34370 if args.native_complete else 69670):
+                    raise ValueError("Incomplete native table coverage.")
             state = struct.pack("<41i", *values)
             state_path = args.output / f"case{index}.state.bin"
             table_path = args.output / f"case{index}.bin"
@@ -154,6 +135,8 @@ def main() -> int:
                 round_divide32(values[0] * 64, 25),
                 6,
             ]
+            if args.native_complete:
+                config.extend((round_divide32(values[5] * 6, 25) + 12, 16, 128))
             result = subprocess.run(
                 [
                     "/usr/lib/wine/wine64",
@@ -202,6 +185,8 @@ def main() -> int:
                 "success": True,
                 "output_bytes": 0x34370,
             }
+            if args.native_complete:
+                expected_event.update(raw1522=config[10], raw1526=16, raw1538=128)
             if (
                 result.returncode
                 or len(events) != 1
@@ -214,9 +199,14 @@ def main() -> int:
                 raise ValueError("Output size or input stability failure.")
             if baseline is None:
                 baseline = actual
-            predicted = bytearray(baseline)
+            predicted = (
+                bytearray(len(actual)) if args.native_complete else bytearray(baseline)
+            )
             for offset, data in ranges:
                 predicted[offset : offset + len(data)] = data
+            if args.native_complete:
+                with (args.output / f"case{index}.native.bin").open("xb") as stream:
+                    stream.write(predicted)
             mismatches = [
                 i
                 for i, (a, b) in enumerate(zip(actual, predicted, strict=True))
@@ -225,6 +215,7 @@ def main() -> int:
             unknown = [i for i in mismatches if not mask[i]]
             case.update(
                 sha256=hashlib.sha256(actual).hexdigest(),
+                native_sha256=hashlib.sha256(predicted).hexdigest(),
                 known_range_different_bytes=len(mismatches) - len(unknown),
                 unexplained_change_bytes=len(unknown),
                 first_unexplained_offsets=[hex(i) for i in unknown[:32]],

@@ -94,6 +94,22 @@
     "evidence_kind": "saved_vendor_output_replay",
     "limit": "Camera sections use external pinned coefficients and synthetic camera state. Together with parameter generators they cover213790bytes; the remaining82bytes are initial output-matrix/padding/flags, zero in these probes. Complete composition must be independently verified."
   },
+  "complete_native_synthetic_tables": {
+    "implementation": "tools/kaiji_table.py",
+    "runner": "tools/verify_kaiji_composition.py --native-complete",
+    "report": "kaiji-complete-native-v2/report.json",
+    "sha256": "22b6966766d99e038548444615f24f671e718d55653f3133ea354068e876d52b",
+    "cases": 17,
+    "bytes_per_table": 213872,
+    "compared_bytes": 3635824,
+    "different_bytes": 0,
+    "all_vendor_native_sha256_pairs_equal": true,
+    "vendor_baseline_required": false,
+    "scope": "All41normalized controls, model14/family12, strength256/selector0/brightness6/hue128; saturation bias follows normalized saturation. Camera state+1528/+152a/+152c/+1533/+153e remains zero; no custom curve.",
+    "zero_sections": "Leading72-byte output-space matrix, three2-byte fields at61f6/21756/26042 and4trailing bytes. Full layout coverage and overlap checks protect these82bytes.",
+    "regression": "Moved shared parameter-range generator retained exact output across17historical combined states.",
+    "limit": "Entire synthetic tables are reconstructed from external pinned coefficients. Full real application-state import, native image rendering and complete NP3 behavior remain unverified."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",
@@ -103,7 +119,7 @@
   "limits": [
     "All five parameter-stage runs use recovered model14 and full effect strength; other state fields remain synthetic.",
     "These are tables and curve replacement, not full application import or image rendering.",
-    "The composite experiment uses an external vendor-generated neutral baseline for unrecovered constant sections.",
+    "Historical delta composition used a vendor baseline; complete_native_synthetic_tables removes that dependency for its declared synthetic state.",
     "Historical model14 grayscale output is explained by omitted hue state+1538; other application initialization remains incomplete.",
     "Authentic captures, HE/HE*, Lightroom acceptance and complete native rendering remain unverified."
   ]
