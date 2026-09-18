@@ -65,6 +65,34 @@
     "upstream_hue": "The configuration builder at RVA0x19f51c computes128-trunc(control*-4). The source control at application state+60 has range[-3,3],step0.25 for the newer path, giving encoded116..140. Flexible default-table entry47/key0x8100e gives0.0, hence encoded128.",
     "limit": "These field corrections explain the synthetic grayscale failure. State+152a and state+1528 also depend on application/camera input, so their zero values are still synthetic. Complete initialization and native table generation remain unresolved."
   },
+  "initialized_scalar_rgb": {
+    "evidence_kind": "fresh_vendor_capture_then_native_replay",
+    "grid": 33,
+    "states": 4,
+    "unique_channel_words": 431244,
+    "different_channel_words": 0,
+    "probe_sha256": "b817c4aa36745b86026275b33fe2280f58f19724000fc67e874af8b5e7cbd640",
+    "guard_improvement": "RGB planes start at65535, outside the valid0..65280 interval; the probe rejects unwritten values. Replay validates status, guards, selector, source stability and exact mode coverage.",
+    "reports": [
+      {"vendor": "kaiji-initialized-scalar-bias-12-16-128-v2/report.json", "vendor_sha256": "9aba5c5916d2f5652b85bd92edb062474454b2b55becc64230b959f34d5d113a", "native": "kaiji-initialized-native-bias-12-16-128-v2.json", "native_sha256": "9cdc8a23c05148928d3caea57f21d0e8397e2e037efb9e358702c9f6a70a0b4c"},
+      {"vendor": "kaiji-initialized-scalar-mixed-0-v2/report.json", "vendor_sha256": "573571394dcb657237e125527ee8a4434900b57bd4912502be6d61a0d62786a5", "native": "kaiji-initialized-native-mixed-0-v2.json", "native_sha256": "9b08e9d01ec52f978e3ec3d7aad4a95655bac4b38a293b18ba04eb6a83a7e1c0"},
+      {"vendor": "kaiji-initialized-scalar-mixed-1-v2/report.json", "vendor_sha256": "0fd7263a88d96aa89896421a87bc79224e4ac1d243cebf6d64b57284041c419c", "native": "kaiji-initialized-native-mixed-1-v2.json", "native_sha256": "dce80dff154f6f7a1e5027bd88dc86dfcee0291a27debd6eb3d3687ce4861cca"},
+      {"vendor": "kaiji-initialized-scalar-mixed-2-v2/report.json", "vendor_sha256": "cf732357484b873f7a8d6f4247bd7b2039b12f9fe8391870df959131ca34734f", "native": "kaiji-initialized-native-mixed-2-v2.json", "native_sha256": "bb93991375f16dee82377ff1872f8610926a47fab5f31779eab964f97f792194"}
+    ],
+    "limit": "Synthetic table states, now chromatic; not source-image rendering or full application-state parity."
+  },
+  "native_camera_sections": {
+    "implementation": "tools/kaiji_camera.py",
+    "report": "kaiji-camera-native-v2.json",
+    "sha256": "f3b5a077863c96b045e497393b712f1b87a0b0c74dacb56b03f9ab1895758acb",
+    "cases": 57,
+    "bytes_per_table": 43698,
+    "compared_bytes": 2490786,
+    "different_bytes": 0,
+    "coverage": "Header, input lookup scales, correction banks9/10, sine/cosine tables, secondary saturation and final gamut matrix/compression LUTs. Model14/family12, selectors0/1/2, zero state+152a/+152c.",
+    "evidence_kind": "saved_vendor_output_replay",
+    "limit": "Partial camera sections generated from externally supplied pinned coefficients; other table sections remain incomplete."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",
