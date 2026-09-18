@@ -69,7 +69,8 @@ def metadata_layout(source: bytes) -> dict[str, object]:
         with tifffile.TiffFile(io.BytesIO(maker_data[10:])) as notes:
             assert notes.byteorder == "<"
             wanted = {
-                code: notes.pages[0].tags[code] for code in (0x45, 0x51, 0x56, 0x5E)
+                code: notes.pages[0].tags[code]
+                for code in (0x45, 0x51, 0x54, 0x56, 0x5E)
             }
             assert int(wanted[0x45].dtype) == 3 and wanted[0x45].count == 4
             assert wanted[0x51].count == 24
@@ -78,17 +79,28 @@ def metadata_layout(source: bytes) -> dict[str, object]:
             maker_offsets = {
                 code: maker_base + tag.valueoffset for code, tag in wanted.items()
             }
+        nefinfo = raw.tags[0xC7D5]
+        with tifffile.TiffFile(io.BytesIO(nefinfo.value[10:])) as notes:
+            coefficient_offset = (
+                nefinfo.valueoffset + 10 + notes.pages[0].tags[7].valueoffset
+            )
         return {
             "raw_strip_offset": raw.tags[273].value[0],
             "raw_scalar_offsets": {
                 code: raw.tags[code].valueoffset for code in (256, 257, 278, 279)
             },
             "maker_offsets": maker_offsets,
+            "coefficient_offset": coefficient_offset,
         }
 
 
 def patch_header(
-    source: bytes, layout: dict[str, object], mode: int, count: int, frame: int
+    source: bytes,
+    layout: dict[str, object],
+    mode: int,
+    count: int,
+    frame: int,
+    radial_profile: str,
 ) -> tuple[bytearray, list[dict[str, object]]]:
     raw_offset = int(layout["raw_strip_offset"])
     header = bytearray(source[:raw_offset])
@@ -136,6 +148,26 @@ def patch_header(
         notes[0x56] + 12, b"\x01", "MakerNote 0x0056 synthetic pixel-shift active flag"
     )
     patch(notes[0x5E] + 4, bytes([mode]), "MakerNote 0x005e synthetic mode")
+    if radial_profile == "stress":
+        for offset, value in ((4, 192), (12, -128)):
+            patch(
+                notes[0x54] + offset,
+                struct.pack("<i", value),
+                "Synthetic correction center",
+            )
+        for offset, value in (
+            (44, -120),
+            (28, 350),
+            (20, -90),
+            (80, 280),
+            (64, -180),
+            (56, 70),
+        ):
+            patch(
+                layout["coefficient_offset"] + offset,
+                struct.pack("<i", value),
+                "Synthetic radial polynomial coefficient",
+            )
     reconstructed = bytearray(source[:raw_offset])
     for item in patches:
         offset = item["offset"]
@@ -169,6 +201,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument(
+        "--radial-profile", choices=("inherited", "stress"), default="inherited"
+    )
+    parser.add_argument(
         "--counts", nargs="+", type=int, choices=(4, 8, 16, 32), default=[4, 8, 16, 32]
     )
     args = parser.parse_args()
@@ -188,6 +223,7 @@ def main() -> None:
         "height": HEIGHT,
         "crop_left_top_width_height": list(CROP),
         "pattern": PATTERN,
+        "radial_profile": args.radial_profile,
         "frame_index_base": 0,
         "limitations": [
             "Synthetic raw values and metadata are not authentic Nikon captures.",
@@ -203,7 +239,9 @@ def main() -> None:
         for frame in range(count):
             expected = values_for_frame(frame)
             packed = pack_nikon14(expected)
-            header, patches = patch_header(source, layout, mode, count, frame)
+            header, patches = patch_header(
+                source, layout, mode, count, frame, args.radial_profile
+            )
             path = destination / f"frame-{frame + 1:02d}.NEF"
             content = header + packed
             with path.open("xb") as stream:

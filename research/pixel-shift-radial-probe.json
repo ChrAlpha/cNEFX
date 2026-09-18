@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-18",
+  "evidence_kind": "live_vendor_dll_synthetic_radial_correction",
+  "dll_sha256": "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c",
+  "probe": "tools/probe_pixelshift.c with mode correct",
+  "verifier": "tools/verify_radial.py",
+  "fixture_builder": "tools/build_packed14_fixtures.py --radial-profile stress --counts 4 16",
+  "fixture_kind": "Independent per-frame PCG64 samples in the 14-bit range, with synthetic center and polynomial metadata; sparse repair selection remains zero.",
+  "observations": [
+    {
+      "input_count": 4,
+      "center_q8": [0,0],
+      "red_coefficients_q20": [160,0,0],
+      "blue_coefficients_q20": [0,0,0],
+      "scale": 1,
+      "shape": [424,632,3],
+      "samples_compared": 803904,
+      "different_samples": 0,
+      "max_abs_error": 0,
+      "output_sha256": "36b51b270056e2b1d8c86ef1230e568adfde74dfa828978a22119729ae57f18c"
+    },
+    {
+      "input_count": 4,
+      "center_q8": [192,-128],
+      "red_coefficients_q20": [-120,350,-90],
+      "blue_coefficients_q20": [280,-180,70],
+      "scale": 1,
+      "shape": [424,632,3],
+      "samples_compared": 803904,
+      "different_samples": 0,
+      "max_abs_error": 0,
+      "output_sha256": "e1caf55401b3dc28ade81b3fd0179dec5cd7e4702b8e434f4f51481a55dfe6cb"
+    },
+    {
+      "input_count": 16,
+      "center_q8": [192,-128],
+      "red_coefficients_q20": [-120,350,-90],
+      "blue_coefficients_q20": [280,-180,70],
+      "scale": 2,
+      "shape": [848,1264,3],
+      "samples_compared": 3215616,
+      "different_samples": 0,
+      "max_abs_error": 0,
+      "output_sha256": "95d5b70546deb387859ec02eede65974071d8e727ed61448ea3775fd5fa386b2"
+    }
+  ],
+  "confirmed_for_these_inputs": [
+    "Both signed center offsets are read from MakerNote 0x0054 at byte offsets 4 and 12.",
+    "All six signed polynomial coefficients use the recovered nested-tag-7 offsets and Q20 scale.",
+    "The recovered radial transform, cubic kernel, RGB channel handling, and final crop match every decoded vendor output sample at both spatial scales."
+  ],
+  "remaining": [
+    "Extreme coordinate excursions, border truncation, and malformed metadata",
+    "The combination with nonzero sparse sample repair",
+    "The complete set of camera/lens coefficient ranges",
+    "Authentic-image quality and downstream Lightroom Classic verification"
+  ]
+}
