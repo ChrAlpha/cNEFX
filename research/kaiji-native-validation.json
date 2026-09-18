@@ -391,6 +391,37 @@
     "verification": "562pytest tests passed in4.58s; scoped Ruff/format,strict C11,ASCII/diff checks pass.104input hashes stable. All6prepared-grid comparisons still pass before ICC comparison. Serialization output guards and SDK cleanup pass.",
     "limit": "Pinned external Nikon template and captured profile text. No claim of independent template authoring, CML-equivalent interpolation, original-image pixel parity or Lightroom acceptance."
   },
+  "icc_pipeline_independent_review": {
+    "scope": "Commits1aab417,5b9cd89,23ea62f and the ICC serialization unit subsequently committed as5f98ea3.",
+    "evidence_kind": "independent_source_review_and_saved_oracle_replay_no_wine_rerun",
+    "findings": "No defects found within the declared bounded scope.",
+    "replayed_blend_cases": 4792,
+    "replayed_matrix_words": 43128,
+    "replayed_sdk_cases": 42,
+    "replayed_table_bytes": 8982624,
+    "replayed_prepared_lab_words": 646866,
+    "replayed_icc_bytes": 1445220,
+    "different_values": 0,
+    "checks": "120focused tests, strict C11 and whitespace checks passed. Source hashes, ICC tag bounds/alignment/order and prepared plane ordering independently checked.14mutated blend fields rejected.",
+    "limit": "Replays pinned saved vendor outputs. No independent Wine execution or full source-image rendering."
+  },
+  "cml_lcms_shared_profiles": {
+    "probe": "tools/probe_cml.c",
+    "runner": "tools/verify_cml.py",
+    "report": "cml-lcms-shared-profiles-v1/report.json",
+    "sha256": "2a48202d6138af608fdb0afaca24f18f17ac016fcfa79ad4b98ad39901cb93b6",
+    "evidence_kind": "live_cml_vs_native_lcms_shared_icc_pixels",
+    "cases": 6,
+    "pixels_per_case": 8464,
+    "coverage": "512boundary combinations,3856grayscale samples,4096random RGB16 samples; seed20260920. Six proven input ICCs, Nikon NKsRGB output profile, perceptual intent0,proof0 and no extra LUTs. Little CMS2.16 with flags0/256.",
+    "passed": true,
+    "equivalent": false,
+    "nooptimize_maximum_word_errors": [650,6382,6270,650,6382,6270],
+    "vanilla_nooptimize_mean_absolute_word_error": 30.451874606175174,
+    "guards": "Input profiles/pixels unchanged; input/output guards intact before and after destruction. Actual loaded CML path checked; all source and binary hashes stable.",
+    "verification": "Independent review found no defects, checked14input hashes and all lifecycle events, recomputed12comparisons and reran Little CMS12times with identical saved bytes. Three focused tests, strict C11, scoped Ruff/format and diff checks passed. No independent Wine rerun.",
+    "limit": "passed denotes complete evidence, not numerical equivalence. Little CMS is not established as a pixel-exact Nikon replacement. These are shared ICC/pixel inputs, not decoded-image rendering. Error causes remain unresolved."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",
