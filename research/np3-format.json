@@ -55,7 +55,9 @@
       "Optional tone curve record2 is0x242bytes with I0 marker,20 coordinate pairs and257 byte-swapped uint16 samples.",
       "Writer terminates with a four-byte zero record identifier."
     ],
-    "limit": "Static recovery only. Parser and renderer ABI/oracle validation is not yet complete."
+    "header_parser_rva": "0x132ca0",
+    "header_parser_abi": "uint64(data_pointer,uint64_size,uint32_version_out,uint32_profile_out,name20_out)",
+    "limit": "Header parser has live evidence below. Full parameter import and rendering remain unverified."
   },
   "verification": {
     "tool": "tools/inspect_np3.py",
@@ -68,5 +70,20 @@
     "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/np3-public-report.json",
     "report_sha256": "c45e74f127ef19714ea6adfef0b7a5a059d68e2633ea77da49cb1b703a5cc86b",
     "limit": "Roundtrips prove byte preservation on these samples, not camera acceptance or Nikon-equivalent colors."
+  },
+  "header_oracle": {
+    "evidence_kind": "live_unmodified_vendor_header_parser_public_samples",
+    "probe": "tools/probe_np3.c",
+    "runner": "tools/verify_np3_header.py",
+    "cases": 13,
+    "all_return_status_zero": true,
+    "all_version_masks": 64,
+    "all_profile_ids": 32,
+    "name_byte_mismatches": 0,
+    "original_files_unchanged": true,
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/np3-header-oracle.json",
+    "report_sha256": "ce4a21cb349a31e9b47f233be65b36e1ca1b941b154a59ae45bd7b6efcecb4ee",
+    "runner_after_report": "Only a Python string-literal line wrap was changed for lint.",
+    "limit": "Header acceptance is not complete import, NX Studio rendering or camera acceptance."
   }
 }
