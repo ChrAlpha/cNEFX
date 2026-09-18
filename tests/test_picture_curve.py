@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from nx_ctudio.picture_curve import generate_table
+from nx_ctudio.picture_curve import generate_curve, generate_table
 
 
 def curve(
@@ -24,6 +24,11 @@ def test_identity_includes_both_endpoints_and_half_up_quantization() -> None:
     assert actual == tuple(int(32767 * i / 256 + 0.5) for i in range(257))
     assert actual[128] == 16384
     assert actual[129] == 16511
+
+
+def test_curve_name_is_the_primary_api_with_compatibility_alias() -> None:
+    payload = curve()
+    assert generate_curve(payload) == generate_table(payload)
 
 
 def test_decreasing_two_point_curve_is_linear() -> None:

@@ -6,7 +6,7 @@ import struct
 from dataclasses import dataclass
 from typing import Any
 
-from .picture_curve import generate_table
+from .picture_curve import generate_curve
 
 MAX_BYTES = 4 * 1024 * 1024
 MAX_RECORDS = 4096
@@ -79,7 +79,7 @@ def extract_curve(data: bytes) -> dict[str, Any]:
         "profile_id": struct.unpack(">H", profile)[0],
         "name": _ascii_name(name),
         "record_count": len(records),
-        "curve_samples": list(generate_table(curve)),
+        "curve_samples": list(generate_curve(curve)),
         "limitations": [
             "Curve table generation only; full Picture Control rendering is not "
             "performed.",

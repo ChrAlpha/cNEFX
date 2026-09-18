@@ -99,7 +99,7 @@ def _validate(
     return x, y, input_min, input_max, output_min, output_max, gamma
 
 
-def generate_table(payload: bytes) -> tuple[int, ...]:
+def generate_curve(payload: bytes) -> tuple[int, ...]:
     """Generate the 257-entry uint16 table from an NP3 curve record.
 
     The stored table bytes at offset 64 are deliberately ignored; the Nikon
@@ -123,3 +123,8 @@ def generate_table(payload: bytes) -> tuple[int, ...]:
         curve = curve * (output_max - output_min) + output_min
         table.append(int(32767.0 * curve + 0.5))
     return tuple(table)
+
+
+def generate_table(payload: bytes) -> tuple[int, ...]:
+    """Backward-compatible alias for :func:`generate_curve`."""
+    return generate_curve(payload)

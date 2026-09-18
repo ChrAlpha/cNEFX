@@ -5,18 +5,32 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from nx_ctudio.picture_curve import generate_table
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 from inspect_np3 import parse
+
+from nx_ctudio.picture_curve import generate_curve
+
+ORACLE_SHA256 = "8908203ebeb6e221e3c54df58e08a198599718f9b8c9d759f0066b5406d3bd9d"
+MATRIX_SHA256 = "315c68b51ff1d247c5f32ccda57de2d7327ac7d46972cc792351e182ea5f0165"
 
 
 def digest(path: Path) -> str:
-    return hashlib.file_digest(path.open("rb"), "sha256").hexdigest()
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def vendor_table(source: dict, path: Path) -> tuple[int, ...]:
+    if source.get("returncode") != 0 or source.get("event", {}).get("status") != 0:
+        raise ValueError(f"Vendor case {source.get('name')} lacks a successful status.")
+    if source["event"].get("guards_intact") is not True:
+        raise ValueError(f"Vendor case {source.get('name')} has damaged guards.")
+    if source.get("source_sha256") != digest(path):
+        raise ValueError(f"Vendor case {source.get('name')} input hash mismatch.")
+    table = source["event"].get("table")
+    if not isinstance(table, list) or len(table) != 257:
+        raise ValueError(f"Vendor case {source.get('name')} has no 257-entry table.")
+    return tuple(table)
 
 
 def main() -> int:
@@ -33,6 +47,8 @@ def main() -> int:
         parser.error("Output must be a new path outside the repository.")
     oracle = json.loads(args.oracle.read_text())
     matrix = json.loads(args.matrix.read_text())
+    if digest(args.oracle) != ORACLE_SHA256 or digest(args.matrix) != MATRIX_SHA256:
+        parser.error("Unexpected pinned curve oracle report hash.")
     cases = []
     for source in oracle["cases"]:
         path = args.samples / source["name"]
@@ -41,15 +57,14 @@ def main() -> int:
             for record in parse(path.read_bytes())
             if record.identifier == 2
         )
+        expected = vendor_table(source, path)
         cases.append(
             {
                 "name": source["name"],
                 "source_sha256": digest(path),
                 "differences": sum(
                     a != b
-                    for a, b in zip(
-                        generate_table(payload), source["event"]["table"], strict=True
-                    )
+                    for a, b in zip(generate_curve(payload), expected, strict=True)
                 ),
             }
         )
@@ -61,15 +76,14 @@ def main() -> int:
             for record in parse(path.read_bytes())
             if record.identifier == 2
         )
+        expected = vendor_table(source, path)
         matrix_cases.append(
             {
                 "name": source["name"],
                 "source_sha256": digest(path),
                 "differences": sum(
                     a != b
-                    for a, b in zip(
-                        generate_table(payload), source["event"]["table"], strict=True
-                    )
+                    for a, b in zip(generate_curve(payload), expected, strict=True)
                 ),
             }
         )
@@ -80,7 +94,9 @@ def main() -> int:
         "cases": cases + matrix_cases,
         "passed": all(item["differences"] == 0 for item in cases + matrix_cases),
     }
-    args.output.write_text(json.dumps(report, indent=2) + "\n")
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    with args.output.open("x") as stream:
+        stream.write(json.dumps(report, indent=2) + "\n")
     print(
         json.dumps(
             {
