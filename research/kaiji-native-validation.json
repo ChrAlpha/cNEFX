@@ -470,6 +470,17 @@
     "verification": "Six live vendor comparisons pass all grid color, LUT and pixel words. Grid padding is normalized to zero and excluded from the color-word count. Full pytest596passed in4.61s;34focused tests, scoped Ruff/format,ASCII/JSON/diff checks pass. Independent reviewer checked18input hashes, regenerated all values and separately reproduced all6grids with a scalar implementation;9unsupported-profile mutations rejected. No defects found or independent Wine rerun.",
     "limit": "Pinned NKsRGB, v2.2 D50 RGB/Lab mft2 source, grid33 identity matrix and4096/3 curves, intent0/proof0, no extra LUTs, recorded SSE4.1 consumer. No source-image preprocessing, decoded-image rendering or Lightroom acceptance."
   },
+  "bounded_rgb16_render_oracle": {
+    "implementation": "tools/probe_image_sdk.c, tools/image_render.h, tools/verify_image_render.py",
+    "report": "sdk-image-render-v2/report.json",
+    "sha256": "9892c58a421d74ae7c9c7e33ec0bbb98784adf126d469b8c6711d7e88c7d7ee7",
+    "evidence_kind": "live_unmodified_vendor_rgb16_render",
+    "coverage": "Two ordinary NEFs times three NP3 controls; scale1/32, RGB16, pinned NKsRGB. Six cases,44376pixels and2callbacks each;1597536output bytes. Complete coverage, zero overlaps/rejections, all guards intact, target released once, SDK closed.",
+    "provenance": "All192provider/profile/resource/source/probe hashes stable. Callback state is locked; dimensions,strides,readability,overlap and guarded metadata are checked. Failures after target registration exit the isolated process. Truncated JSON retains raw stdout/stderr/status and preceding events.",
+    "verification": "68focused pytest tests, strict C11 syntax, scoped Ruff/format and diff checks pass. Independent review replayed all6v1cases and192hashes; its diagnostic-loss finding was fixed with a regression test before the fresh v2run.",
+    "repeatability": "Compared with v1, cases0/4 differ in207/190channel words, maximum163/567 respectively; other4cases are identical. Cause unresolved. This is valid render execution evidence, not a deterministic full-image oracle.",
+    "limit": "Wine is research-only. No native full-image or Lightroom parity; no authentic pixel-shift sequence. C callback rejection paths are source-reviewed but do not yet have direct fault-injection tests."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",
