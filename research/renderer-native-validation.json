@@ -26,5 +26,27 @@
     "different_words": 0,
     "verification": "Builder and root independently replayed saved captures; all recorded artifact hashes checked.95focused tests pass, including74new renderer tests; scoped Ruff/format and diff checks pass.",
     "limit": "Saved captures originate from experimental instrumentation. Standalone fresh kernel validation is separate. Profile generation, source WB/matrix/transfer order, later Lab/Lch transforms and full-image determinism remain unresolved."
+  },
+  "rgb_lab_leaf_oracle": {
+    "implementation": "tools/probe_renderer_lut.c and tools/verify_renderer_lut.py",
+    "report": "renderer-lut-oracle-v2/report.json",
+    "sha256": "a618d5334b3b1451b3049d2904fa7ca5e638698134ebfdeaa22f8c7a5809daa0",
+    "evidence_kind": "live_unmodified_vendor_row_kernel_vs_native",
+    "cases": 36,
+    "widths": [1,2,3,4,5,6,7,8,9,50,207,208],
+    "compared_words": 543060,
+    "different_words": 0,
+    "coverage": "Three normalized grids, corners,grid boundaries,fraction ties and4096seeded random samples; seed20260921. Guarded read-only input/state,per-row output guards,exact provider path,MXCSR controls and release checks. Existing output is rejected without modification.",
+    "capture_scope": "The source pilot is explicitly partial. All117excluded recorded calls must succeed and are retained in the report. Every selected call requires both pixel snapshots.12saved blocks compare1178136words;12normalized grid snapshots compare9886500words. Three unique grids contain2471625words.",
+    "verification": "136focused tests pass. Independent review checked240input hashes and replayed36v1cases,12blocks and12grids with0differences; root separately replayed36cases and17145synthetic words through an independent scalar model. Review finding about silently excluded failed calls was fixed and regression-tested before fresh36/36v2execution. Strict C11,scoped Ruff/format,ASCII and diff checks pass. Historical full suite757passed before the final6regression tests.",
+    "limit": "Reconstructed row descriptor for the recorded SSE kernel only. Original pilot has incomplete source provenance and sampling; standalone execution pins its supplied grids/profile captures but does not upgrade the pilot to full-render evidence. No source preprocessing,profile generation,downstream stages or Lightroom parity."
+  },
+  "renderer_profile_configuration": {
+    "evidence_kind": "static_call_chain_and_saved_profile_metadata",
+    "finding": "Actual renderer profiles say Mode3; earlier manual33grid profiles say Mode2. The description reflects generator+0x10=config+8.",
+    "path": "image_render0x2492f0 obtains CMS+0xb0 output-space selection(default2),CMS+0x90grid request(default32),promotes grid request to64 for engine selector>4,then CMS utilities+0xf0->Rome0x1a10f0->0x1a08a0->BuildConfig0x19b7d0.",
+    "configuration": "Explicit builder selection2 gives config+8=3,config+0x9b8=1 and engine+0x9c0=1. Manual selection0 resolves source metadata selection1,Mode2,selector0. This changes generator tables and final transfer/matrix; changing only the prepared engine selector would be inconsistent.",
+    "next_probe": "Rebuild with BuildConfig fifth argument2 and factory grid request64. Optional preparation tap: Rome vtable0x7b7280->0x2ae7b0(engine,unused); record config,Kaiji parameters,prepared table and65cubed planes before claiming numerical equivalence.",
+    "limit": "Matching manual65generation and complete profile bytes remain unverified."
   }
 }
