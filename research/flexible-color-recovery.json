@@ -133,7 +133,7 @@
   "next_experiments": [
     "Recover full application-state initialization for the Kaiji color table generator.",
     "Verify single-parameter generated table changes before porting the camera-dependent operations.",
-    "Implement and verify native custom-curve sampling from the recovered point and gamma model.",
+    "Extend native curve sampling into full Kaiji state initialization and verify generated Color Blender/Grading tables.",
     "Trace the native color-space and operation order for tone curves, Color Blender and Color Grading.",
     "Compare neutral ramps, color patches and edge patterns against an unmodified vendor oracle before claiming rendering fidelity.",
     "Test interaction with merged NEFX separately from parameter-file roundtrip and Lightroom interpretation."

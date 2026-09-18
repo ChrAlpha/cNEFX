@@ -78,6 +78,22 @@
       "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/np3-inspector-v2.json",
       "report_sha256": "e3352e3ad62bca1c2b61eadd143663018e6dc8e8272f1e5b84f2633aa5735237",
       "saved_vendor_replay": "75saved cases/3075normalized values match inspector semantics after explicit sentinel defaulting; no new vendor execution for this replay."
+    },
+    "native_curve": {
+      "implementation": "src/nx_ctudio/picture_curve.py",
+      "verification_runner": "tools/verify_picture_curve.py",
+      "evidence_kind": "native_curve_replay_against_saved_vendor_oracles",
+      "cases": 23,
+      "public_cases": 5,
+      "synthetic_cases": 18,
+      "samples_compared": 5911,
+      "differences": 0,
+      "oracle_sha256": "8908203ebeb6e221e3c54df58e08a198599718f9b8c9d759f0066b5406d3bd9d",
+      "matrix_sha256": "315c68b51ff1d247c5f32ccda57de2d7327ac7d46972cc792351e182ea5f0165",
+      "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/native-curve-replay-v1/report.json",
+      "report_sha256": "d2c36c9d4f5723c8a4c6e2990725919342bb2a7f15ba1a9752c54e698fc39487",
+      "tests": "uv run pytest tests/test_picture_curve.py -q:29passed",
+      "limit": "Curve-table generation only; no full Picture Control state, camera import, rendered pixels or Lightroom acceptance."
     }
   },
   "header_oracle": {
