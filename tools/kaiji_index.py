@@ -19,7 +19,7 @@ BOUNDS = (
     (0, 40),
     (0, 108),
     (0, 2),
-    (1, 4),
+    (0, 4),
 )
 
 
@@ -27,7 +27,8 @@ def camera_index(coefficients: bytes, mode_table: bytes, values: Sequence[int]) 
     """Evaluate RVA0x27e230 for ten explicit raw scalar arguments.
 
     Order: two unsigned levels, row, brightness, saturation, signed contrast,
-    auxiliary control, offset, processing selector, correction mode1..4.
+    auxiliary control, offset, processing selector, correction mode0..4.
+    Processing 0 ignores the mode; processing 2 requires correction mode1..4.
     The resource pointer is the omitted ninth ABI argument. Input names remain
     internal; this function does not infer them from camera metadata.
     """
@@ -38,6 +39,8 @@ def camera_index(coefficients: bytes, mode_table: bytes, values: Sequence[int]) 
             raise ValueError(f"Camera selector argument {i} is outside its range.")
     if values[8] not in (0, 2):
         raise ValueError("Only processing selectors 0 and 2 are supported.")
+    if values[8] == 2 and values[9] == 0:
+        raise ValueError("Processing selector 2 requires correction mode 1 through 4.")
     if (
         type(coefficients) is not bytes
         or len(coefficients) != 422416

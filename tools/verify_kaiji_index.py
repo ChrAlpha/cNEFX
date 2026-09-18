@@ -51,8 +51,9 @@ def cases(coefficients: bytes) -> list[list[int]]:
             row[7:] = offset, 2, mode
             result.append(row)
     rng = random.Random(20260919)
+    random_cases = []
     for _ in range(512):
-        result.append(
+        random_cases.append(
             [
                 rng.randrange(65536),
                 rng.randrange(65536),
@@ -66,6 +67,12 @@ def cases(coefficients: bytes) -> list[list[int]]:
                 rng.randrange(1, 5),
             ]
         )
+    result.extend(random_cases)
+    for offset in range(109):
+        row = base.copy()
+        row[7:] = offset, 0, 0
+        result.append(row)
+    result.extend(row[:8] + [0, 0] for row in random_cases)
     return result
 
 
@@ -121,6 +128,11 @@ def main() -> int:
         "mode_table_sha256": MODE_TABLE_HASH,
         "cases_sha256": hashlib.sha256(payload).hexdigest(),
         "pe_reader": {"name": "pefile", "version": pefile.__version__},
+        "coverage": {
+            "total": len(configs),
+            "processing_zero_mode_zero": sum(row[8:] == [0, 0] for row in configs),
+            "processing_two": sum(row[8] == 2 for row in configs),
+        },
         "cases": [],
         "passed": False,
         "limits": [
@@ -158,10 +170,10 @@ def main() -> int:
         )
         if (
             result.returncode
-            or len(events) != 3871
-            or len(configs) != 3870
+            or len(events) != 4492
+            or len(configs) != 4491
             or events[-1]
-            != {"event": "complete", "cases": 3870, "input_and_guards_unchanged": True}
+            != {"event": "complete", "cases": 4491, "input_and_guards_unchanged": True}
         ):
             raise ValueError("Unexpected oracle status or coverage.")
         for i, (config, event) in enumerate(zip(configs, events[:-1], strict=True)):

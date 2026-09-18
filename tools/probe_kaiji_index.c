@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
     void *address = (uint8_t *)module + 0x27e230;
     SelectIndex select_index;
     memcpy(&select_index, &address, sizeof(select_index));
-    const int32_t low[10] = {0, 0, 0, 0, 0, -256, 0, 0, 0, 1};
+    const int32_t low[10] = {0, 0, 0, 0, 0, -256, 0, 0, 0, 0};
     const int32_t high[10] = {65535, 65535, 19, 12, 24, 256, 40, 108, 2, 4};
     for (uint32_t index = 0; index < count; ++index) {
         int32_t v[10];
@@ -40,6 +40,7 @@ int main(int argc, char **argv) {
         for (int i = 0; i < 10; ++i)
             if (v[i] < low[i] || v[i] > high[i]) return 2;
         if (v[8] != 0 && v[8] != 2) return 2;
+        if (v[8] == 2 && v[9] == 0) return 2;
         uint8_t result = (uint8_t)select_index(
             (uint16_t)v[0], (uint16_t)v[1], (uint8_t)v[2], (uint8_t)v[3],
             (uint8_t)v[4], (int16_t)v[5], (uint8_t)v[6], (uint8_t)v[7],
