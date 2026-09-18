@@ -174,9 +174,17 @@
       "extraction": "Pinned Rome2.dll RVA0x7098c0,19018bytes followed by RVA0x731a90,4680bytes; no vendor table values are stored in Git."
     },
     "algorithm": "Negative state+1533 uses257rows of37tone words: blend column0 with column36, then add selected_column-column36 and wrap16bits.65chroma nodes multiply by corresponding36-column factors, truncate/1024, wrap16bits, then clamp2047. Both curves use the existing interpolators. Nonnegative values bypass both corrections.",
-    "upstream_static": "The0x4d0-byte buffer is TOPParam, previously called R2Y in these notes; R2YParam is a separate0x20-byte buffer. Z8 state+1533 = min(6,uint8((iso_code-80)>>2))-6 + clamp(int8(trunc(application_exposure*6)),-30,30). ISO comes from vendor ShotInfo property0x100016b; application exposure comes from ExposureSettings getter+0xd8 or0when disabled. Neither is established by ordinary EXIF ISO/ExposureBiasValue alone.",
+    "upstream_static": "The0x4d0-byte buffer is TOPParam, previously called R2Y in these notes; R2YParam is a separate0x20-byte buffer. Z8 state+1533 = min(6,uint8((iso_code-80)>>2))-6 + clamp(int8(trunc(application_exposure*6)),-30,30). ISO comes from vendor ColorBalance property0x100016b; application exposure comes from ExposureSettings getter+0xd8 or0when disabled. Neither is established by ordinary EXIF ISO/ExposureBiasValue alone.",
     "selector_sources_static": "RVA0x27e230 reads TOP+1d0/+1d2 (red/blue WB gains*512 truncated to uint16), active TOP+450 row,+49a brightness,+49b saturation,+498 contrast,+496 clarity,+48c ISO-derived offset, and TOP+14/+1c processing/mode. Its result at TOP+48e feeds Kaiji+152a. Metadata/service ownership remains to be exercised live.",
     "limit": "Explicit internal controls, model14/family12. This compares complete tables, not metadata import, custom-curve interaction or source-image rendering."
+  },
+  "colorbalance_iso_source": {
+    "evidence_kind": "static_call_and_vtable_dataflow",
+    "asteroid11_sha256": "00733061041d2c36fc580b770c6d94a7872e1bcef7f93befde07e33ff7204ed6",
+    "source_correction": "The earlier ShotInfo label was incorrect. Rome2 collector0x29b510 reads metadata key0x80097 with type0x109 and size0xd08 into the buffer passed to property0x100016b. This is ColorBalance, not MakerNote ShotInfo0x0091.",
+    "field_reader": "Asteroid11 CreateTagControl0x4cfbe0 creates vtable0x8730c0; slot+d0 dispatches to0x4df120 then0x4df930. Property0x100016b selects branch0x4e1f64: versions0703/0803 return the little-endian uint16 at decoded typed-buffer+a0.",
+    "raw_import_boundary": "Both available real Z8 NEFs contain166-byte ColorBalance0803 records. The service returns a0xd08-byte typed buffer; raw-file offset+a0 is not established as the equivalent field. Reader0x4fc1a0 allocates/converts this typed buffer; import layout and decryption still need comparison.",
+    "rejected_inference": "External pilot colorbalance-iso-v1 passed a decrypted raw record directly to the field leaf. The leaf agreed with a native+a0read, but this skips the typed-buffer conversion. Its16145/15918results are not accepted camera ISO codes or real application input evidence."
   },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
