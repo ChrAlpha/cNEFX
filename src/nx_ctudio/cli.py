@@ -69,6 +69,16 @@ def main(argv: list[str] | None = None) -> int:
     merge.add_argument("files", nargs="+", type=Path)
     merge.add_argument("--output", "-o", type=Path, required=True)
     merge.add_argument("--json", action="store_true")
+    picture_curve = commands.add_parser(
+        "picture-curve",
+        help="Regenerate an NP3 tone curve table.",
+        description=(
+            "Read a bounded NP3 container and regenerate its 257-entry tone curve "
+            "with the native curve implementation."
+        ),
+    )
+    picture_curve.add_argument("file", type=Path)
+    picture_curve.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     if args.command == "merge":
         from .merge import merge as synthesize
@@ -98,6 +108,33 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  {limitation}")
             for warning in report["warnings"]:
                 print(f"nxc: {warning}", file=sys.stderr)
+        return exit_code
+    if args.command == "picture-curve":
+        from .picture_control import extract_curve
+
+        report: dict[str, Any] = {"schema_version": 1, "status": "error"}
+        try:
+            path = args.file.resolve(strict=True)
+            if path.stat().st_size > 4 * 1024 * 1024:
+                raise ValueError("NP3 input exceeds the 4 MiB limit.")
+            report.update(
+                status="ok",
+                path=str(path),
+                picture_control=extract_curve(path.read_bytes()),
+            )
+            exit_code = 0
+        except (OSError, ValueError) as exc:
+            report["error"] = {"code": "picture_control_error", "message": str(exc)}
+            exit_code = 1
+        if args.json:
+            print(json.dumps(report, indent=2, ensure_ascii=True))
+        elif exit_code:
+            print(f"nxc: {report['error']['message']}", file=sys.stderr)
+        else:
+            print(f"ok: {report['path']}")
+            print(f"  Picture Control: {report['picture_control']['name']}")
+            print(f"  Profile ID: {report['picture_control']['profile_id']}")
+            print("  Curve samples: 257")
         return exit_code
     report: dict[str, Any] = {
         "schema_version": 1,
