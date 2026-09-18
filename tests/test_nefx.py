@@ -1,12 +1,14 @@
 """Independent container and integer packing contracts for native NEFX output."""
 
 import struct
+from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pytest
 
 from nx_ctudio._tiff import Directory, Tag, read, serialize
-from nx_ctudio.nefx import pack14, preview
+from nx_ctudio.nefx import pack14, preview, write_nefx
 
 
 def test_classic_tiff_relocates_embedded_preview_and_preserves_payload() -> None:
@@ -41,6 +43,37 @@ def test_parser_rejects_truncated_and_cyclic_directory() -> None:
 def test_parser_rejects_nonzero_next_link() -> None:
     with pytest.raises(ValueError, match="next-directory"):
         read(b"II*\0\x08\0\0\0" + struct.pack("<HI", 0, 8))
+
+
+def test_parser_rejects_repeated_payload_amplification() -> None:
+    count, block_size = 512, 1024 * 1024
+    offset = 8 + 2 + 12 * count + 4
+    content = b"II*\0\x08\0\0\0" + struct.pack("<H", count)
+    content += b"".join(
+        struct.pack("<HHII", 1000 + i, 7, block_size, offset) for i in range(count)
+    )
+    content += bytes(4 + block_size)
+    with pytest.raises(ValueError, match="copy budget"):
+        read(content)
+
+
+def test_failed_write_never_leaves_a_final_file(tmp_path: Path) -> None:
+    output = tmp_path / "output.nefx"
+    with patch("nx_ctudio.nefx.encode", return_value=b"content"):
+        with patch("nx_ctudio.nefx.os.fsync", side_effect=OSError("Disk full")):
+            with pytest.raises(OSError, match="Disk full"):
+                write_nefx(output, b"", np.zeros((1, 4, 3), np.uint16), 4)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_atomic_writer_does_not_replace_an_existing_destination(tmp_path: Path) -> None:
+    output = tmp_path / "output.nefx"
+    output.write_bytes(b"existing")
+    with patch("nx_ctudio.nefx.encode") as encode:
+        with pytest.raises(FileExistsError):
+            write_nefx(output, b"", np.zeros((1, 4, 3), np.uint16), 4)
+        encode.assert_not_called()
+    assert output.read_bytes() == b"existing"
 
 
 def test_packed14_uses_little_endian_bits_and_zero_padding() -> None:

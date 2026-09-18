@@ -45,6 +45,16 @@ class Directory:
 
 def read(data: bytes) -> Directory:
     seen: set[tuple[int, int]] = set()
+    payload_bytes = 0
+    payload_budget = 2 * len(data) + 4 * 1024 * 1024
+
+    def account(length: int) -> None:
+        nonlocal payload_bytes
+        payload_bytes += length
+        if payload_bytes > payload_budget:
+            raise ValueError(
+                "TIFF payload references exceed the supported copy budget."
+            )
 
     def block(offset: int, length: int) -> bytes:
         if offset < 0 or length < 0 or offset + length > len(data):
@@ -72,6 +82,7 @@ def read(data: bytes) -> Directory:
             if kind not in WIDTHS or code in directory.tags:
                 raise ValueError("Unsupported TIFF type or duplicate tag.")
             length = size * WIDTHS[kind]
+            account(length)
             position = offset + 2 + index * 12 + 8 if length <= 4 else base + value
             payload = block(position, length)
             tag = Tag(code, kind, size, payload)
@@ -95,10 +106,10 @@ def read(data: bytes) -> Directory:
             lengths = directory.tags[length_tag].integers()
             if len(offsets) != len(lengths) or len(offsets) > 32:
                 raise ValueError("Unsupported TIFF strip or tile array.")
-            directory.images[offset_tag] = [
-                block(base + start, length)
-                for start, length in zip(offsets, lengths, strict=True)
-            ]
+            directory.images[offset_tag] = []
+            for start, length in zip(offsets, lengths, strict=True):
+                account(length)
+                directory.images[offset_tag].append(block(base + start, length))
         return directory
 
     return walk(0, first(0))

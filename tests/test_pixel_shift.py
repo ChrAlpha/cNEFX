@@ -49,6 +49,14 @@ def test_sparse_zero_denominators_and_input_ownership() -> None:
     assert all(not np.any(frame) for frame in frames)
 
 
+def test_sparse_selector_budget_is_checked_before_enumeration() -> None:
+    selection = Selection(
+        12, 16, middle_count=255, outer_count=255, inner_before=255, inner_after=255
+    )
+    with pytest.raises(ValueError, match="work budget"):
+        selection.coordinates(16, 12)
+
+
 @pytest.mark.parametrize("crop", [(0, 1, 4, 4), (1, 0, 4, 4), (1, 1, 8, 8)])
 def test_invalid_crop_is_rejected(crop: tuple[int, int, int, int]) -> None:
     frames = [np.zeros((8, 8), np.uint16) for _ in range(4)]

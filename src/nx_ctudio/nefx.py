@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import binascii
+import os
 import struct
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -162,6 +164,15 @@ def encode(source: bytes, samples: NDArray[np.uint16], count: int) -> bytes:
 def write_nefx(
     path: Path, source: bytes, samples: NDArray[np.uint16], count: int
 ) -> None:
+    if os.path.lexists(path):
+        raise FileExistsError("Output already exists.")
     data = encode(source, samples, count)
-    with path.open("xb") as stream:
-        stream.write(data)
+    with tempfile.TemporaryDirectory(
+        prefix=".nxc-write-", dir=path.parent
+    ) as directory:
+        temporary = Path(directory) / "output.nefx"
+        with temporary.open("xb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.link(temporary, path)

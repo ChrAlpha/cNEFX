@@ -76,6 +76,13 @@ class Selection:
         )
 
     def coordinates(self, width: int, height: int) -> list[tuple[int, int]]:
+        row_visits = (
+            self.outer_count
+            * self.middle_count
+            * (self.inner_before + self.inner_after + 1)
+        )
+        if row_visits > 4096 or row_visits * max(0, width // 2 - 2) > 1_000_000:
+            raise ValueError("Sparse selector exceeds the supported work budget.")
         row = self.first_row - math.trunc((self.reference_height - height) / 2)
         lower = math.trunc((self.reference_width - width) / 4)
         coordinates = []
