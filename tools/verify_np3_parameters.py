@@ -70,6 +70,26 @@ def normalization_variants(records: tuple[Record, ...]) -> list[tuple[str, bytes
             output.append(
                 (f"normalized-{value:03d}-scale-{scale:03d}", serialize(changed))
             )
+    replacements = {
+        identifier: bytes((107 + i * 9, 2 + i * 3))
+        for i, identifier in enumerate(range(0x1900, 0x1F00, 0x100))
+    }
+    replacements[0x1F00] = bytes(17 + 9 * i for i in range(24)) + bytes((3, 5, 7, 0))
+    replacements[0x2000] = b"".join(
+        (32531 + i * 221).to_bytes(2, "big") + bytes((153 - i * 17, 107 + i * 25))
+        for i in range(3)
+    ) + bytes((11, 13, 17, 0, 201, 19, 47, 23))
+    output.append(
+        (
+            "normalized-asymmetric",
+            serialize(
+                tuple(
+                    Record(r.identifier, replacements.get(r.identifier, r.payload))
+                    for r in records
+                )
+            ),
+        )
+    )
     return output
 
 
@@ -80,6 +100,7 @@ def main() -> int:
     parser.add_argument("--probe", type=Path, required=True)
     parser.add_argument("--wine-prefix", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--case", help="Run only the exact named case.")
     args = parser.parse_args()
     if digest(args.dll) != DLL_HASH:
         parser.error("Unexpected Nikon DLL hash.")
@@ -98,6 +119,10 @@ def main() -> int:
             parse((args.samples / "vanilla.NP3").read_bytes())
         )
     ]
+    if args.case:
+        inputs = [item for item in inputs if item[0] == args.case]
+        if not inputs:
+            parser.error("Unknown case name.")
     report = {
         "evidence_kind": "live_vendor_np3_parameter_parser_comparison",
         "passed": False,

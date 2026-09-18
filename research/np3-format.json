@@ -145,6 +145,17 @@
     "tests": "uv run pytest tests/test_np3_parameters.py tests/test_np3.py -q:30passed",
     "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/np3-normalized-v2/report.json",
     "report_sha256": "4f091ffed9a4482560f606745a85a45052444aed3a7493a4164d984598b563a5",
+    "asymmetric_followup": {
+      "evidence_kind": "live_unmodified_vendor_normalization_single_synthetic_case",
+      "case": "normalized-asymmetric",
+      "scope": "Distinct scalar values/scales, all eight distinct Color Blender triples with shared3/5/7 scales, three distinct Color Grading triples with11/13/17 scales, blending19 and balance23.",
+      "parameter_bytes_compared": 3030,
+      "normalized_values_compared": 41,
+      "differences": 0,
+      "output_buffer_guards_intact": true,
+      "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/np3-asymmetric-v1/report.json",
+      "report_sha256": "e1e67138880326e4183f2e8ace24ff48e46c88ed0449b36651036f6dc4df0a22"
+    },
     "limit": "Parameter normalization only; no rendered pixels, camera import, tone-curve interpolation or Lightroom validation."
   }
 }

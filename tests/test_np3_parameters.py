@@ -52,16 +52,16 @@ def test_sentinels_default_before_division(value: int) -> None:
 
 def test_nonunit_scales_signed_hues_and_truncation() -> None:
     data = neutral()
-    data[12:16] = bytes((119, 4, 137, 4))
-    data[24:30] = bytes((119, 137, 129, 137, 119, 127))
-    data[48:51] = bytes((4, 4, 3))
+    data[12:16] = bytes((119, 4, 137, 3))
+    data[24:30] = bytes((119, 137, 133, 137, 119, 121))
+    data[48:51] = bytes((4, 3, 2))
     struct.pack_into("<HBB", data, 52, 32759, 137, 119)
-    data[64:67] = bytes((4, 4, 4))
+    data[64:67] = bytes((7, 3, 4))
     returned, values = normalize(data)
     assert returned == 119
-    assert values[:6] == [-2, 2, 0, 0, 0, 0]
-    assert values[6:12] == [-2, 2, 0, 2, -2, 0]
-    assert values[30:33] == [-2, 2, -2]
+    assert values[:6] == [-2, 3, 0, 0, 0, 0]
+    assert values[6:12] == [-2, 3, 2, 2, -3, -3]
+    assert values[30:33] == [-1, 3, -2]
 
 
 @pytest.mark.parametrize("offset", [13, 48, 49, 50, 64, 65, 66, 69, 71])
