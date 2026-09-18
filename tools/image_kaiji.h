@@ -30,7 +30,10 @@ static int serialize_kaiji(HMODULE dll, uint8_t *engine, const char *prefix) {
         if (capacities[i] > 15) memcpy(&text[i], string, sizeof(text[i]));
         if (!text[i] || lengths[i] > 254 || lengths[i] > capacities[i]) return 0;
     }
-    uint64_t size = UINT64_C(33) * 33 * 33 * 6 + 0x6218
+    uint32_t grid;
+    memcpy(&grid, engine + 0xdd4, 4);
+    if (grid != 33 && grid != 65) return 0;
+    uint64_t size = (uint64_t)grid * grid * grid * 6 + 0x6218
                   + ((lengths[1] + 12) & ~UINT64_C(3))
                   + ((lengths[0] * 2 + 28) & ~UINT64_C(3));
     uint8_t *allocation = malloc((size_t)size + 64);
@@ -63,7 +66,8 @@ static int serialize_kaiji(HMODULE dll, uint8_t *engine, const char *prefix) {
     return success;
 }
 
-static int prepare_kaiji(HMODULE dll, uint8_t *engine, const char *prefix) {
+static int prepare_kaiji(HMODULE dll, uint8_t *engine, const char *prefix,
+                         int renderer_profile) {
     typedef void *(*Prepare)(void *, void *);
     Prepare prepare;
     void *address = (uint8_t *)dll + 0x2ae7b0;
@@ -72,7 +76,8 @@ static int prepare_kaiji(HMODULE dll, uint8_t *engine, const char *prefix) {
     memcpy(&grid, engine + 0xdd4, 4);
     memcpy(&selector, engine + 0x9c0, 4);
     memcpy(&flags, engine + 0x9c4, 4);
-    if (grid != 33 || selector != 0 || flags != 0) return 0;
+    if (grid != (renderer_profile ? 65u : 33u)
+        || selector != (renderer_profile ? 1u : 0u) || flags != 0) return 0;
     void *error = prepare(engine, NULL);
     int saved = 0;
     if (!error) {
@@ -82,7 +87,7 @@ static int prepare_kaiji(HMODULE dll, uint8_t *engine, const char *prefix) {
             memcpy(&plane, engine + 0xde8 + i * 16, sizeof(plane));
             char name[16];
             snprintf(name, sizeof(name), "plane%u", i);
-            saved &= plane && save(prefix, name, plane, 33 * 33 * 33 * 2);
+            saved &= plane && save(prefix, name, plane, grid * grid * grid * 2);
         }
     }
     printf("{\"event\":\"kaiji_prepared\",\"error\":%s,\"grid\":%u,"
@@ -167,7 +172,7 @@ static int collect_kaiji(HMODULE dll, void *image, void *services, const char *p
     if (!kaiji_guards(buffers, sizes)) { failure = "picture_guards"; goto cleanup; }
 
     /* The builder defines AL only; the upper return-register bits are not status. */
-    result = build_config(utilities, data[0], data[2], data[1], 0);
+    result = build_config(utilities, data[0], data[2], data[1], prepare_grid == 2 ? 2 : 0);
     printf("{\"event\":\"kaiji_config\",\"result\":%d}\n", result);
     fflush(stdout);
     if (result) { failure = "configuration"; goto cleanup; }
@@ -180,7 +185,7 @@ static int collect_kaiji(HMODULE dll, void *image, void *services, const char *p
     fflush(stdout);
     if (selected != 9) { failure = "unsupported_engine"; goto cleanup; }
 
-    factory(data[3], data[2], 32, 0, 0);
+    factory(data[3], data[2], prepare_grid == 2 ? 64 : 32, 0, 0);
     uint8_t *wrapper, *kaiji;
     memcpy(&wrapper, data[3], sizeof(wrapper));
     memcpy(&control, data[3] + 8, sizeof(control));
@@ -203,7 +208,8 @@ static int collect_kaiji(HMODULE dll, void *image, void *services, const char *p
     if (!failure && prepare_grid) {
         uint8_t *engine;
         memcpy(&engine, wrapper + 8, sizeof(engine));
-        if (!engine || !prepare_kaiji(dll, engine, prefix)) failure = "engine_prepare";
+        if (!engine || !prepare_kaiji(dll, engine, prefix, prepare_grid == 2))
+            failure = "engine_prepare";
     }
 
 cleanup:

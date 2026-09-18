@@ -10,7 +10,7 @@ import numpy as np
 from flexible_math import round_divide32
 from kaiji_index import camera_index
 from kaiji_mix import blend_mix
-from kaiji_output import MATRIX, rgb_to_icc_lab
+from kaiji_output import MATRIX, MATRIX_SELECTOR1, rgb_to_icc_lab
 from kaiji_scalar import ScalarTable
 from kaiji_table import generate_table
 
@@ -36,15 +36,24 @@ def application_settings(values: list[int], custom_curve: bool) -> dict:
     }
 
 
-def verify_state(data: bytes, values: list[int], settings: dict, index: int) -> dict:
+def verify_state(
+    data: bytes,
+    values: list[int],
+    settings: dict,
+    index: int,
+    *,
+    output_selector: int = 0,
+) -> dict:
     if type(data) is not bytes or len(data) != 0x17F8:
         raise ValueError("Expected a complete 6136-byte KaijiParam snapshot.")
+    if type(output_selector) is not int or output_selector not in (0, 1):
+        raise ValueError("Unsupported output selector.")
     blend_mix = struct.unpack_from("<H", data, 0x1528)[0]
     if not 0 <= blend_mix <= 10:
         raise ValueError("Live blend mix is outside the validated generator range.")
     layout = {
         "camera": (0xC, "I", 1071),
-        "log_mode": (0xE3C, "I", 0),
+        "output_selector": (0xE3C, "I", output_selector),
         "profile": (0x1518, "I", 14),
         "family": (0x151C, "I", 12),
         "strength": (0x1520, "H", 256),
@@ -91,6 +100,8 @@ def verify_image_table(
     curve: bytes | None,
     blend_inputs: dict,
     blend_calibration: bytes,
+    *,
+    output_selector: int = 0,
 ) -> dict:
     values = picture["normalized_values"]
     settings = application_settings(values, picture["custom_curve"])
@@ -109,7 +120,9 @@ def verify_image_table(
     index = camera_index(coefficients, modes, selector)
     if top["selector_inputs"] != selector or top["camera_index"] != index:
         raise ValueError("Native application selector disagrees with working TOP.")
-    observed = verify_state(state, values, settings, index)
+    observed = verify_state(
+        state, values, settings, index, output_selector=output_selector
+    )
     captured = {
         "correction_matrix": list(struct.unpack_from("<9h", state, 0xB4)),
         "wb_levels_signed": list(struct.unpack_from("<2h", state, 0x152E)),
@@ -136,6 +149,7 @@ def verify_image_table(
         camera_index=index,
         curve_payload=curve,
         blend_mix=native_mix,
+        output_selector=output_selector,
     )
     if len(table) != len(native):
         raise ValueError("Expected a complete 213872-byte Kaiji table.")
@@ -155,22 +169,32 @@ def verify_image_table(
     }
 
 
-def verify_prepared_grid(table: bytes, prepared: bytes, planes: list[bytes]) -> dict:
-    """Compare selector-0 Lab preparation after the source table is verified."""
+def verify_prepared_grid(
+    table: bytes,
+    prepared: bytes,
+    planes: list[bytes],
+    *,
+    renderer_profile: bool = False,
+) -> dict:
+    """Compare Lab preparation after the complete source table is verified."""
+    if type(renderer_profile) is not bool:
+        raise ValueError("Renderer profile selection must be boolean.")
+    grid, selector = (65, 1) if renderer_profile else (33, 0)
+    matrix = MATRIX_SELECTOR1 if renderer_profile else MATRIX
     if len(table) != 0x34370 or len(prepared) != len(table):
         raise ValueError("Expected complete initial and prepared Kaiji tables.")
-    if prepared[:72] != struct.pack("<9d", *MATRIX.flat) or prepared[72:] != table[72:]:
+    if prepared[:72] != struct.pack("<9d", *matrix.flat) or prepared[72:] != table[72:]:
         raise ValueError("Prepared output matrix or table tail mismatch.")
-    if len(planes) != 3 or any(len(plane) != 33**3 * 2 for plane in planes):
-        raise ValueError("Expected three complete 33-node output planes.")
+    if len(planes) != 3 or any(len(plane) != grid**3 * 2 for plane in planes):
+        raise ValueError(f"Expected three complete {grid}-node output planes.")
     evaluator = ScalarTable(table)
     rgb = np.array(
         [
-            evaluator.evaluate_rgb(point)
-            for point in itertools.product(range(33), repeat=3)
+            evaluator.evaluate_rgb(point, grid)
+            for point in itertools.product(range(grid), repeat=3)
         ]
     )
-    native = rgb_to_icc_lab(rgb).T
+    native = rgb_to_icc_lab(rgb, selector=selector).T
     expected = np.array([np.frombuffer(plane, dtype="<u2") for plane in planes])
     delta = native.astype(np.int32) - expected.astype(np.int32)
     differences = int(np.count_nonzero(delta))
@@ -180,8 +204,8 @@ def verify_prepared_grid(table: bytes, prepared: bytes, planes: list[bytes]) -> 
             f"Prepared Lab grid differs in {differences} words, max {maximum}."
         )
     return {
-        "grid": 33,
-        "output": "selector0_icc_lab",
+        "grid": grid,
+        "output": f"selector{selector}_icc_lab",
         "compared_words": int(native.size),
         "different_words": differences,
         "max_absolute_error": maximum,

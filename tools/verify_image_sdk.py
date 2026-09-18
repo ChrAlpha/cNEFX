@@ -94,7 +94,10 @@ def validate_events(
     *,
     kaiji: bool = False,
     prepare_grid: bool = False,
+    renderer_profile: bool = False,
 ) -> None:
+    if type(renderer_profile) is not bool or (renderer_profile and not prepare_grid):
+        raise ValueError("Renderer profile requires engine preparation.")
     steps = [e for e in events if e.get("event") not in ("provider", "sdk_log")]
     expected = [
         {"event": "initialized", "result": 0},
@@ -137,8 +140,8 @@ def validate_events(
             {
                 "event": "kaiji_prepared",
                 "error": False,
-                "grid": 33,
-                "selector": 0,
+                "grid": 65 if renderer_profile else 33,
+                "selector": int(renderer_profile),
                 "output_flags": 0,
                 "saved": True,
             },
@@ -181,7 +184,10 @@ def main() -> int:
     parser.add_argument("--kaiji", action="store_true")
     parser.add_argument("--blend-calibration", type=Path)
     parser.add_argument("--prepare-grid", action="store_true")
+    parser.add_argument("--renderer-profile", action="store_true")
     args = parser.parse_args()
+    if args.renderer_profile and not args.prepare_grid:
+        parser.error("--renderer-profile requires --prepare-grid.")
     if args.prepare_grid and not args.kaiji:
         parser.error("--prepare-grid requires --kaiji.")
     if args.kaiji and (not args.picture_control or args.blend_calibration is None):
@@ -226,6 +232,7 @@ def main() -> int:
         args.metadata_report,
         Path(__file__),
         root / "tools/probe_image_sdk.c",
+        root / "tools/image_render.h",
         Path(_tiff.__file__),
         *(
             root / "tools" / name
@@ -268,6 +275,7 @@ def main() -> int:
         "originals_only": args.originals_only,
         "kaiji_tables": args.kaiji,
         "prepared_grid": args.prepare_grid,
+        "renderer_profile": args.renderer_profile,
         "limits": [
             "Selected metadata fields and selector only, not complete TOP parity.",
             "Without --kaiji, other selector arguments remain SDK outputs "
@@ -328,7 +336,11 @@ def main() -> int:
                     windows(prefix),
                     *([windows(np3)] if np3 else []),
                     *(["kaiji"] if args.kaiji else []),
-                    *(["prepare"] if args.prepare_grid else []),
+                    *(
+                        ["prepare-renderer" if args.renderer_profile else "prepare"]
+                        if args.prepare_grid
+                        else []
+                    ),
                 ],
                 cwd=vendor,
                 env=dict(
@@ -360,7 +372,11 @@ def main() -> int:
             if result.returncode:
                 raise ValueError("SDK probe failed.")
             validate_events(
-                events, picture, kaiji=args.kaiji, prepare_grid=args.prepare_grid
+                events,
+                picture,
+                kaiji=args.kaiji,
+                prepare_grid=args.prepare_grid,
+                renderer_profile=args.renderer_profile,
             )
             case["loaded_providers"] = provider_paths(
                 events, hashes, vendor, args.wine_prefix
@@ -401,6 +417,7 @@ def main() -> int:
                     curve,
                     blend_inputs,
                     blend_calibration,
+                    output_selector=int(args.renderer_profile),
                 )
                 if args.prepare_grid:
                     prepared = prefix.with_suffix(".prepared-table.bin").read_bytes()
@@ -409,7 +426,10 @@ def main() -> int:
                         for i in range(3)
                     ]
                     case["prepared_grid"] = verify_prepared_grid(
-                        snapshots["table"], prepared, planes
+                        snapshots["table"],
+                        prepared,
+                        planes,
+                        renderer_profile=args.renderer_profile,
                     )
                     case["prepared_table_sha256"] = hashlib.sha256(prepared).hexdigest()
                     case["plane_sha256"] = [
@@ -426,6 +446,7 @@ def main() -> int:
                         planes,
                         description=description,
                         copyright=copyright,
+                        grid=65 if args.renderer_profile else 33,
                     )
                     if (
                         type(event.get("bytes")) is not int

@@ -52,15 +52,19 @@ def test_wrong_parameter_layout_is_rejected_before_table_generation():
 @pytest.mark.parametrize(
     "offset,code,value,name",
     [
-        (0xE3C, "I", 256, "log_mode"),
+        (0xE3C, "I", 256, "output_selector"),
         (0x153E, "h", 511, "raw153e"),
         (0x1528, "H", 256, "blend mix"),
     ],
 )
-def test_parameter_guards_check_full_storage_width(offset, code, value, name):
+@pytest.mark.parametrize("output_selector", [0, 1])
+def test_parameter_guards_check_full_storage_width(
+    offset, code, value, name, output_selector
+):
     data = bytearray(0x17F8)
     for at, kind, initial in [
         (0xC, "I", 1071),
+        (0xE3C, "I", output_selector),
         (0x1518, "I", 14),
         (0x151C, "I", 12),
         (0x1520, "H", 256),
@@ -75,13 +79,18 @@ def test_parameter_guards_check_full_storage_width(offset, code, value, name):
         struct.pack_into("<" + kind, data, at, initial)
     values = [0] * 39 + [50, 0]
     settings = application_settings(values, False)
-    verify_state(bytes(data), values, settings, 8)
+    verify_state(bytes(data), values, settings, 8, output_selector=output_selector)
+    with pytest.raises(ValueError, match="output_selector"):
+        verify_state(
+            bytes(data), values, settings, 8, output_selector=1 - output_selector
+        )
     struct.pack_into("<" + code, data, offset, value)
     with pytest.raises(ValueError, match=name):
-        verify_state(bytes(data), values, settings, 8)
+        verify_state(bytes(data), values, settings, 8, output_selector=output_selector)
 
 
-def test_factory_requires_cleanup_and_a_supported_engine():
+@pytest.mark.parametrize("renderer_profile", [False, True])
+def test_factory_requires_cleanup_and_a_supported_engine(renderer_profile):
     expected = picture_controls(picture())
     events = lifecycle()
     events.insert(
@@ -118,3 +127,36 @@ def test_factory_requires_cleanup_and_a_supported_engine():
         factory[index][key] = prior
     with pytest.raises(ValueError, match="requires"):
         validate_events(events, kaiji=True)
+    events[-2:-2] = [
+        {
+            "event": "kaiji_prepared",
+            "error": False,
+            "grid": 65 if renderer_profile else 33,
+            "selector": int(renderer_profile),
+            "output_flags": 0,
+            "saved": True,
+        },
+        {
+            "event": "kaiji_profile",
+            "error": False,
+            "guards_intact": True,
+            "saved": True,
+        },
+    ]
+    validate_events(
+        events,
+        expected,
+        kaiji=True,
+        prepare_grid=True,
+        renderer_profile=renderer_profile,
+    )
+    with pytest.raises(ValueError, match="mismatch"):
+        validate_events(
+            events,
+            expected,
+            kaiji=True,
+            prepare_grid=True,
+            renderer_profile=not renderer_profile,
+        )
+    with pytest.raises(ValueError, match="requires"):
+        validate_events(events, expected, kaiji=True, renderer_profile=True)

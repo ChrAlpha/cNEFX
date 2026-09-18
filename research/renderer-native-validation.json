@@ -79,5 +79,27 @@
     "differences": 0,
     "verification": "All290input hashes unchanged. Full pytest790passed4.90s;23focused table/contrast tests,scoped Ruff/format,ASCII and diff checks pass. A separate static-recovery agent independently reproduced all12remapped source curves (3084words) from prior captured tables.",
     "limit": "One ordinary source and three NP3s. This is a saved-evidence replay,not fresh provider execution. Native source scalar inputs reuse the prior accepted report; external coefficient/calibration/template files and captured ICC text remain required. No decoded-image preprocessing,downstream Lab/Lch or full-render/Lightroom parity."
+  },
+  "mode3_core_independent_review": {
+    "scope": "e9d3f95 and f979d12",
+    "evidence_kind": "independent_source_review_and_saved_replay_no_wine_rerun",
+    "findings": "No concrete defects within the declared bounded scope.",
+    "checks": "79focused tests,scoped Ruff/format,diff checks. Verified96vendor and290native input hashes; independently regenerated641616tablebytes,2471625Labwords,5018994ICCbytes,1178136captured pixelwords with0differences.30selector0contrast cases match the prior implementation.",
+    "limit": "One source,threeNP3s,12savedrendererblocks;117successful unsaved calls are not pixel comparisons."
+  },
+  "live_native_source_mode3_profiles": {
+    "runner": "tools/verify_image_sdk.py --kaiji --prepare-grid --renderer-profile",
+    "report": "sdk-kaiji-renderer-native-v1/report.json",
+    "sha256": "aaf11f0814aabf9e35954e57639aa65f6682b2f0e9b6918c0c1fd134f45e435e",
+    "evidence_kind": "fresh_sdk_mode3_vs_native_source_metadata_tables_grid_and_icc",
+    "cases": 6,
+    "compared_table_bytes": 1283232,
+    "compared_lab_words": 4943250,
+    "compared_icc_bytes": 10037988,
+    "differences": 0,
+    "coverage": "Two ordinary Z8 NEFs times vanilla,mixed custom-curve,mixed no-curve NP3. Native source controls,index,blend and full tables are recomputed from NEF plus externally decrypted ColorBalance; no old scalar report is used. Engine preparation and ICC comparison require grid65/selector1/flags0.",
+    "default_regression": {"report": "sdk-kaiji-default-regression-v1/report.json", "sha256": "de3a90b372a65078d19ae2df57d061f523de7537dfd41374375baa82ef2f4526", "cases": 6, "result": "Default Mode2/grid33 tables,prepared tables,planes and profiles remain byte-identical to sdk-kaiji-icc-native-v1."},
+    "verification": "105input hashes stable for each run.794full pytest tests passed4.82s;94focused tests,strict C11,scoped Ruff/format,ASCII/JSON/diff checks pass. Both output selectors and mismatched lifecycle selections are tested.",
+    "limit": "Pinned coefficients,mode/blend calibration and Nikon ICC template; source AUTO1/AUTO0 and externally decrypted ColorBalance0803 only. No full-image preprocessing,downstream transforms or Lightroom parity."
   }
 }
