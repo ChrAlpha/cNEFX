@@ -2,7 +2,7 @@
   "schema_version": 1,
   "observed_on": "2026-09-18",
   "evidence_kind": "official_documentation_static_recovery_and_scoped_live_oracles",
-  "status": "Parameter normalization verified; full native rendering remains unimplemented",
+  "status": "Native NP3 curves, Grading LUTs and selector-0 output conversion have scoped evidence; full rendering remains unimplemented",
   "official_sources": [
     {
       "url": "https://nikonimglib.com/nxstdo/onlinehelp/en/the_picture_controls_tool_22.html",
@@ -254,6 +254,24 @@
     "relationship": "This independently vectorized output implementation agrees exactly with the scalar kaiji_color.py reference on2048 seeded RGB triplets. Its verifier replaces the earlier heuristic floating-point margin for interval evidence.",
     "limit": "Conditional interval inclusion for quantized synthetic lattice data, not exact unquantized RGB parity or complete rendering."
   },
+  "native_grading_oracle": {
+    "evidence_kind": "native_grading_vs_live_vendor_table_generation",
+    "implementation": "tools/kaiji_grading.py",
+    "runner": "tools/verify_kaiji_grading.py",
+    "probe": "tools/probe_kaiji_state.c",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/kaiji-grading-native-v2/report.json",
+    "report_sha256": "50c54973d5701babfb341ef86e4fa2ad18f2ae68e7a3ed05721511d431f25be2",
+    "camera_id": 1071,
+    "coefficient_resource_sha256": "d44561f16bf877a264ecfbb947f5b6635d6b0e9151fa70ca601d9b131804822f",
+    "coefficient_mapping": "Adjustment initializer RVA0x267dc0 retains ICoefTable slot+0x28 data directly. Balance scale+0x1bce4; width base+0x1bce6 and scale+0x1bce8; brightness scale+0x1bcea; four transitions+0x61a6a;65 channel weights+0x61a72; hue-indexed signed RGB triples+0x61af4.",
+    "cases": 40,
+    "coverage": "Neutral; three parameter-state groups with hue0/120/240/360 at chroma100 or brightness-100/+100; nine mixed blending0/50/100 and balance-100/0/+100 combinations;12 random states, seed20260919.",
+    "compared_words": 499320,
+    "different_words": 0,
+    "source_curve_offsets": ["0x4e", "0xd0", "0x152"],
+    "expanded_curve_offsets": ["0x1d4", "0x21d4", "0x41d4"],
+    "limit": "Reconstructs three65-node source curves and three4096-node expanded Grading tables using pinned external Z8 coefficients. No native Blender, complete application import, source-image conversion or Lightroom behavior is established; the probe checks suffix guards only."
+  },
   "np3_state_to_generator_oracle": {
     "evidence_kind": "live_unmodified_vendor_np3_normalized_state_to_kaiji_table_generation",
     "probe": "tools/probe_kaiji_state.c",
@@ -299,7 +317,7 @@
   "next_experiments": [
     "Recover full application-state initialization for the Kaiji color table generator.",
     "Verify single-parameter generated table changes before porting the camera-dependent operations.",
-    "Extend native curve sampling into full Kaiji state initialization and verify generated Color Blender/Grading tables.",
+    "Recover native Color Blender and remaining camera-dependent tables; Grading source/expanded tables have40-case numerical evidence.",
     "Trace the native color-space and operation order for tone curves, Color Blender and Color Grading.",
     "Compare neutral ramps, color patches and edge patterns against an unmodified vendor oracle before claiming rendering fidelity.",
     "Test interaction with merged NEFX separately from parameter-file roundtrip and Lightroom interpretation."
