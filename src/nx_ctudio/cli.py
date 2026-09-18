@@ -1,0 +1,101 @@
+"""Command-line entry point for NX Ctudio."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+from . import __version__
+from .inspect import inspect_file
+
+
+def emit(report: dict[str, Any], as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(report, indent=2, ensure_ascii=True))
+        return
+    for item in report["files"]:
+        print(f"{item['status']}: {item['path']}")
+        if item["status"] == "error":
+            print(f"  {item['error']['code']}: {item['error']['message']}")
+            continue
+        print(f"  SHA-256: {item['sha256']}")
+        for key, value in item["metadata"].items():
+            print(f"  {key}: {value}")
+    if "error" in report:
+        print(f"nxc: {report['error']['message']}", file=sys.stderr)
+    print(
+        "Metadata inspection only; RAW decoding and sequence validation not performed."
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="nxc", description="NX Ctudio: independent Nikon RAW workflow tools."
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"NX Ctudio {__version__}"
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+    inspect = commands.add_parser(
+        "inspect",
+        help="Inspect file metadata and hashes without modifying inputs.",
+        description=(
+            "Inspect explicit input files in the supplied order. Requires ExifTool. "
+            "Numeric metadata values are preserved as reported by ExifTool. "
+            "This command does not decode RAW pixels or validate "
+            "a pixel-shift sequence."
+        ),
+    )
+    inspect.add_argument(
+        "files", nargs="+", type=Path, help="Explicit input file paths."
+    )
+    inspect.add_argument(
+        "--json", action="store_true", help="Write a JSON report to stdout."
+    )
+    args = parser.parse_args(argv)
+    report: dict[str, Any] = {
+        "schema_version": 1,
+        "tool": {"name": "NX Ctudio", "version": __version__},
+        "raw_decode": "not_performed",
+        "sequence_validation": "not_performed",
+        "files": [],
+    }
+    executable = shutil.which("exiftool")
+    if not executable:
+        report["error"] = {
+            "code": "dependency_missing",
+            "message": "ExifTool is required. Install it and add exiftool to PATH.",
+        }
+        emit(report, args.json)
+        return 2
+    try:
+        version = subprocess.run(
+            [executable, "-config", "", "-ver"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError) as exc:
+        report["error"] = {"code": "dependency_error", "message": str(exc)}
+        emit(report, args.json)
+        return 2
+    report["tool"]["exiftool_version"] = version
+    try:
+        for path in args.files:
+            report["files"].append(inspect_file(path, executable))
+    except KeyboardInterrupt:
+        report["error"] = {"code": "cancelled", "message": "Inspection cancelled."}
+        emit(report, args.json)
+        return 130
+    emit(report, args.json)
+    return 0 if all(item["status"] == "ok" for item in report["files"]) else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
