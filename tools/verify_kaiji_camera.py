@@ -14,6 +14,85 @@ from kaiji_grading import COEFFICIENT_HASH
 from kaiji_oracle import MOON_HASH, RESOURCE_HASH
 from verify_np3_header import DLL_HASH
 
+EXPECTED_LAYOUT = {
+    0x48: 6,
+    0x61E6: 4,
+    0x61EA: 12,
+    0x61F8: 48,
+    0x6528: 64,
+    0x65AA: 576,
+    0x21546: 14,
+    0x23758: 4,
+    0x21554: 514,
+    0x2375C: 24,
+    0x23774: 64,
+    0x30246: 24,
+    0x3025E: 10,
+    **{
+        offset: 66
+        for offset in (
+            0x6568,
+            0x67EA,
+            0x682C,
+            0x686E,
+            0x68B0,
+            0x68F2,
+            0x6934,
+            0x6976,
+            0x69B8,
+            0x69FA,
+            0x6A3C,
+            0x6A7E,
+            0x6AC0,
+            0x6B02,
+        )
+    },
+    **{offset: 130 for offset in (0x6B44, 0x237B4, 0x30268, 0x302EA)},
+    **{
+        offset: 8192
+        for offset in (
+            0x6BC6,
+            0x8BC6,
+            0xABC6,
+            0xCBC6,
+            0xEBC6,
+            0x10BC6,
+            0x12BC6,
+            0x14BC6,
+            0x16BC6,
+            0x18BC6,
+            0x1ABC6,
+            0x1CBC6,
+            0x1EBC6,
+            0x21758,
+            0x23836,
+            0x3036C,
+            0x3236C,
+        )
+    },
+    0x20BC6: 1024,
+    0x20FC6: 1024,
+}
+
+
+def validate_ranges(ranges: list[tuple[int, bytes]]) -> None:
+    layout = {}
+    mask = bytearray(0x34370)
+    for offset, data in ranges:
+        if (
+            type(offset) is not int
+            or type(data) is not bytes
+            or offset < 0
+            or offset + len(data) > len(mask)
+            or offset in layout
+            or any(mask[offset : offset + len(data)])
+        ):
+            raise ValueError("Invalid or overlapping native table ranges.")
+        layout[offset] = len(data)
+        mask[offset : offset + len(data)] = bytes([1]) * len(data)
+    if layout != EXPECTED_LAYOUT or sum(mask) != 144120:
+        raise ValueError("Incomplete native camera table coverage.")
+
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -146,7 +225,10 @@ def main() -> int:
                     model_index=event["model"],
                     selector=event["matrix"],
                     saturation_bias=event.get("raw1522", 0),
+                    hue=event.get("raw1538", 0),
+                    strength=event["strength"],
                 )
+                validate_ranges(ranges)
                 mismatches = [
                     sum(
                         a != b

@@ -83,15 +83,16 @@
   },
   "native_camera_sections": {
     "implementation": "tools/kaiji_camera.py",
-    "report": "kaiji-camera-native-v2.json",
-    "sha256": "f3b5a077863c96b045e497393b712f1b87a0b0c74dacb56b03f9ab1895758acb",
+    "report": "kaiji-camera-native-v5.json",
+    "sha256": "7d8a5280993d95066f34415c57c257e95460cbd47b697f504e7c8980a5aef0c7",
     "cases": 57,
-    "bytes_per_table": 43698,
-    "compared_bytes": 2490786,
+    "bytes_per_table": 144120,
+    "compared_bytes": 8214840,
     "different_bytes": 0,
-    "coverage": "Header, input lookup scales, correction banks9/10, sine/cosine tables, secondary saturation and final gamut matrix/compression LUTs. Model14/family12, selectors0/1/2, zero state+152a/+152c.",
+    "coverage": "Header, lookup scales, sector weights, all chroma-domain banks, sine/cosine, secondary saturation, luminance curve, hue matrix, chroma gain and final gamut matrix/compression LUTs. Model14/family12, selectors0/1/2; state+1528/+152a/+152c/+1533/+153e are zero.",
+    "coverage_guard": "Verifier requires the exact50-range layout and144120nonoverlapping bytes; empty, missing, duplicate, overlapping, shortened, invalid-type and out-of-bounds ranges fail.",
     "evidence_kind": "saved_vendor_output_replay",
-    "limit": "Partial camera sections generated from externally supplied pinned coefficients; other table sections remain incomplete."
+    "limit": "Camera sections use external pinned coefficients and synthetic camera state. Together with parameter generators they cover213790bytes; the remaining82bytes are initial output-matrix/padding/flags, zero in these probes. Complete composition must be independently verified."
   },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",

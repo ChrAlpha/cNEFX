@@ -10,12 +10,18 @@ from kaiji_grading import COEFFICIENT_HASH
 
 
 def camera_ranges(
-    coefficients: bytes, *, model_index: int, selector: int, saturation_bias: int
+    coefficients: bytes,
+    *,
+    model_index: int,
+    selector: int,
+    saturation_bias: int,
+    hue: int = 128,
+    strength: int = 256,
 ) -> list[tuple[int, bytes]]:
-    """Generate independent camera sections, with state+152a/+152c both zero.
+    """Generate camera sections for the explicitly synthetic zero camera state.
 
-    This covers input scales, secondary saturation, correction/rotation tables,
-    and final gamut compression. Other sections remain outside this function.
+    State+1528/+152a/+152c/+1533/+153e are zero. Hue supports the ordinary encoded
+    range116..140, neutral sentinel255, and the historical invalid zero control.
     """
     if (
         len(coefficients) != 422416
@@ -28,10 +34,21 @@ def camera_ranges(
         raise ValueError("Only matrix selectors 0, 1 and 2 are supported.")
     if type(saturation_bias) is not int or not 0 <= saturation_bias <= 24:
         raise ValueError("Saturation bias must be an integer in [0, 24].")
+    if type(hue) is not int or not (116 <= hue <= 140 or hue in (0, 255)):
+        raise ValueError("Unsupported encoded hue control.")
+    if type(strength) is not int or not 0 <= strength <= 256:
+        raise ValueError("Strength must be an integer in [0, 256].")
     result = [(0x48, coefficients[0x1BCDE:0x1BCE4])]
 
     def word(offset: int) -> int:
         return struct.unpack_from("<H", coefficients, offset)[0]
+
+    def signed_word(offset: int) -> int:
+        return struct.unpack_from("<h", coefficients, offset)[0]
+
+    def trunc(value: int, denominator: int) -> int:
+        quotient = abs(value) // denominator
+        return -quotient if value < 0 else quotient
 
     def words(offset: int, data, code: str = "H") -> None:
         result.append((offset, struct.pack(f"<{len(data)}{code}", *data)))
@@ -45,8 +62,44 @@ def camera_ranges(
         words(target, expanded, "h" if signed else "H")
 
     shifts = [coefficients[0x1C504 + i * 3 + selector] for i in range(12)]
+    words(0x61E6, (0, 2048))
     result.append((0x61EA, bytes(shifts)))
     words(0x61F8, [1 << min(3, shift) for shift in shifts], "i")
+    words(
+        0x6528,
+        tuple(
+            trunc(word(0x5F8DA + selector * 2 + i * 6) * word(0x5FB26), 256)
+            for i in range(32)
+        ),
+    )
+
+    result.append(
+        (
+            0x65AA,
+            coefficients[
+                0x1FE28 + model_index * 0x240 : 0x1FE28 + (model_index + 1) * 0x240
+            ],
+        )
+    )
+    for bank, (source_offset, target) in enumerate(
+        (
+            (0x67EA, 0x6BC6),
+            (0x682C, 0x8BC6),
+            (0x686E, 0xCBC6),
+            (0x68B0, 0xEBC6),
+            (0x68F2, 0x10BC6),
+            (0x6934, 0x12BC6),
+            (0x6976, 0x14BC6),
+            (0x69B8, 0x16BC6),
+            (0x6B02, 0x1CBC6),
+        )
+    ):
+        resource = 0x226A8 + model_index * 0x252 + bank * 66
+        curve(
+            source_offset, target, struct.unpack_from("<33H", coefficients, resource), 7
+        )
+    resource = 0x2506C + model_index * 130
+    curve(0x6B44, 0x1EBC6, struct.unpack_from("<65h", coefficients, resource), 6, True)
 
     for source_offset, target, resource in (
         (0x69FA, 0x18BC6, 0x5F99A),
@@ -78,6 +131,46 @@ def camera_ranges(
         scale = word(0x602D0 + camera_index * 2 + i * 24)
         secondary.append(round_divide32(scale * value, 256) & 65535)
     curve(0x6568, 0xABC6, tuple(secondary), 7)
+
+    result.append((0x21546, coefficients[0x2A8C4:0x2A8D2]))
+    u, v = (max(-4096, min(4095, signed_word(o))) for o in (0x2A8C4, 0x2A8C6))
+    chroma = min(4095, abs(v - u) + abs(v + u) + abs(v) + abs(u))
+    correction = word(0x2A8D0) - (
+        (chroma * coefficients[0x2A8CD]) >> (coefficients[0x2A8CC] & 31)
+    )
+    words(
+        0x23758, (max(0, min(1023, word(0x2A8CE), max(0, min(4095, correction)))),), "i"
+    )
+    mix = word(0x2A3A8)
+    source = tuple(
+        trunc(word(0x29DA2 + i * 6) * mix + word(0x277A0 + i * 38) * (256 - mix), 256)
+        & 65535
+        for i in range(257)
+    )
+    curve(0x21554, 0x21758, source, 4)
+    hue_delta = 0 if hue == 255 else trunc((hue - 128) * strength, 256)
+    matrix_index = 4 * hue_delta + 48
+    matrix = [signed_word(0x2A8D2 + i * 2) for i in range(4)]
+    matrix.extend(
+        (
+            signed_word(0x2A8F6 + matrix_index * 2),
+            signed_word(0x2A8F8 + matrix_index * 2),
+            signed_word(0x2A8DE),
+            signed_word(0x2A8FA + matrix_index * 2),
+            signed_word(0x2A8FC + matrix_index * 2),
+        )
+    )
+    words(0x2375C, tuple(matrix) + (0, 0, 0), "h")
+    result.append(
+        (
+            0x23774,
+            coefficients[0x2ABC0 + model_index * 64 : 0x2ABC0 + (model_index + 1) * 64],
+        )
+    )
+    source = tuple(
+        min(2047, word(0x2B040 + model_index * 130 + i * 2)) for i in range(65)
+    )
+    curve(0x237B4, 0x23836, source, 6)
 
     result.append((0x30246, coefficients[0x5DCFA:0x5DD12]))
     base = 0x5DE16 + model_index * 10
