@@ -32,11 +32,12 @@
   "flexible_records": {
     "scalar_record_layout": "Two bytes: encoded value and scale byte; unknown/sentinel states remain distinct from ordinary numeric values.",
     "quarter_step_records": {"sharpening": "0x0600", "clarity": "0x0700", "mid_range_sharpening": "0x1600"},
-    "quarter_step_rule": "Observed ordinary value=(encoded-128)/4",
+    "quarter_step_rule": "Observed ordinary value=(encoded-128)/4 with scale4. Inspector reports null/unverified_scale for other base sharpening/clarity scales; base normalization is not recovered here.",
     "unit_step_records": {"contrast": "0x1900", "highlights": "0x1a00", "shadows": "0x1b00", "white_level": "0x1c00", "black_level": "0x1d00", "saturation": "0x1e00"},
-    "unit_step_rule": "Observed ordinary value=encoded-128; first five values encode1 in custom-tone-curve samples.",
-    "color_blender": {"record": "0x1f00", "bytes": 28, "prefix": "Eight hue/chroma/brightness byte triples in red,orange,yellow,green,cyan,blue,purple,magenta order; subtract128", "suffix": "Four retained bytes; semantics not established"},
-    "color_grading": {"record": "0x2000", "bytes": 20, "prefix": "Highlights,mid-tone,shadows: four bytes each, hue=((byte0&15)<<8)|byte1,chroma=byte2-128,brightness=byte3-128", "blending_offset": 16, "balance_offset": 18, "suffix": "Scale/flag bytes retained and not interpreted beyond observed values"}
+    "unit_step_rule": "Ordinary values use truncate((encoded-128)/scale) toward zero. Encodings0,1,255 are sentinels; first five fields encode1 in custom-tone-curve samples.",
+    "color_blender": {"record": "0x1f00", "bytes": 28, "prefix": "Eight hue/chroma/brightness byte triples in red,orange,yellow,green,cyan,blue,purple,magenta order; byte normalization as above", "suffix": "Offsets24,25,26 are shared hue/chroma/brightness scales; offset27 remains opaque"},
+    "color_grading": {"record": "0x2000", "bytes": 20, "prefix": "Highlights,mid-tone,shadows: BE16 hue and chroma/brightness bytes. Hue=truncate((encoded-32768)/scale) except0xffff sentinel.", "blending_offset": 16, "balance_offset": 18, "suffix": "Offsets12,13,14 are shared hue/chroma/brightness scales;15 remains opaque;17 and19 are blending/balance scales."},
+    "inspector_sentinel_policy": "Null preserves encoded sentinel identity. Flexible normalized defaults are0 except blending50; base-field sentinel semantics remain unverified. Ordinary zero-scale Flexible values fail semantic interpretation while raw record roundtrip remains available."
   },
   "static_vendor_cross_check": {
     "PCEngine_sha256": "c6d0cdbb9f830090505ea530db24777cba886857e8021cd3ee0e4a74f4970347",
@@ -69,7 +70,15 @@
     "tests": "uv run pytest tests/test_np3.py -q:12passed",
     "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/np3-public-report.json",
     "report_sha256": "c45e74f127ef19714ea6adfef0b7a5a059d68e2633ea77da49cb1b703a5cc86b",
-    "limit": "Roundtrips prove byte preservation on these samples, not camera acceptance or Nikon-equivalent colors."
+    "limit": "Roundtrips prove byte preservation on these samples, not camera acceptance or Nikon-equivalent colors.",
+    "inspector_v2": {
+      "tests": "uv run pytest tests/test_np3.py tests/test_np3_parameters.py -q:36passed",
+      "public_samples": 13,
+      "exact_record_roundtrips": 13,
+      "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/np3-inspector-v2.json",
+      "report_sha256": "e3352e3ad62bca1c2b61eadd143663018e6dc8e8272f1e5b84f2633aa5735237",
+      "saved_vendor_replay": "75saved cases/3075normalized values match inspector semantics after explicit sentinel defaulting; no new vendor execution for this replay."
+    }
   },
   "header_oracle": {
     "evidence_kind": "live_unmodified_vendor_header_parser_public_samples",

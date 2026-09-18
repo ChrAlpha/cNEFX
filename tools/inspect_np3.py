@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import struct
 from dataclasses import dataclass
 from pathlib import Path
@@ -82,6 +83,14 @@ def _text(data: bytes, encoding: str) -> str:
     return content.decode(encoding, errors="strict")
 
 
+def _scaled(value: int, scale: int, *, word: bool = False) -> int | None:
+    if value in ((65535,) if word else (0, 1, 255)):
+        return None
+    if scale == 0:
+        raise ValueError("Ordinary Flexible Color value has a zero scale.")
+    return math.trunc((value - (32768 if word else 128)) / scale)
+
+
 def describe(records: tuple[Record, ...]) -> dict:
     identifiers = [record.identifier for record in records]
     if len(set(identifiers)) != len(identifiers):
@@ -100,10 +109,22 @@ def describe(records: tuple[Record, ...]) -> dict:
         value = fields.get(identifier, b"")
         if len(value) != 2:
             raise ValueError(f"Missing or malformed parameter {label}.")
+        sentinel = value[0] in (0, 1, 255)
+        supported = identifier >= 0x1900 or value[1] == divisor
+        decoded = None
+        if not sentinel and supported:
+            decoded = (
+                _scaled(*value) if identifier >= 0x1900 else (value[0] - 128) / divisor
+            )
         parameters[label] = {
             "encoded_value": value[0],
             "scale_byte": value[1],
-            "value": None if value[0] == 1 else (value[0] - 128) / divisor,
+            "value": decoded,
+            "state": "sentinel"
+            if sentinel
+            else "numeric"
+            if supported
+            else "unverified_scale",
         }
     result["parameters"] = parameters
     blender = fields.get(0x1F00, b"")
@@ -114,7 +135,10 @@ def describe(records: tuple[Record, ...]) -> dict:
         color: dict(
             zip(
                 ("hue", "chroma", "brightness"),
-                (v - 128 for v in blender[i * 3 : i * 3 + 3]),
+                (
+                    _scaled(v, blender[24 + channel])
+                    for channel, v in enumerate(blender[i * 3 : i * 3 + 3])
+                ),
                 strict=True,
             )
         )
@@ -123,14 +147,22 @@ def describe(records: tuple[Record, ...]) -> dict:
     result["color_blender_suffix_hex"] = blender[24:].hex()
     result["color_grading"] = {
         region: {
-            "hue": ((grading[i * 4] & 15) << 8) | grading[i * 4 + 1],
-            "chroma": grading[i * 4 + 2] - 128,
-            "brightness": grading[i * 4 + 3] - 128,
+            "hue": _scaled(
+                struct.unpack_from(">H", grading, i * 4)[0], grading[12], word=True
+            ),
+            "chroma": _scaled(grading[i * 4 + 2], grading[13]),
+            "brightness": _scaled(grading[i * 4 + 3], grading[14]),
         }
         for i, region in enumerate(("highlights", "mid_tone", "shadows"))
     }
     result["color_grading"].update(
-        blending=grading[16] - 128, balance=grading[18] - 128
+        blending=_scaled(grading[16], grading[17]),
+        balance=_scaled(grading[18], grading[19]),
+    )
+    result["sentinel_policy"] = (
+        "Null means an encoded sentinel, not an ordinary numeric value. "
+        "Nikon normalizes Flexible Color sentinels to zero, except blending to 50. "
+        "Base sharpening/clarity sentinel behavior is not established here."
     )
     result["color_grading_suffix_hex"] = grading[12:].hex()
     if 0x10100 in fields:
