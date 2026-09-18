@@ -17,10 +17,12 @@ def camera_ranges(
     saturation_bias: int,
     hue: int = 128,
     strength: int = 256,
+    blend_mix: int = 0,
+    camera_index: int = 0,
 ) -> list[tuple[int, bytes]]:
-    """Generate camera sections for the explicitly synthetic zero camera state.
+    """Generate camera sections with explicit internal calibration controls.
 
-    State+1528/+152a/+152c/+1533/+153e are zero. Hue supports the ordinary encoded
+    State+152c/+1533/+153e are zero. Hue supports the ordinary encoded
     range116..140, neutral sentinel255, and the historical invalid zero control.
     """
     if (
@@ -38,6 +40,10 @@ def camera_ranges(
         raise ValueError("Unsupported encoded hue control.")
     if type(strength) is not int or not 0 <= strength <= 256:
         raise ValueError("Strength must be an integer in [0, 256].")
+    if type(blend_mix) is not int or not 0 <= blend_mix <= 10:
+        raise ValueError("Blend mix must be an integer in [0, 10].")
+    if type(camera_index) is not int or not 0 <= camera_index <= 108:
+        raise ValueError("Camera index must be an integer in [0, 108].")
     result = [(0x48, coefficients[0x1BCDE:0x1BCE4])]
 
     def word(offset: int) -> int:
@@ -62,13 +68,17 @@ def camera_ranges(
         words(target, expanded, "h" if signed else "H")
 
     shifts = [coefficients[0x1C504 + i * 3 + selector] for i in range(12)]
-    words(0x61E6, (0, 2048))
+    words(0x61E6, (0, (10 - blend_mix) * 2048 // 10))
     result.append((0x61EA, bytes(shifts)))
     words(0x61F8, [1 << min(3, shift) for shift in shifts], "i")
     words(
         0x6528,
         tuple(
-            trunc(word(0x5F8DA + selector * 2 + i * 6) * word(0x5FB26), 256)
+            trunc(
+                word(0x5F8DA + selector * 2 + i * 6)
+                * word(0x5FB26 + camera_index * 12),
+                256,
+            )
             for i in range(32)
         ),
     )
@@ -122,13 +132,13 @@ def camera_ranges(
 
     amount = saturation_bias - 12
     side = 0x42 if amount > 0 else 0
-    camera_index = coefficients[0x60042]
+    saturation_index = coefficients[0x60042 + camera_index * 6]
     secondary = []
     for i in range(33):
         node = word(0x25990 + model_index * 0x84 + side + i * 2)
         base = word(0x26D28 + model_index * 0x42 + i * 2)
         value = base + round_divide32((node - 256) * abs(amount), 12)
-        scale = word(0x602D0 + camera_index * 2 + i * 24)
+        scale = word(0x602D0 + saturation_index * 2 + i * 24)
         secondary.append(round_divide32(scale * value, 256) & 65535)
     curve(0x6568, 0xABC6, tuple(secondary), 7)
 
@@ -141,7 +151,7 @@ def camera_ranges(
     words(
         0x23758, (max(0, min(1023, word(0x2A8CE), max(0, min(4095, correction)))),), "i"
     )
-    mix = word(0x2A3A8)
+    mix = word(0x2A3A8 + camera_index * 12)
     source = tuple(
         trunc(word(0x29DA2 + i * 6) * mix + word(0x277A0 + i * 38) * (256 - mix), 256)
         & 65535

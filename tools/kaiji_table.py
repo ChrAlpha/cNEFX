@@ -60,10 +60,16 @@ def parameter_ranges(
     return result
 
 
-def generate_table(coefficients: bytes, values: Sequence[int]) -> bytes:
+def generate_table(
+    coefficients: bytes,
+    values: Sequence[int],
+    *,
+    blend_mix: int = 0,
+    camera_index: int = 0,
+) -> bytes:
     """Build all 213872 bytes without a vendor-generated baseline.
 
-    Camera state+1528/+152a/+152c/+1533/+153e stays zero; hue is128, family12,
+    Camera state+152c/+1533/+153e stays zero; hue is128, family12,
     model14, strength256, selector0, brightness6, and no custom tone curve.
     The leading output-space matrix remains zero, suitable for scalar RGB only.
     """
@@ -75,6 +81,8 @@ def generate_table(coefficients: bytes, values: Sequence[int]) -> bytes:
             model_index=14,
             selector=0,
             saturation_bias=round_divide32(values[5] * 6, 25) + 12,
+            blend_mix=blend_mix,
+            camera_index=camera_index,
         )
     )
     output, mask = bytearray(0x34370), bytearray(0x34370)

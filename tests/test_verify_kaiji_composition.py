@@ -11,6 +11,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import verify_kaiji_composition as verifier  # noqa: E402
 
 
+def test_camera_sweep_covers_all_indices_and_mix_values():
+    cases = verifier.configurations(True)
+    assert len(cases) == 135
+    assert {index for _, _, index in cases[:109]} == set(range(109))
+    assert {mix for _, mix, _ in cases} == set(range(11))
+    assert len({tuple(values) for values, _, _ in cases[119:]}) == 16
+
+
 def test_later_truncated_table_is_rejected():
     assert all(verifier.range_mask([(0, bytes(0x34370))], complete=True))
     with pytest.raises(ValueError, match="complete native table"):

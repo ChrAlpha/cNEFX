@@ -35,6 +35,17 @@ def controls() -> list[list[int]]:
     return result
 
 
+def configurations(camera_sweep: bool) -> list[tuple[list[int], int, int]]:
+    values = controls()
+    if not camera_sweep:
+        return [(row, 0, 0) for row in values]
+    return (
+        [(values[0], 0, index) for index in range(109)]
+        + [(values[0], mix, 54) for mix in range(1, 11)]
+        + [(row, (i * 7) % 11, (i * 29) % 109) for i, row in enumerate(values[1:], 1)]
+    )
+
+
 def range_mask(ranges: list[tuple[int, bytes]], *, complete: bool) -> bytearray:
     mask = bytearray(0x34370)
     if complete and (
@@ -61,7 +72,10 @@ def main() -> int:
     for name in ("dll", "probe", "coefficients", "wine-prefix", "output"):
         parser.add_argument(f"--{name}", type=Path, required=True)
     parser.add_argument("--native-complete", action="store_true")
+    parser.add_argument("--camera-sweep", action="store_true")
     args = parser.parse_args()
+    if args.camera_sweep and not args.native_complete:
+        parser.error("Camera sweep requires complete native table comparison.")
     root = Path(__file__).resolve().parents[1]
     if args.output.exists() or args.output.resolve().is_relative_to(root):
         parser.error("Output must be a new directory outside the repository.")
@@ -105,10 +119,12 @@ def main() -> int:
         "cases": [],
         "passed": False,
         "seed": 20260919,
+        "camera_sweep": args.camera_sweep,
         "limits": (
             [
                 "Model14/family12, strength256/selector0/brightness6/hue128.",
-                "Camera state+1528/+152a/+152c/+1533/+153e is synthetic zero.",
+                "Camera mix/index are explicit probe inputs, not application-derived.",
+                "State+152c/+1533/+153e stays zero.",
                 "External coefficients; no application import or custom curve.",
                 "Leading output-space matrix is zero, suitable for scalar RGB only.",
             ]
@@ -124,9 +140,21 @@ def main() -> int:
     args.output.mkdir(parents=True)
     baseline = None
     try:
-        for index, values in enumerate(controls()):
+        for index, (values, blend_mix, camera_index) in enumerate(
+            configurations(args.camera_sweep)
+        ):
             ranges = (
-                [(0, generate_table(coefficients, values))]
+                [
+                    (
+                        0,
+                        generate_table(
+                            coefficients,
+                            values,
+                            blend_mix=blend_mix,
+                            camera_index=camera_index,
+                        ),
+                    )
+                ]
                 if args.native_complete
                 else expected_ranges(coefficients, values)
             )
@@ -151,6 +179,8 @@ def main() -> int:
             ]
             if args.native_complete:
                 config.extend((round_divide32(values[5] * 6, 25) + 12, 16, 128))
+            if args.camera_sweep:
+                config.extend((blend_mix, camera_index))
             result = subprocess.run(
                 [
                     "/usr/lib/wine/wine64",
@@ -179,6 +209,8 @@ def main() -> int:
             case = {
                 "index": index,
                 "normalized_values": values,
+                "blend_mix": blend_mix,
+                "camera_index": camera_index,
                 "state_sha256": hashlib.sha256(state).hexdigest(),
                 "returncode": result.returncode,
                 "events": events,
@@ -201,6 +233,8 @@ def main() -> int:
             }
             if args.native_complete:
                 expected_event.update(raw1522=config[10], raw1526=16, raw1538=128)
+            if args.camera_sweep:
+                expected_event.update(raw1528=blend_mix, raw152a=camera_index)
             if (
                 result.returncode
                 or len(events) != 1
@@ -240,7 +274,7 @@ def main() -> int:
             digest(Path(p)) == h for p, h in hashes.items()
         )
         report["passed"] = (
-            len(report["cases"]) == 17
+            len(report["cases"]) == (135 if args.camera_sweep else 17)
             and report["sources_unchanged"]
             and all(c["passed"] for c in report["cases"])
         )

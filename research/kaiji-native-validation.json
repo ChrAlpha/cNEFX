@@ -110,6 +110,27 @@
     "regression": "Moved shared parameter-range generator retained exact output across17historical combined states.",
     "limit": "Entire synthetic tables are reconstructed from external pinned coefficients. Full real application-state import, native image rendering and complete NP3 behavior remain unverified."
   },
+  "camera_state_sweep": {
+    "runner": "tools/verify_kaiji_composition.py --native-complete --camera-sweep",
+    "report": "kaiji-camera-sweep-v1/report.json",
+    "sha256": "eeb2a275d5c1e40df1015fc8549722ae747c0e56090cd0c476bea87bbb29eacc",
+    "cases": 135,
+    "compared_bytes": 28872720,
+    "different_bytes": 0,
+    "all_vendor_native_sha256_pairs_equal": true,
+    "coverage": "All109 values of state+152a; all11 values of state+1528;16seeded mixed normalized states with nonzero camera controls.",
+    "recovered": [
+      "State+152a indexes coefficient+5fb26 with stride12 for output+6528 sector weights.",
+      "State+152a indexes coefficient+60042 with stride6, choosing the multiplier column for secondary saturation source+6568 and LUT+abc6.",
+      "State+152a indexes coefficient+2a3a8 with stride12, blending the luminance source+21554 and expanded+21758 tables.",
+      "State+1528 changes output+61e8 to trunc((10-mix)*2048/10). Family12 copies equal Blender banks, so their weighted combination is invariant in this scope."
+    ],
+    "review_fixes": [
+      "Every complete native output must have exactly213872bytes; later-case truncation is rejected before comparison.",
+      "Coefficient provenance hashes the consumed snapshot; pathname changes fail the final stability check."
+    ],
+    "limit": "Camera controls are explicit probe inputs. Their derivation from actual metadata/application state, negative state+1533 behavior and source-image rendering remain unresolved."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",
