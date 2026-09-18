@@ -186,7 +186,18 @@ def main() -> int:
             reference_branch_counts=dict(sorted(trace.items())),
             passed=differences == 0 and changed > 0,
         )
-    except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+    except subprocess.TimeoutExpired as error:
+        diagnostics = error.stderr or b""
+        report.update(
+            error=str(error),
+            error_kind="timeout",
+            stderr=(
+                diagnostics.decode("utf-8", errors="replace")
+                if isinstance(diagnostics, bytes)
+                else diagnostics
+            ),
+        )
+    except (OSError, ValueError) as error:
         report["error"] = str(error)
     finally:
         for name, path in (("input", input_path), ("output", output_path)):
