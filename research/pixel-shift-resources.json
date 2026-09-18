@@ -79,7 +79,7 @@
     "exiftool -config '' -j -G1 -XMP-crd:all /path/to/eight-frame-output.nefx"
   ],
   "remaining": [
-    "Normalize all metadata-to-resource lookup equations and Adobe-default value derivation.",
+    "Sweep non-AUTO metadata paths against vendor outputs; normalized equations and the AUTO prediction are recorded in pixel-shift-adobe-defaults.json.",
     "Verify the no-XMP branch, unsupported model IDs, malformed resources, and authentic capture metadata.",
     "Check downstream Lightroom Classic behavior independently."
   ]

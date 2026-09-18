@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-18",
+  "evidence_kind": "static_equation_recovery_and_portable_source_metadata_evaluation",
+  "tool": "tools/adobe_defaults.py",
+  "artifact_pins": {
+    "PixelShiftCombine.dll_sha256": "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c",
+    "prm.bin_sha256": "8d6f1bf219561f3c7c11c61b9b9e3317a369c9b5be5089ddffd82db96ca7f707",
+    "resource_type": "0x1002",
+    "resource_id": 1071,
+    "decoded_resource_sha256": "d44561f16bf877a264ecfbb947f5b6635d6b0e9151fa70ca601d9b131804822f"
+  },
+  "notation": {
+    "R": "Decoded Z8 resource bytes. u16 reads little-endian.",
+    "u8": "Modulo 256 interpreted unsigned.",
+    "s8": "Modulo 256 interpreted signed.",
+    "s16": "Modulo 65536 interpreted signed.",
+    "rz": "Truncate toward zero, including negative values.",
+    "I6": "For unsigned coordinate t, q=t//6 and r=t%6. T[q] if r=0; otherwise ((6-r)*T[q]+r*T[q+1]+3)//6. Table domain is 0..108."
+  },
+  "update_branch": {
+    "rva": "0x353b80",
+    "counts_4_and_16": "Return success without updating Adobe defaults.",
+    "counts_8_and_32": "Update only when TIFF IFD0 tag 700 exists. A present empty tag fails; an absent tag bypasses the update.",
+    "namespace": "http://ns.adobe.com/camera-raw-defaults/1.0/",
+    "limitation": "The tool predicts values and parses existing XMP; it does not write image files or invoke vendor code."
+  },
+  "metadata_inputs": {
+    "A": {
+      "reader_rva": "0x341fd0",
+      "source": "Decrypted MakerNote 0x0097, exact version 0803, length >=162.",
+      "decrypt": "Standard Nikon serial/shutter-count cipher uses MakerNote 0x001d and 0x00a7; decoded bytes start at offset 4. Cipher tables are read from DLL RVAs 0x5eaa60 and 0x5eab60.",
+      "A0_to_A6_byte_offsets": [140,60,62,61,64,68,67],
+      "iso_code_offset": 138,
+      "iso_code_type": "uint16 little-endian",
+      "limitation": "These offsets are exact; the semantic names of all seven bytes remain unresolved."
+    },
+    "B": {
+      "reader_rva": "0x3422d0",
+      "source": "MakerNote 0x0023 Picture Control versions 0310 or 0311, length >=108.",
+      "profile_id": "uint16 little-endian at offset 48",
+      "B16_to_B29_byte_offsets": [53,54,55,56,57,58,61,62,63,64,65,66,67,68],
+      "identified_fields": {"B17":"PictureControlAdjust","B18":"PictureControlQuickAdjust","B20":"Sharpness","B22":"Clarity","B24":"Contrast","B26":"Brightness","B28":"Saturation"},
+      "auto_fallback": "Profile index 2 with bytes 61,63,67 all 255 substitutes B20/B21/B22/B23/B24/B25/B28/B29 from offsets 90/91/94/95/96/97/98/99.",
+      "flexible_fallback": "Profile index 14 with bytes 63,67 both 255 obtains B30/B31/B32/B33 from MakerNote 0x005c offsets 12/13/22/23; version must be 0100 or 0101 and length >=88. Otherwise these fields initialize to zero.",
+      "indices": "C=family, I=profile index, G=resource group. AUTO0x2cf maps (2,2,2), Flexible0x20 maps (12,14,14), Creative0x801..0x814 map profile15..34 and group15; other explicit IDs are mapped in the CLI."
+    },
+    "white_balance": "First two unsigned rational values in MakerNote 0x000c, ExifTool WB_RBLevels.",
+    "noise_setting": "MakerNote 0x00b1 HighISONoiseReduction; helper accepts only 0,2,4,6.",
+    "sharpening_flag": "1 when MakerNote 0x0062 starts with ASCII 0100 and byte 4 equals 2; otherwise 0. Human-readable semantics remain unconfirmed."
+  },
+  "contrast": {
+    "helper_rva": "0x34ee40",
+    "ordered_cases": [
+      "If (B30 if C==12 else B24)==1: s=0.",
+      "Else if C==2: s=s16(R.u16[0x1e0+2*u8(R[0x8ac]*u8(B24+128)+A4)]).",
+      "Else if B24==0: t=s16(rz((64*A1-768+(-1 if A1<12 else1))/3)); s=clamp(t,s16(R.u16[0x3e0+2*I]),s16(R.u16[0x42c+2*I])).",
+      "Else if C==12: s=0 if B30==255 else s16(rz((64*(B30-128)+(-12 if B30<128 else12))/25)).",
+      "Else: s=0 if B24==255 else s16(rz((64*(B24-128)+(-1 if B24<128 else1))/3))."
+    ],
+    "consumer": "row=rz(s*3/64+12.5); brightness_index=6 if B26 in{1,255} else u8(B26-122); selector=R[0xa9f+13*A0+brightness_index]; contrast_term=R[0xba3+8*row+selector].",
+    "consumer_rvas": ["0x353ec9","0x353ed7","0x353ef0","0x353f00","0x353f0e"]
+  },
+  "clarity": {
+    "rvas": ["0x353f17","0x353f96","0x35401a"],
+    "base": "K=0x4c4+51*G",
+    "raw": "If G==2,z=u8(R[0x8b1]*u8(B22+128)+R[K+34+A6]); else if B16==0,z=min(R[0x81c+A0],R[K+34+A2]); else z=u8(B22-108).",
+    "creative_blend": "If G==15,a=256 if B18==255 else u16(rz((256*(B18-128)+(-50 if B18<128 else50))/100)); z=u8(rz((R[0x8b4]*(256-a)+z*a)/256)).",
+    "result": "clarity_index=min(40,z); clarity_term=R[0xc6b+clarity_index]."
+  },
+  "saturation": {
+    "rvas": ["0x35402a","0x354113"],
+    "ordered_cases": [
+      "If C==2,z=clamp(s8(R[0x8ae]*u8(B28+128)+A5),0,24).",
+      "Else if C==12,z=clamp(s8(rz((6*(B32-128)+(-12 if B32<128 else12))/25)+12),0,24).",
+      "Else if B28==0,z=min(max(A3,R[0x478+I]),R[0x49e+I]).",
+      "Else if B28==255,z=12; otherwise z=u8(B28-116)."
+    ],
+    "result": "saturation_term=R[0xc94+z]."
+  },
+  "noise_coordinate": {
+    "rvas": ["0x353d90","0x353de6","0x35412b","0x354154","0x35418f","0x35419b"],
+    "white_balance": "w=max(u16(rz(512*red_ratio)),u16(rz(512*blue_ratio))); j is the first index0..4 whose R.u16[0xa82+2*j] is strictly greater than w, or5; wb_term=R[0xa8c+j].",
+    "iso": "v=R[0x830+min(108,u8((iso_code-72)>>2))]. Arithmetic shift precedes uint8 narrowing and the upper-only clamp.",
+    "limit": "y=R[0x830+min(108,u8((R.u16[0x8a0]-72)>>2))].",
+    "sum": "x=u8(v+wb_term+contrast_term+clarity_term+saturation_term+mode_correction(v)).",
+    "mode_correction_rva": "0x34ef80",
+    "mode_correction": "Read the frame-count-specific signed 19-knot row from the pinned DLL. q=v//6,r=v%6. If r==0, return knot[q]. Otherwise N=(6-r)*knot[q]+r*knot[q+1]; return rz(N/6) if N+3<0, else rz((N+6)/6).",
+    "rounding_note": "This is not symmetric rounding: two zero adjacent knots yield +1 at a non-knot coordinate. The 8/32 rows are identical in this DLL."
+  },
+  "noise_outputs": {
+    "helper_rva": "0x34f0a0",
+    "base": "HighISO NR 0/2/4/6 selects base 0/30/45/60; other settings return failure.",
+    "luminance": "T[k]=min(100,base+3*max(k-2,0)), k=0..18; LuminanceSmoothing=I6(T,min(x,y)).",
+    "constants": {"LuminanceNoiseReductionDetail":75,"LuminanceNoiseReductionContrast":0,"ColorNoiseReduction":"7 for NR0;25 for NR2/4/6","ColorNoiseReductionDetail":50,"ColorNoiseReductionSmoothness":50},
+    "table_verification": "Capstone extracts immediate stack stores at RVAs 0x34f0c5..0x34f4d5. RBP=RSP+0x100. Four table starts are RSP+0x13/+0xa3/+0x133/+0x1c3, each 114 bytes. All 456 bytes match the equations."
+  },
+  "sharpening": {
+    "parameter_rvas": ["0x35425d","0x35433e"],
+    "raw": "K=0x4c4+51*G. If G==2,z=u8(R[0x8af]*u8(B20+128)+R[K+A6]); else if B16==0,z=min(R[0x7f4+A0],R[K+A2]); else z=u8(B20-116).",
+    "creative_blend": "If G==15,a=256 if B18==255 else u16(rz(256*(B18-128)/100)); z=u8(rz((R[0x8b2]*(256-a)+z*a)/256)). This alpha truncates while the clarity alpha rounds.",
+    "input_index": "n=min(48,z)",
+    "helper_rva": "0x34fb40",
+    "helper": "base=s8(R[0x6428a+n]); t=min(x,y). If n<12,s=base. Otherwise offset=(0x64205 if flag==1 else0x64147) when y<x, else(0x641cc if flag==1 else0x6410e); s=s8(rz(base*I6(R[offset:],t)/128)).",
+    "final_lut_rva": "0x5edf60",
+    "final_lut_index": "s+128",
+    "equations": {"Sharpness":"0 if s<=0; s if1<=s<=8; min(150,2*s-8) if s>=9","SharpenRadius":2.0,"SharpenDetail":"max(13,min(25,25-max(0,(s-29)//4)))","SharpenEdgeMasking":0},
+    "table_verification": "All 1024 bytes of the 256x4 LUT match. SHA256 bf90435cd150181b4cb91e38458f8d98ef0ac9c5716542917848c1407ea34591."
+  },
+  "property_setter_rvas": {
+    "LuminanceSmoothing":"0x3546b6",
+    "LuminanceNoiseReductionDetail":"0x3546f9",
+    "LuminanceNoiseReductionContrast":"0x35473c",
+    "ColorNoiseReduction":"0x35477f",
+    "ColorNoiseReductionDetail":"0x3547c2",
+    "ColorNoiseReductionSmoothness":"0x354805",
+    "Sharpness":"0x354848",
+    "SharpenRadius":"0x354884",
+    "SharpenDetail":"0x3548c7",
+    "SharpenEdgeMasking":"0x35490a"
+  },
+  "portable_verification": {
+    "command": "uv run tools/adobe_defaults.py --dll /path/to/PixelShiftCombine.dll --prm /path/to/prm.bin --source /path/to/SGL_1606.NEF --count 8",
+    "source_sha256": "0f44ec054c311c4a6c4c162ba6b956495d690dca7a237400c3ae54773393bdbb",
+    "input_kind": "Ordinary Z8 NEF metadata reused for synthetic pixel-shift research; not an authentic capture sequence.",
+    "table_checks": {"sharpening_table_bytes_verified":1024,"noise_table_bytes_verified":456},
+    "intermediates": {"family":2,"profile":2,"resource_group":2,"iso_code":231,"iso_term":39,"contrast_fixed_point":-26,"clarity_index":26,"saturation_index":12,"mode_correction":-18,"noise_coordinate":21,"noise_limit":60,"sharpness_input":26,"sharpness_signed_index":28},
+    "predicted_defaults": {"LuminanceSmoothing":5,"LuminanceNoiseReductionDetail":75,"LuminanceNoiseReductionContrast":0,"ColorNoiseReduction":7,"ColorNoiseReductionDetail":50,"ColorNoiseReductionSmoothness":50,"Sharpness":48,"SharpenRadius":2.0,"SharpenDetail":25,"SharpenEdgeMasking":0},
+    "prior_live_comparison": "LuminanceSmoothing 5 and Sharpness 48 match the eight-frame synthetic vendor output documented in pixel-shift-resources.json. This verification did not execute vendor code.",
+    "saved_output_comparison": "Root independently parsed XMP attributes and child elements from eight saved outputs: 8/32 inputs, ISO3200/3201, radial off/on. All ten predicted defaults matched in each file:80 values,zero differences. These outputs inherit the same source AUTO metadata; this is not a profile sweep.",
+    "additional_checks": ["Counts 8 and 32 reproduced the same ten defaults; counts 4 and 16 bypassed the update.", "Twelve disposable source-metadata variants covered unsupported ColorBalance/PictureControl versions, short blocks, zero WB denominator, unsupported NR setting, absent/empty XMP, empty/truncated tag 0x62, WB int32 overflow, and empty TIFF page chain. All produced the expected CLI status.", "A mismatched DLL was rejected with exit code 1 and a JSON error.", "Scoped Ruff lint and formatting checks passed."],
+    "focused_cli_checks_passed": 16,
+    "independent_review": "A second reader independently reran the CLI, confirmed all ten known-source predictions and 1480 table bytes, and identified three malformed-input gaps. The implementation now rejects present empty/truncated tag 0x62 and WB int32 overflow, and returns JSON errors for empty TIFF page chains. All four added regression cases passed.",
+    "check_boundary": "The 16 focused CLI cases exercise this predictor and compare two existing reported vendor defaults. They are not new Nikon runtime or Lightroom tests."
+  },
+  "limitations": [
+    "Only little-endian Nikon Z8 sources and the pinned DLL/prm/resource versions are accepted.",
+    "AUTO metadata is reproduced end to end; other supported Picture Control branches are statically recovered and lack a vendor output sweep.",
+    "Unknown Picture Control identifiers, unsupported versions, malformed blocks, and out-of-domain interpolation are rejected rather than reproducing undefined vendor memory reads.",
+    "The CLI deliberately prints only derived values, hashes, and verification counts; proprietary resource payloads and DLL tables remain external.",
+    "Authentic pixel-shift metadata and Lightroom Classic interpretation remain unverified."
+  ]
+}
