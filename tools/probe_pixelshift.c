@@ -23,12 +23,14 @@ typedef bool (*Combine)(uint32_t, const char **, uint32_t, const char **,
                         MsvcString *, bool, Progress, Decision);
 
 static uint32_t cancel_at = UINT32_MAX;
+static bool cancel_latched = false;
 
 static bool progress(uint32_t total, uint32_t index, uint32_t percent) {
     printf("{\"event\":\"progress\",\"total\":%u,\"index\":%u,\"percent\":%u}\n",
            total, index, percent);
     fflush(stdout);
-    return percent >= cancel_at;
+    cancel_latched = cancel_latched || percent >= cancel_at;
+    return cancel_latched;
 }
 
 static bool decision(uint32_t code) {

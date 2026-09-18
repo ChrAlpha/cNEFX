@@ -107,7 +107,16 @@
     "channel_note": "LibRaw stores this RGB data in its four-channel backing array; the TIFF has three samples per pixel.",
     "native_design_implication": "A false vendor return does not imply no output. A native transactional writer needs an explicit commit point and cancellation cleanup policy.",
     "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/cancel-edge-probes/report.json",
-    "limit": "This checks one output and callback cancellation, not process termination, partial disk writes, or multi-output rollback."
+    "limit": "These cases check callback cancellation, not process termination or partial disk writes."
+  },
+  "multioutput_cancellation_probe": {
+    "observed_on": "2026-09-18",
+    "input_kind": "Eight distinct synthetic packed-14 files; two requested outputs.",
+    "mode": "cancel-100",
+    "harness_policy": "Latch cancellation after the first callback reaches the threshold; all later callbacks return true even when percentage resets for another output.",
+    "observed": "The first output reaches100 and remains readable. Processing calls progress(total2,index2,percent5), then returns false; the second output does not exist. Previously completed outputs are not rolled back.",
+    "first_output_sha256": "f8e48692c0d3330228f7b7d7ae4b7b52f8d04a885980c1a25418d3c5b27145e1",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/cancel-multi-probe/report.json"
   },
   "not_proven": [
     "A Linux-native implementation or a redistributable vendor backend",
