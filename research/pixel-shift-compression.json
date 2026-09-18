@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-18",
+  "scope": "Input RAW decoding required before pixel-shift reconstruction. Successful lossless and packed-14 checks do not establish high-efficiency support.",
+  "official_workflow": {
+    "recommended_settings": "https://onlinemanual.nikonimglib.com/technicalguide/z8/pixelshift/en/recommended_settings_19.html",
+    "finding": "The official pixel-shift guide recommends a high-efficiency RAW recording setting in its example shooting bank; high-efficiency inputs cannot be excluded by assuming pixel shift is lossless-only.",
+    "other_variants": "https://onlinemanual.nikonimglib.com/technicalguide/z8/pixelshift/en/getting_ready_pixelshift_7.html",
+    "variant_finding": "The guide permits HLG tone mode and image areas other than FX. These variants remain unverified by the present synthetic fixtures."
+  },
+  "vendor_dispatch": {
+    "rva": "0x352540",
+    "compression_source": "Nikon compression value parsed into frame+0x1ac; current Z8 sources expose it in MakerNote0x0051 bytes10..11.",
+    "mapping": {"3":"DecompressLossLess","10":"Decompress14bitPacked","13":"DecompressTICORaw","14":"DecompressTICORaw","15":"DecompressTICORaw"},
+    "tico_wrapper_rva": "0x3414c0",
+    "tico_vtable_rva": "0x5eaff8",
+    "tico_wrapper_abi": "Microsoft x64 bool(this_unused,input_byte_vector,width,height,output_uint16_vector). The wrapper configures its bundled decoder and copies a width*height uint16 output buffer after decoding.",
+    "probe": "tools/probe_ticoraw.c",
+    "probe_boundary": "The standalone research harness invokes the unmodified wrapper. It neither substitutes credentials nor changes the decoder's authorization checks."
+  },
+  "public_samples": {
+    "catalog": "https://raw.pixls.us/json/getrepository.php",
+    "license": "CC0 as listed by the public catalog",
+    "sample_kind": "Ordinary single-frame Z8 photographs, not pixel-shift captures. Catalog bit-depth labels are inconsistent; ExifTool reports14 bits in both files.",
+    "camera_firmware": "01.00.j0",
+    "dimensions": [8280,5520],
+    "iso": 64,
+    "files": [
+      {"catalog_id":6616,"compression":"High Efficiency","source_url":"https://raw.pixls.us/getfile.php/6616/nice/Nikon%20-%20Z%208%20-%208bit%208bit%20compressed%20(3:2).NEF","sha256":"82df041542b8d328738443bb5ff3373b396e406ecc8cbe7dc3b35252790c53e7","compressed_strip_bytes":17139200,"path_outside_repo":"/workspaces/LumaForge/nxc-data/scratch/public-z8/he-low.NEF"},
+      {"catalog_id":6618,"compression":"High Efficiency*","source_url":"https://raw.pixls.us/getfile.php/6618/nice/Nikon%20-%20Z%208%20-%208bit%208bit%20compressed%20(3:2).NEF","sha256":"ea8b093cd11c946c5eeb501b775859e8e617ce1d79577abc41b233c339e4004c","compressed_strip_bytes":28565504,"path_outside_repo":"/workspaces/LumaForge/nxc-data/scratch/public-z8/he-high.NEF"}
+    ],
+    "metadata_limit": "Firmware1.00 samples predate pixel-shift support and lack MakerNote0x005e. They can test codec access, not capture sequence semantics."
+  },
+  "native_decoder_observation": {
+    "evidence_kind": "live_public_sample_decode_attempt",
+    "rawpy": "0.27.1",
+    "libraw": [0,22,1],
+    "both_results": "LibRawFileUnsupportedError: Unsupported file format or not RAW file",
+    "limit": "This is the installed rawpy wheel's LibRaw build, not a statement about every licensed or customized LibRaw build.",
+    "alternative_source_check": {
+      "url": "https://github.com/dnglab/dnglab/blob/18eb0ce85a38c876d59f6437b66795666839239b/rawler/src/decoders/nef.rs",
+      "finding": "The examined Rawler NEF decoder explicitly returns DecoderFailed for HighEfficency and HighEfficencyStar. This is source inspection, not a built Rawler runtime test."
+    }
+  },
+  "vendor_decoder_observation": {
+    "evidence_kind": "live_internal_vendor_decode_attempt",
+    "dll_sha256": "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c",
+    "probe_sha256": "c2ef73db1b0f0efa80203431c45ef8bfd8537e021094a1d6b8bd39727e7e07a2",
+    "environment": "Linux x86-64, Wine10 isolated research prefix",
+    "both_results": "Wrapper returns false; stderr reports Your license key is not valid. No decoded samples were emitted.",
+    "cause_limit": "The runtime's license rejection is observed; its cause and behavior on native supported NX Studio hosts are not established.",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/public-z8/decoder-report.json",
+    "report_sha256": "5694165a52900e4b69bb43b744141d4603c1a051c9c33e89033e9fb459ee1cc3"
+  },
+  "remaining": [
+    "A Linux-native HE/HE* decoder path and pixel normalization evidence are still required for those inputs.",
+    "Use a supported authorized reference runtime to produce HE/HE* decoded reference samples; the Wine wrapper failed before decoding.",
+    "Authentic pixel-shift captures, newer firmware, HLG and non-FX image areas remain unverified.",
+    "Do not present the existing lossless/packed-14 matrices as general HE/HE* support."
+  ]
+}
