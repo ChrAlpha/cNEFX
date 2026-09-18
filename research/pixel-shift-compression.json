@@ -37,6 +37,8 @@
     "libraw": [0,22,1],
     "both_results": "LibRawFileUnsupportedError: Unsupported file format or not RAW file",
     "limit": "This is the installed rawpy wheel's LibRaw build, not a statement about every licensed or customized LibRaw build.",
+    "official_libraw_support": "https://www.libraw.org/supported-cameras",
+    "official_libraw_observation": "The currently retrieved public support list explicitly marks Z8 HE/HE* formats as not supported yet, consistent with these local failures.",
     "alternative_source_check": {
       "url": "https://github.com/dnglab/dnglab/blob/18eb0ce85a38c876d59f6437b66795666839239b/rawler/src/decoders/nef.rs",
       "finding": "The examined Rawler NEF decoder explicitly returns DecoderFailed for HighEfficency and HighEfficencyStar. This is source inspection, not a built Rawler runtime test."
