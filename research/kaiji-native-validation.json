@@ -354,6 +354,26 @@
     "verification": "550pytest tests passed in4.77s, scoped Ruff/format and diff checks passed.127input hashes remain stable. Independent assembly/metadata reviewer recovered mode/value/matrix origins and confirmed the original matrix copies; live42case execution and numerical leaf testing were performed by the builder.",
     "limit": "Source AUTO1/AUTO0, inactive0103 adjustment, unity fine WB, ColorBalance0803 decrypted externally. Row0/auxiliary22 and other application defaults remain bounded. No full engine preparation, input-image transfer/WB/matrix order or rendered-image acceptance."
   },
+  "native_prepared_image_grid": {
+    "probe": "tools/probe_image_sdk.c with tools/image_kaiji.h",
+    "implementation": "tools/kaiji_scalar.py evaluate_rgb, tools/kaiji_output.py and tools/image_kaiji.py",
+    "runner": "tools/verify_image_sdk.py --kaiji --blend-calibration PATH --prepare-grid",
+    "report": "sdk-kaiji-prepared-native-v1/report.json",
+    "sha256": "84743d9e76949556446de28a71d37127fd6f3e203494809e3cd0c6886f5a5eff",
+    "cases": 6,
+    "coverage": "Two ordinary source NEFs with vanilla,mixed custom-curve and mixed no-curve controls. All source blend inputs and complete initial tables are reconstructed natively before grid comparison.",
+    "grid_nodes_per_axis": 33,
+    "compared_initial_table_bytes": 1283232,
+    "different_table_bytes": 0,
+    "compared_lab_words": 646866,
+    "different_lab_words": 0,
+    "maximum_absolute_error": 0,
+    "preparation": "Actual CameraModels engine at wrapper+8 invokes Rome0x2ae7b0(engine,NULL). It loads NKDBase_NEF.icm, keeps grid33, prepares output selector0/flags0, replaces leading72table bytes with nine RGB-to-XYZ doubles, and writes three uint16 planes at engine+de8/df8/e08. Remaining table bytes are unchanged.",
+    "native_path": "Complete native source table -> unquantized clipped scalar RGB -> selector0 nonlinear-RGB-to-ICC-Lab tail. RGB must not be quantized before the Lab conversion. All18native plane SHA256 values equal vendor planes.",
+    "rgb_compatibility": "kaiji-rgb-compat-v1.json SHA2562119527b6ecb4b1a5b2296c8413c1da178ad4a947d62ef506a2ec1ce9853cc5c independently replays four previously captured RGB mode/matrix combinations;431244word comparisons remain identical after exposing unquantized RGB. This is a builder-run replay, not a fresh vendor execution.",
+    "verification": "Full pytest554passed in4.55s;133focused tests, scoped Ruff/format, strict C11 compilation, ASCII and diff checks pass.103input hashes stable. Live SDK lifecycle, buffer guards and post-destruction guards pass for all6cases.",
+    "limit": "Selector0 Lab lattice only. Engine failure cleanup is not exercised. ICC serialization, CML interpolation/consumer behavior, decoded-pixel transfer/WB/matrix order, full image rendering and Lightroom acceptance remain unverified."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",

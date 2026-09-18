@@ -1,6 +1,8 @@
 """Integer boundaries in the native Kaiji scalar lattice evaluator."""
 
 import importlib.util
+import struct
+import sys
 from pathlib import Path
 
 import pytest
@@ -10,6 +12,9 @@ SPEC = importlib.util.spec_from_file_location("nxc_kaiji_scalar", PATH)
 assert SPEC and SPEC.loader
 scalar = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(scalar)
+sys.path.insert(0, str(PATH.parent))
+from image_kaiji import verify_prepared_grid  # noqa: E402
+from kaiji_output import MATRIX  # noqa: E402
 
 
 def test_second_sector_keeps_signed_domain_endpoint() -> None:
@@ -56,3 +61,23 @@ def test_reject_wrong_table_shape(data) -> None:
 def test_reject_invalid_lattice_inputs(point, grid) -> None:
     with pytest.raises(ValueError):
         scalar.ScalarTable(bytes(0x34370)).evaluate(point, grid)
+    with pytest.raises(ValueError):
+        scalar.ScalarTable(bytes(0x34370)).evaluate_rgb(point, grid)
+
+
+def test_prepared_grid_rejects_wrong_matrix_and_table_tail():
+    table = bytes(0x34370)
+    with pytest.raises(ValueError, match="matrix"):
+        verify_prepared_grid(table, table, [])
+    prepared = bytearray(struct.pack("<9d", *MATRIX.flat) + table[72:])
+    prepared[72] = 1
+    with pytest.raises(ValueError, match="tail"):
+        verify_prepared_grid(table, bytes(prepared), [])
+
+
+@pytest.mark.parametrize("planes", [[], [b""] * 3, [bytes(33**3 * 2)] * 2])
+def test_prepared_grid_rejects_incomplete_planes(planes):
+    table = bytes(0x34370)
+    prepared = struct.pack("<9d", *MATRIX.flat) + table[72:]
+    with pytest.raises(ValueError, match="planes"):
+        verify_prepared_grid(table, prepared, planes)

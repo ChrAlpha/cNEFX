@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import struct
 
+import numpy as np
 from flexible_math import round_divide32
 from kaiji_index import camera_index
 from kaiji_mix import blend_mix
+from kaiji_output import MATRIX, rgb_to_icc_lab
+from kaiji_scalar import ScalarTable
 from kaiji_table import generate_table
 
 
@@ -148,4 +152,40 @@ def verify_image_table(
         "different_bytes": differences,
         "native_sha256": hashlib.sha256(native).hexdigest(),
         "curve_samples_compared": 257 if curve is not None else 0,
+    }
+
+
+def verify_prepared_grid(table: bytes, prepared: bytes, planes: list[bytes]) -> dict:
+    """Compare selector-0 Lab preparation after the source table is verified."""
+    if len(table) != 0x34370 or len(prepared) != len(table):
+        raise ValueError("Expected complete initial and prepared Kaiji tables.")
+    if prepared[:72] != struct.pack("<9d", *MATRIX.flat) or prepared[72:] != table[72:]:
+        raise ValueError("Prepared output matrix or table tail mismatch.")
+    if len(planes) != 3 or any(len(plane) != 33**3 * 2 for plane in planes):
+        raise ValueError("Expected three complete 33-node output planes.")
+    evaluator = ScalarTable(table)
+    rgb = np.array(
+        [
+            evaluator.evaluate_rgb(point)
+            for point in itertools.product(range(33), repeat=3)
+        ]
+    )
+    native = rgb_to_icc_lab(rgb).T
+    expected = np.array([np.frombuffer(plane, dtype="<u2") for plane in planes])
+    delta = native.astype(np.int32) - expected.astype(np.int32)
+    differences = int(np.count_nonzero(delta))
+    maximum = int(np.max(np.abs(delta)))
+    if differences:
+        raise ValueError(
+            f"Prepared Lab grid differs in {differences} words, max {maximum}."
+        )
+    return {
+        "grid": 33,
+        "output": "selector0_icc_lab",
+        "compared_words": int(native.size),
+        "different_words": differences,
+        "max_absolute_error": maximum,
+        "native_plane_sha256": [
+            hashlib.sha256(row.astype("<u2").tobytes()).hexdigest() for row in native
+        ],
     }

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from color_inputs import source_blend_inputs
 from image_controls import source_controls, verify_top
-from image_kaiji import verify_image_table
+from image_kaiji import verify_image_table, verify_prepared_grid
 from inspect_np3 import parse
 from kaiji_grading import COEFFICIENT_HASH
 from kaiji_index import MODE_TABLE_HASH
@@ -88,7 +88,11 @@ def picture_controls(data: bytes) -> dict:
 
 
 def validate_events(
-    events: list, picture: dict | None = None, *, kaiji: bool = False
+    events: list,
+    picture: dict | None = None,
+    *,
+    kaiji: bool = False,
+    prepare_grid: bool = False,
 ) -> None:
     steps = [e for e in events if e.get("event") not in ("provider", "sdk_log")]
     expected = [
@@ -124,6 +128,20 @@ def validate_events(
             {"event": "kaiji_tables", "guards_intact": True, "saved": True},
             {"event": "kaiji_released", "guards_intact": True},
         ]
+    if prepare_grid:
+        if not kaiji:
+            raise ValueError("Engine preparation requires Kaiji table validation.")
+        expected.insert(
+            -2,
+            {
+                "event": "kaiji_prepared",
+                "error": False,
+                "grid": 33,
+                "selector": 0,
+                "output_flags": 0,
+                "saved": True,
+            },
+        )
     if len(steps) != len(expected) or any(
         any(type(event.get(k)) is not type(v) or event[k] != v for k, v in ref.items())
         for event, ref in zip(steps, expected, strict=True)
@@ -152,7 +170,10 @@ def main() -> int:
     parser.add_argument("--originals-only", action="store_true")
     parser.add_argument("--kaiji", action="store_true")
     parser.add_argument("--blend-calibration", type=Path)
+    parser.add_argument("--prepare-grid", action="store_true")
     args = parser.parse_args()
+    if args.prepare_grid and not args.kaiji:
+        parser.error("--prepare-grid requires --kaiji.")
     if args.kaiji and (not args.picture_control or args.blend_calibration is None):
         parser.error("--kaiji requires --picture-control and --blend-calibration.")
     blend_calibration = args.blend_calibration.read_bytes() if args.kaiji else None
@@ -236,6 +257,7 @@ def main() -> int:
         "picture_import": bool(args.picture_control),
         "originals_only": args.originals_only,
         "kaiji_tables": args.kaiji,
+        "prepared_grid": args.prepare_grid,
         "limits": [
             "Selected metadata fields and selector only, not complete TOP parity.",
             "Without --kaiji, other selector arguments remain SDK outputs "
@@ -247,7 +269,9 @@ def main() -> int:
             "Calibration row0 and auxiliary selector22 are bounded observed defaults; "
             "general metadata derivation of those defaults remains unresolved.",
             "Selected Kaiji fields and complete tables, not every parameter byte.",
-            "Table comparison precedes full engine preparation and its output matrix.",
+            "Without --prepare-grid, comparison precedes engine preparation "
+            "and its output matrix.",
+            "Prepared Lab lattice parity is not decoded-image or ICC consumer parity.",
             "Original photographs are ordinary Z8 captures; variants modify metadata.",
             "No Flexible Color rendering, image-domain or Lightroom parity claim.",
         ],
@@ -294,6 +318,7 @@ def main() -> int:
                     windows(prefix),
                     *([windows(np3)] if np3 else []),
                     *(["kaiji"] if args.kaiji else []),
+                    *(["prepare"] if args.prepare_grid else []),
                 ],
                 cwd=vendor,
                 env=dict(
@@ -324,7 +349,9 @@ def main() -> int:
             report["cases"].append(case)
             if result.returncode:
                 raise ValueError("SDK probe failed.")
-            validate_events(events, picture, kaiji=args.kaiji)
+            validate_events(
+                events, picture, kaiji=args.kaiji, prepare_grid=args.prepare_grid
+            )
             case["loaded_providers"] = provider_paths(
                 events, hashes, vendor, args.wine_prefix
             )
@@ -365,6 +392,19 @@ def main() -> int:
                     blend_inputs,
                     blend_calibration,
                 )
+                if args.prepare_grid:
+                    prepared = prefix.with_suffix(".prepared-table.bin").read_bytes()
+                    planes = [
+                        prefix.with_suffix(f".plane{i}.bin").read_bytes()
+                        for i in range(3)
+                    ]
+                    case["prepared_grid"] = verify_prepared_grid(
+                        snapshots["table"], prepared, planes
+                    )
+                    case["prepared_table_sha256"] = hashlib.sha256(prepared).hexdigest()
+                    case["plane_sha256"] = [
+                        hashlib.sha256(p).hexdigest() for p in planes
+                    ]
             case["passed"] = True
         report["sources_unchanged"] = all(
             digest(Path(p)) == h for p, h in hashes.items()

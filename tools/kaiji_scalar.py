@@ -60,6 +60,14 @@ class ScalarTable:
         return struct.unpack_from("<i", self.data, offset)[0]
 
     def evaluate(self, indices: Sequence[int], grid: int = 33) -> tuple[int, int, int]:
+        return tuple(
+            int(value * 65280.0 + 0.5) for value in self.evaluate_rgb(indices, grid)
+        )
+
+    def evaluate_rgb(
+        self, indices: Sequence[int], grid: int = 33
+    ) -> tuple[float, float, float]:
+        """Return clipped RGB before output quantization or the Lab tail."""
         if type(grid) is not int or grid != 33:
             raise ValueError("Only the validated 33-node grid is supported.")
         if len(indices) != 3 or any(
@@ -232,6 +240,4 @@ class ScalarTable:
         g = (luminance - (u << 4) * 5.271992065308613e-06) - (
             v << 4
         ) * 1.0904097047379264e-05
-        return tuple(
-            int(max(0.0, min(1.0, value)) * 65280.0 + 0.5) for value in (r, g, b)
-        )
+        return tuple(max(0.0, min(1.0, value)) for value in (r, g, b))

@@ -12,7 +12,43 @@ static int kaiji_guards(uint8_t *const buffers[5], const size_t sizes[5]) {
     return intact;
 }
 
-static int collect_kaiji(HMODULE dll, void *image, void *services, const char *prefix) {
+static int prepare_kaiji(HMODULE dll, uint8_t *engine, const char *prefix) {
+    typedef void *(*Prepare)(void *, void *);
+    Prepare prepare;
+    void *address = (uint8_t *)dll + 0x2ae7b0;
+    memcpy(&prepare, &address, sizeof(prepare));
+    uint32_t grid, selector, flags;
+    memcpy(&grid, engine + 0xdd4, 4);
+    memcpy(&selector, engine + 0x9c0, 4);
+    memcpy(&flags, engine + 0x9c4, 4);
+    if (grid != 33 || selector != 0 || flags != 0) return 0;
+    void *error = prepare(engine, NULL);
+    int saved = 0;
+    if (!error) {
+        saved = save(prefix, "prepared-table", engine + 0xe70, 0x34370);
+        for (unsigned i = 0; i < 3; ++i) {
+            uint8_t *plane;
+            memcpy(&plane, engine + 0xde8 + i * 16, sizeof(plane));
+            char name[16];
+            snprintf(name, sizeof(name), "plane%u", i);
+            saved &= plane && save(prefix, name, plane, 33 * 33 * 33 * 2);
+        }
+    }
+    printf("{\"event\":\"kaiji_prepared\",\"error\":%s,\"grid\":%u,"
+           "\"selector\":%u,\"output_flags\":%u,\"saved\":%s}\n",
+           error ? "true" : "false", grid, selector, flags, saved ? "true" : "false");
+    fflush(stdout);
+    if (error) {
+        typedef void (*DestroyError)(void *);
+        DestroyError destroy;
+        address = slot(error, 0); memcpy(&destroy, &address, sizeof(destroy));
+        destroy(error);
+    }
+    return !error && saved;
+}
+
+static int collect_kaiji(HMODULE dll, void *image, void *services, const char *prefix,
+                         int prepare_grid) {
     typedef void (*BuildRequest)(void *, void *, const char *);
     typedef void *(*ConstructPicture)(void *);
     typedef uint8_t (*BuildConfig)(void *, void *, void *, void *, uint32_t);
@@ -113,6 +149,11 @@ static int collect_kaiji(HMODULE dll, void *image, void *services, const char *p
     fflush(stdout);
     if (!guards) failure = "table_guards";
     else if (!saved) failure = "snapshot_write";
+    if (!failure && prepare_grid) {
+        uint8_t *engine;
+        memcpy(&engine, wrapper + 8, sizeof(engine));
+        if (!engine || !prepare_kaiji(dll, engine, prefix)) failure = "engine_prepare";
+    }
 
 cleanup:
     /* Shared engine destruction still needs the copied picture and live image. */
