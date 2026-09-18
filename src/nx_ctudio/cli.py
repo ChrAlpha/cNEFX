@@ -110,17 +110,15 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"nxc: {warning}", file=sys.stderr)
         return exit_code
     if args.command == "picture-curve":
-        from .picture_control import extract_curve
+        from .picture_control import extract_curve, read_np3
 
         report: dict[str, Any] = {"schema_version": 1, "status": "error"}
         try:
             path = args.file.resolve(strict=True)
-            if path.stat().st_size > 4 * 1024 * 1024:
-                raise ValueError("NP3 input exceeds the 4 MiB limit.")
             report.update(
                 status="ok",
                 path=str(path),
-                picture_control=extract_curve(path.read_bytes()),
+                picture_control=extract_curve(read_np3(path)),
             )
             exit_code = 0
         except (OSError, ValueError) as exc:
