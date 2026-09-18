@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-18",
+  "evidence_kind": "official_documentation_and_static_binary_entrypoint_inventory",
+  "status": "First-release scope confirmed; native rendering remains unimplemented",
+  "official_sources": [
+    {
+      "url": "https://nikonimglib.com/nxstdo/onlinehelp/en/the_picture_controls_tool_22.html",
+      "findings": [
+        "Picture Controls apply to RAW and merged pixel-shift images.",
+        "Camera compatible and Latest Picture Control select distinct color reproduction behavior.",
+        "Latest Picture Control permits newer controls on RAW images from older camera models."
+      ]
+    },
+    {
+      "url": "https://nikonimglib.com/nxstdo/onlinehelp/en/the_picture_controls_flexible_color_23.html",
+      "findings": [
+        "Flexible Color requires SDR and the latest Picture Control processing path or a camera with that path fixed as Camera compatible.",
+        "Advanced controls include sharpening at three spatial ranges, contrast, highlights, shadows, white level, black level and saturation.",
+        "Custom tone curves replace direct contrast, highlights, shadows, white-level and black-level adjustment.",
+        "Color Blender adjusts hue, chroma and brightness for eight color regions.",
+        "Color Grading adjusts hue, chroma and brightness for highlights, mid-tones and shadows, with shared blending and balance.",
+        "Only cameras supporting Flexible Color can import Flexible Color custom controls; these controls cannot be adjusted on the camera."
+      ]
+    },
+    {
+      "url": "https://nikonimglib.com/nxstdo/onlinehelp/en/copy_custom_picture_controls_50.html",
+      "findings": [
+        "Custom Picture Control exchange formats are NCP, NP2 and NP3.",
+        "Format compatibility varies by camera; NP3 support alone does not establish Flexible Color support.",
+        "Exported camera files use NIKON/CUSTOMPC; import/export also supports ordinary files.",
+        "NX Studio can store up to 150 custom controls; that application limit is not a proven file-format limit."
+      ]
+    }
+  ],
+  "binary_scope": "NX Studio 1.10.1 Windows x86-64, static import/export tables only; no Picture Control vendor execution",
+  "modules": [
+    {
+      "filename": "Services/picture_control.n5m",
+      "sha256": "485a56e5be41dfeaece9426b026e2f843f6e6cab8372aeca72252f141f246484",
+      "exports_rva": {
+        "nikon_service_factory": "0x3af0",
+        "nikon_service_uuid": "0x3ad0",
+        "nikon_service_version": "0x3ac0"
+      },
+      "relevant_imports": ["Rome2.dll", "Strato10.dll", "Mercury.dll"],
+      "finding": "A service plugin, not a directly established standalone renderer"
+    },
+    {
+      "filename": "PCEngine.dll",
+      "sha256": "c6d0cdbb9f830090505ea530db24777cba886857e8021cd3ee0e4a74f4970347",
+      "exported_class": "pcu::CPCRomeFrame",
+      "methods_rva": {
+        "CreateInstance": "0x17cc0",
+        "CreateDB": "0x17d10",
+        "GetPicconParametersFromFile": "0x18bc0",
+        "ImportPicconData": "0x18c60",
+        "ImportPicconFile": "0x18d70",
+        "ExportPicconFile": "0x18e90",
+        "SetPictureControl": "0x19360"
+      },
+      "finding": "Named C++ entry points expose parameter extraction and custom-control exchange; object ABI and dependencies still need recovery."
+    },
+    {
+      "filename": "Rome2.dll",
+      "sha256": "45c8b91ddd61a103711d755a57c45db4ce8431b9ec9ce7a1f4fac28fe25582e2",
+      "relevant_ascii_markers": ["FlexibleColorParams", "CanEditFlexibleColor", "GetColorBlendingMode", "color_grading"],
+      "finding": "Markers identify investigation targets, not parameter layout or processing equations."
+    }
+  ],
+  "existing_related_evidence": {
+    "picture_control_tag": "MakerNote 0x0023 versions0310/0311; uint16 profile ID at offset48",
+    "flexible_identifier": "0x20 maps to family12/profile14/resource14 in the pixel-shift Adobe-default predictor",
+    "flexible_tag": "MakerNote0x005c versions0100/0101; four fallback parameter bytes recovered at offsets12,13,22,23 for the Adobe-default path",
+    "references": ["pixel-shift-adobe-defaults.json", "pixel-shift-adobe-matrix.json"],
+    "limit": "The 26-case/21-ID Adobe default matrix does not test actual Flexible Color image processing."
+  },
+  "next_experiments": [
+    "Recover custom-control parser/serializer entry points and NP3 container versioning.",
+    "Obtain controlled default and single-parameter exports with checksums; retain files outside Git.",
+    "Recover parameter scales, defaults, quantization, curve encoding and unknown-field preservation.",
+    "Trace the native color-space and operation order for tone curves, Color Blender and Color Grading.",
+    "Compare neutral ramps, color patches and edge patterns against an unmodified vendor oracle before claiming rendering fidelity.",
+    "Test interaction with merged NEFX separately from parameter-file roundtrip and Lightroom interpretation."
+  ]
+}
