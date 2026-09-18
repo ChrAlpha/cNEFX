@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-18",
+  "evidence_kind": "live_vendor_synthetic_mixed_metadata",
+  "dll_sha256": "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c",
+  "tool": "tools/verify_mixed_metadata.py",
+  "scope": "Four deliberately inconsistent metadata configurations at each of4/8/16/32 input counts, one output per invocation. Synthetic packed-14 pixels; radial correction disabled.",
+  "variants": [
+    "First input ISO3200; every remaining input ISO3201.",
+    "First input ISO3201; every remaining input ISO3200.",
+    "All inputs ISO3200; first selects rows12..17, remaining inputs select rows40..45.",
+    "All inputs ISO3200; first input has no selected rows, remaining inputs select rows12..17."
+  ],
+  "result": {
+    "cases": 16,
+    "samples": 32156160,
+    "different_samples_from_first_input_metadata_model": 0,
+    "every_counterfactual_differs": true,
+    "counterfactual_differences_by_input_count": {
+      "4": [2173,2173,4265,2173],
+      "8": [10112,10112,20219,10112],
+      "16": [8516,8516,16919,8516],
+      "32": [40442,40442,80883,40442]
+    },
+    "counterfactual": "Apply the ISO and selector from a remaining input to the whole sequence instead of the first input."
+  },
+  "confirmed": [
+    "The standalone DLL accepts these inconsistent input groups.",
+    "ISO branch selection and the24-byte sparse-selection descriptor come from the first ABI input of the current output group.",
+    "Sixteen-frame mode reuses that descriptor for all four four-frame preprocessing groups.",
+    "Eight/thirty-two modes reuse it for all two-frame pairs.",
+    "Later input metadata does not override the first input in these tested fields."
+  ],
+  "static_evidence": "Worker0x350590 loads ISO from context+0x1d0 and selector from context+0x1f0 before mode dispatch; those are first-frame fields. Mode16 and32 loops advance source vectors while retaining this descriptor.",
+  "native_implication": "A native CLI should validate capture coherence explicitly. Successful vendor execution does not prove that input files belong to one valid sequence or share compatible settings.",
+  "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/mixed-metadata-v1/report.json",
+  "limitations": [
+    "Other varying fields, including dimensions, crop, white balance, camera identity, compression, group identifiers and actual sequence phase, are not covered here.",
+    "This invokes the standalone DLL directly and does not measure NX Studio UI validation.",
+    "No authentic capture or Lightroom acceptance is implied."
+  ]
+}
