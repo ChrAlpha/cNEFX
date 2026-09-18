@@ -315,6 +315,27 @@
     "verification": "Full pytest suite523passed in4.58s. Scoped Ruff/format, strict MinGW C11 compilation, ASCII and diff checks passed. Reviewer independently replayed26v2 cases,156snapshots,111input hashes and all5560672table bytes; no Wine rerun. Review found truncated log_mode/raw153e validation; fields now use32/16bits with high-byte rejection tests. Final v3 live rerun passes all26cases after the fix.",
     "limit": "Complete table generation with one captured blend input and bounded defaults, not a full native image initializer. No full engine preparation/output matrix, pixel pipeline, Lightroom or authentic pixel-shift acceptance."
   },
+  "native_blend_selection": {
+    "implementation": "tools/kaiji_mix.py",
+    "probe": "tools/probe_kaiji_mix.c",
+    "runner": "tools/verify_kaiji_mix.py",
+    "report": "kaiji-mix-native-v2/report.json",
+    "sha256": "31e48d384420d45ad137568735a07d0ea66bff2113327af62a126be8d1717a38",
+    "evidence_kind": "native_blend_selection_vs_live_vendor_leaf",
+    "cases": 4792,
+    "random_cases": 2048,
+    "seed": 20260920,
+    "different_results": 0,
+    "compared_matrix_words": 43128,
+    "different_matrix_words": 0,
+    "coverage": "Two captured real-image input sets, all22WB modes,81threshold boundaries, signed16 WB/matrix extremes, zero denominators and2048random full signed16 matrices/levels with signed32 WB values.",
+    "calibration": "3162external bytes: Q14 matrix18bytes atRomeRVA4f3c78,81threshold/value pairs324bytes at71b840,44x32signed16 grid2816bytes at6fa770,reference WB4bytes at7061e8. SHA2564f255aa63f356fd4a2a985a818ce933dd23f7666d186a0ad1bfff08b8c8a0e6d.",
+    "arithmetic": "Rome0x2ace00 with camera1071/family12. Matrix product0x29d0b0 wraps32-bit accumulation, uses numerator-sign rounding with a large-numerator truncation fallback, then narrows signed16. WB ratios and transformed channels also narrow signed16. Mode21 returns0; modes1..16 use the grid; mode0/17..20 take the maximum of grid and threshold lookup.",
+    "real_inputs": "Captured source matrix/WB/mode/value tuples independently reproduce factory blend0 and5. Native metadata derivation is the next integration stage.",
+    "guards": "Caller-owned state and prefix/suffix remain unchanged across leaf and matrix calls; matrix output has both guards. All input and provider hashes stable, actual loaded Rome path checked.",
+    "verification": "27focused tests, scoped Ruff/format, strict C11 compilation and diff checks pass. Numerical evidence is live vendor execution by the builder; independent metadata-origin review is separate.",
+    "limit": "Explicit scalar/matrix inputs and pinned external calibration only. No general camera coverage, application override recovery or rendered-image parity."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",
