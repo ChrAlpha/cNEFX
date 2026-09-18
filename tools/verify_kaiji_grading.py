@@ -1,4 +1,4 @@
-"""Compare native Grading curves with bounded live vendor table generation."""
+"""Compare native Grading or Blender tables with bounded live vendor generation."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ import struct
 import subprocess
 from pathlib import Path
 
+from kaiji_blender import blender_tables
 from kaiji_grading import COEFFICIENT_HASH, grading_tables
 from verify_np3_header import DLL_HASH, digest, windows
 
@@ -64,6 +65,30 @@ def cases() -> list[dict]:
     return result
 
 
+def blender_cases() -> list[dict]:
+    result = [{"name": "neutral", "regions": [[0, 0, 0]] * 8}]
+    for region, channel, value in itertools.product(range(8), range(3), (-100, 100)):
+        regions = [[0, 0, 0] for _ in range(8)]
+        regions[region][channel] = value
+        result.append(
+            {
+                "name": f"region{region}-channel{channel}-value{value}",
+                "regions": regions,
+            }
+        )
+    rng = random.Random(20260919)
+    for i in range(12):
+        result.append(
+            {
+                "name": f"random{i}",
+                "regions": [
+                    [rng.randrange(-100, 101) for _ in range(3)] for _ in range(8)
+                ],
+            }
+        )
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dll", type=Path, required=True)
@@ -71,6 +96,7 @@ def main() -> int:
     parser.add_argument("--coefficients", type=Path, required=True)
     parser.add_argument("--wine-prefix", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--stage", choices=("grading", "blender"), default="grading")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     if args.output.exists() or args.output.resolve().is_relative_to(root):
@@ -86,12 +112,14 @@ def main() -> int:
         args.coefficients,
         Path(__file__),
         root / "tools/kaiji_grading.py",
+        root / "tools/kaiji_blender.py",
         root / "tools/flexible_math.py",
         root / "tools/probe_kaiji_state.c",
     ]
     hashes = {str(path.resolve()): digest(path) for path in paths}
     report = {
-        "evidence_kind": "native_grading_vs_live_vendor_table_generation",
+        "evidence_kind": f"native_{args.stage}_vs_live_vendor_table_generation",
+        "stage": args.stage,
         "input_hashes": hashes,
         "camera_id": 1071,
         "profile_family": 12,
@@ -100,20 +128,30 @@ def main() -> int:
         "cases": [],
         "passed": False,
         "limits": [
-            "Only three 65-node source and three 4096-node expanded Grading LUTs.",
+            "Grading: 65/4096-node LUTs. Blender: six 32-sector tables.",
             "Parameter-state group order; UI group names remain unverified.",
-            "Synthetic context omits scalar controls, custom curves and Blender.",
+            "Synthetic model-0 context omits scalar controls and custom curves.",
             "The vendor generator probe checks suffix guards only.",
         ],
     }
     args.output.mkdir(parents=True)
     try:
-        for case in cases():
-            sources, expanded = grading_tables(
-                coefficients, case["groups"], case["blending"], case["balance"]
-            )
-            values = [0] * 30 + list(itertools.chain.from_iterable(case["groups"]))
-            values.extend((case["blending"], case["balance"]))
+        selected = cases() if args.stage == "grading" else blender_cases()
+        for case in selected:
+            if args.stage == "grading":
+                sources, expanded = grading_tables(
+                    coefficients, case["groups"], case["blending"], case["balance"]
+                )
+                native = sources + expanded
+                values = [0] * 30 + list(itertools.chain.from_iterable(case["groups"]))
+                values.extend((case["blending"], case["balance"]))
+            else:
+                native = blender_tables(coefficients, case["regions"])
+                values = (
+                    [0] * 6
+                    + list(itertools.chain.from_iterable(case["regions"]))
+                    + [0] * 11
+                )
             state = struct.pack("<41i", *values)
             state_path = args.output / f"{case['name']}.state.bin"
             output_path = args.output / f"{case['name']}.bin"
@@ -165,14 +203,19 @@ def main() -> int:
             data = output_path.read_bytes()
             if len(data) != 0x34370:
                 raise ValueError("Unexpected output table size.")
-            native = sources + expanded
-            vendor = tuple(
-                struct.unpack_from("<65H", data, offset)
-                for offset in (0x4E, 0xD0, 0x152)
-            ) + tuple(
-                struct.unpack_from("<4096H", data, offset)
-                for offset in (0x1D4, 0x21D4, 0x41D4)
-            )
+            if args.stage == "grading":
+                vendor = tuple(
+                    struct.unpack_from("<65H", data, offset)
+                    for offset in (0x4E, 0xD0, 0x152)
+                ) + tuple(
+                    struct.unpack_from("<4096H", data, offset)
+                    for offset in (0x1D4, 0x21D4, 0x41D4)
+                )
+            else:
+                vendor = tuple(
+                    struct.unpack_from("<32h", data, 0x6228 + channel * 0x80)
+                    for channel in range(6)
+                )
             differences = [
                 sum(a != b for a, b in zip(n, v, strict=True))
                 for n, v in zip(native, vendor, strict=True)
@@ -185,9 +228,11 @@ def main() -> int:
         report["sources_unchanged"] = all(
             digest(Path(p)) == h for p, h in hashes.items()
         )
-        report["compared_words"] = len(report["cases"]) * 3 * (65 + 4096)
+        count = 40 if args.stage == "grading" else 61
+        words = 3 * (65 + 4096) if args.stage == "grading" else 6 * 32
+        report["compared_words"] = len(report["cases"]) * words
         report["passed"] = (
-            len(report["cases"]) == 40
+            len(report["cases"]) == count
             and report["sources_unchanged"]
             and all(case["passed"] for case in report["cases"])
         )

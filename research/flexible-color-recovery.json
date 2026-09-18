@@ -2,7 +2,7 @@
   "schema_version": 1,
   "observed_on": "2026-09-18",
   "evidence_kind": "official_documentation_static_recovery_and_scoped_live_oracles",
-  "status": "Native NP3 curves, Grading LUTs and selector-0 output conversion have scoped evidence; full rendering remains unimplemented",
+  "status": "Native NP3 curves, Grading LUTs, Blender sector tables and selector-0 output conversion have scoped evidence; full rendering remains unimplemented",
   "official_sources": [
     {
       "url": "https://nikonimglib.com/nxstdo/onlinehelp/en/the_picture_controls_tool_22.html",
@@ -272,6 +272,25 @@
     "expanded_curve_offsets": ["0x1d4", "0x21d4", "0x41d4"],
     "limit": "Reconstructs three65-node source curves and three4096-node expanded Grading tables using pinned external Z8 coefficients. No native Blender, complete application import, source-image conversion or Lightroom behavior is established; the probe checks suffix guards only."
   },
+  "native_blender_oracle": {
+    "evidence_kind": "native_blender_vs_live_vendor_table_generation",
+    "implementation": "tools/kaiji_blender.py",
+    "runner": "tools/verify_kaiji_grading.py --stage blender",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/kaiji-blender-native-v1/report.json",
+    "report_sha256": "b5afd18fa706bb0a6ec73fe5395cc2b828d33a099de48282487272d3060baa45",
+    "runner_snapshot": "/workspaces/LumaForge/nxc-data/scratch/kaiji-blender-native-v1/runner.py",
+    "runner_note": "Pinned snapshot differs from the committed runner only in a shortened report-limit string for line length.",
+    "camera_id": 1071,
+    "model_index": 0,
+    "coefficient_resource_sha256": "d44561f16bf877a264ecfbb947f5b6635d6b0e9151fa70ca601d9b131804822f",
+    "coefficient_layout": "Eight signed parameter regions contribute to32 sectors. Hue weights0x605e8; two-axis brightness weights0x609e8;513-word cosine LUT0x611e8; positive-chroma brightness coupling0x615ea; chroma weights0x6166a. Model0 six base arrays begin0x1c528. Quarter-turn units2048 come from0x2777a.",
+    "cases": 61,
+    "coverage": "Neutral; all8 regions times3 parameters at-100/+100;12 random full-region states with seed20260919.",
+    "compared_words": 11712,
+    "different_words": 0,
+    "output_array_offsets": ["0x6228", "0x62a8", "0x6328", "0x63a8", "0x6428", "0x64a8"],
+    "limit": "Six32-word Blender arrays in a pinned synthetic model0 state only. Later parameter blending, remaining camera tables, Grading interaction, complete NP3 import and rendered-image parity remain unverified."
+  },
   "np3_state_to_generator_oracle": {
     "evidence_kind": "live_unmodified_vendor_np3_normalized_state_to_kaiji_table_generation",
     "probe": "tools/probe_kaiji_state.c",
@@ -317,7 +336,7 @@
   "next_experiments": [
     "Recover full application-state initialization for the Kaiji color table generator.",
     "Verify single-parameter generated table changes before porting the camera-dependent operations.",
-    "Recover native Color Blender and remaining camera-dependent tables; Grading source/expanded tables have40-case numerical evidence.",
+    "Recover remaining camera tables and later parameter blending; Grading has40-case and Blender sector tables61-case numerical evidence.",
     "Trace the native color-space and operation order for tone curves, Color Blender and Color Grading.",
     "Compare neutral ramps, color patches and edge patterns against an unmodified vendor oracle before claiming rendering fidelity.",
     "Test interaction with merged NEFX separately from parameter-file roundtrip and Lightroom interpretation."
