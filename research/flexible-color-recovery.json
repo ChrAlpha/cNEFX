@@ -93,12 +93,13 @@
     "parameter_initialization": "Rome0x29da10 populates Kaiji parameters: Blender triples+0x1764,Grading triples+0x17c4,blending uint16+0x17e8,balance int16+0x17ea.",
     "table_generator": "Rome0x29f0b0(state,unused,output), with a0x34370-byte output; Flexible Color branch state+0x151c equals12; coefficients from Moon GetCoefTable(0x1002,camera).",
     "scalar_evaluator": "Rome0x2aee40(unused,r_index_pointer,g_index_pointer,b_index_pointer,context)",
-    "evaluator_context": "KaijiEngine stores the scalar context at engine+0xe30: flag byte+0x00, processing flags+0x04, grid size+0x08, output-mode flags+0x0c, transfer mode+0x10, output channel pointers+0x18/+0x20/+0x28, generated table pointer+0x38 (engine+0xe68). The engine initializes these from fields+0xdd0,+0xdd4,+0x9c4,+0x9c0,+0xde8/+0xdf8/+0xe08 and generated table+0xe70. Scalar output is written as signed int16 channel planes at the 3D-grid index.",
-    "engine_lifecycle": "CProfGen_KaijiEngine allocation is0x351e0 bytes. Constructor RVA0x28d200 sets the base vtable and default grid field+0xdd4 to32. Configuration RVA0x28d3d0 copies a0xdc8-byte engine configuration and derives the grid, then the preparation method RVA0x2ae7b0 allocates three signed16 channel planes of2*grid^3 bytes, creates the0x34370-byte generated table at+0xe70 and populates evaluator context. Calling RVA0x2aee40 without this lifecycle is not a valid renderer invocation.",
+    "evaluator_context": "KaijiEngine stores the scalar context at engine+0xe30: enabled byte+0x00, processing enum+0x04 (0 or 2), grid size+0x08, output-mode flags+0x0c, color-space selector+0x10, output channel pointers+0x18/+0x20/+0x28, generated table pointer+0x38 (engine+0xe68). The engine initializes these from fields+0xdd0,+0xdd4,+0x9c4,+0x9c0,+0xde8/+0xdf8/+0xe08 and generated table+0xe70. Scalar output is unsigned uint16 at index(r*grid+g)*grid+b. Ghidra short storage casts do not imply signed channel values.",
+    "engine_lifecycle": "CProfGen_KaijiEngine allocation is0x351e0 bytes. Constructor RVA0x28d200 sets default grid32; setup RVA0x28d3d0 copies0xdc8 configuration bytes and applies requested_grid|1, giving33 for request32. Preparation RVA0x2ae7b0 allocates three uint16 channel planes, invokes table generation, then overwrites table bytes0..71 with nine RGB-to-XYZ doubles selected by engine+0x9c0. It also reads NKDBase_NEF.icm. The direct scalar probe reconstructs the required context but does not exercise the application lifecycle.",
     "engine_factory": "Rome2 color-engine factory RVA0x28f980 copies a0xdc8-byte configuration, selects Kaiji when FUN0x20a700(config+0x90,config+4,config+0x120) returns9, allocates CProfGen_KaijiParam0x17f8 and CProfGen_KaijiEngine0x351e0, then invokes the engine virtual setup with the configuration and dependency pointer. The direct table probe bypasses this factory; complete RGB parity requires reconstructing these inputs and dependencies.",
     "engine_vtable": "KaijiEngine vtable VA0x1807b7270: +0 deleting destructor RVA0x2ae740, +8 setup RVA0x2ae780 (forwards recovered args to0x28d3d0), +0x10 prepare/generate RVA0x2ae7b0. Factory setup receives engine,config,param_dependency,mode,flag0. A full invocation must retain the dependency object until engine destruction.",
     "engine_config_sources": "The Kaiji application branch sets engine+0xdd0 to2 and Param+0xe44 to2. Engine+0x9c0/+0x9c4 originate at configuration+0x9b8/+0x9bc. Setup stores dependency at+0xde0, derives the grid from its mode argument, writes+0xdd8 and resets channel ownership. Preparation reads these fields before calling scalar evaluation.",
     "scalar_mode_oracle": {
+      "status": "Historical probe superseded by scalar_matrix_oracle below",
       "evidence_kind": "live_unmodified_vendor_scalar_output_mode_probe",
       "probe": "tools/probe_kaiji_scalar_mode.c",
       "evaluator_rva": "0x2aee40",
@@ -109,7 +110,7 @@
         "2": {"values": [0, -32768, -32768], "guards_intact": true},
         "3": {"values": [-31844, -31844, -31844], "guards_intact": true}
       },
-      "interpretation": "context+0x0c bit0 selects the direct 16-bit output path; bit0 clear enters the transfer/matrix path. The signed values depend on incomplete object-level initialization and are not rendered-color validation.",
+      "interpretation": "context+0x0c bit0 selects RGB; clear selects ICC Lab. Historical output was printed with the wrong signed type: -32768 is32768 and -31844 is33692. Zero table matrix bytes explain black/neutral Lab. Grid32 also bypassed normal setup rounding to33.",
       "limit": "Direct function probe only; complete engine configuration, image conversion and Lightroom acceptance remain unresolved."
     },
     "generator_output": "Neutral live probe accepts a 0x17f8-byte writable state and writes a 0x34370-byte output buffer; state and output guards survived. Rome2 RVA0x29f0b0; see the bounded oracle below.",
@@ -117,7 +118,7 @@
     "grading": "Builds three65-node channel curves and expands to4096-entry LUTs. Evaluator reads these before its first color matrix.",
     "blender": "Combines eight parameter regions into32-sector tables; separate positive/negative camera weights, coefficient-backed hue quadrant folding, and chroma baseline1024 with zero clamp.",
     "limits": [
-      "No image or lattice rendering comparison has been run.",
+      "Scalar lattice matrix/mode controls have been compared; no full native color renderer or image parity has been established.",
       "Camera-dependent tables and processing order require validation; generic HSL is not an established substitute.",
       "Decompiler stack aliases require assembly and live single-parameter probes before confirming Grading group ordering.",
       "Full valid parameter-state initialization and table output boundaries remain to be exercised."
@@ -154,10 +155,11 @@
     "limit": "One neutral synthetic state; output bytes are an opaque vendor-derived artifact outside Git. This does not establish NP3 import mapping or rendered pixel parity."
   },
   "single_knob_table_oracle": {
+    "status": "Superseded by corrected_single_knob_oracle below; these historical artifacts retain their original bytes",
     "evidence_kind": "live_unmodified_vendor_single_field_table_mutations",
     "probe_sha256": "64ffb15202fbc27811e80e3b7a3d75d85063dc6923aeefa9577c4db06418714f",
     "runner_sha256": "a40f3cc0b40ac985f999e1b770a86f879147f2e9e39e68d3e79f7dc5fea74afe",
-    "state_defaults": {"camera_id": 1071, "profile_family": 12, "grading_index_a": 65536, "grading_index_c": 2},
+    "state_defaults": {"camera_id": 1071, "profile_family": 12, "actual_uint16_indices": [0, 0, 2]},
     "mutation_value": 64,
     "output_bytes": 213872,
     "guards_intact": true,
@@ -172,8 +174,55 @@
       "blending": {"offset": "0x17e8", "sha256": "b6baa6389b252bda4aad71876b426be2383cde4326e681d10a984861b2060248", "nonzero_bytes": 108755},
       "balance": {"offset": "0x17ea", "sha256": "b6baa6389b252bda4aad71876b426be2383cde4326e681d10a984861b2060248", "nonzero_bytes": 108755}
     },
-    "interpretation": "With the recovered defaults, Blender hue/brightness and Grading hue/brightness mutate opaque generated tables. The tested chroma, blending and balance writes did not change this state/output; this is an observation, not proof those fields are ignored.",
+    "interpretation": "The probe wrote uint32 0x10000 at+0x17ec, then uint16 zero at+0x17ee, accidentally resetting the chroma index from1 to0. Chroma conclusions from this experiment are invalid for normal indices0/1/2.",
     "limit": "Generated table hashes only; NP3-to-state mapping, output table layout, coefficient semantics and rendered pixels remain unresolved."
+  },
+  "corrected_single_knob_oracle": {
+    "evidence_kind": "live_vendor_table_mutations_with_constructor_grading_indices",
+    "probe_sha256": "6ac8ad2026b4eaf52e8e9485a9cf3c61950cd8cdb30ac0a6219dcb7c66c64225",
+    "probe_source_sha256": "cf0af17413eb711506d19c1590c62edc07aa59071297dcd55915693d558fab24",
+    "runner_sha256": "a40f3cc0b40ac985f999e1b770a86f879147f2e9e39e68d3e79f7dc5fea74afe",
+    "grading_indices": [0, 1, 2],
+    "mutation_value": 64,
+    "camera_id": 1071,
+    "profile_family": 12,
+    "output_bytes": 213872,
+    "all_nine_cases_passed": true,
+    "artifact_pattern": "/workspaces/LumaForge/nxc-data/scratch/kaiji-{mode}-indices012-v1/{output.bin,report.json}",
+    "modes": {
+      "neutral": {"output_sha256": "b6baa6389b252bda4aad71876b426be2383cde4326e681d10a984861b2060248", "report_sha256": "a1da1abf49491e3f8608bc2bf8ee9be4963d78c9aa66285cd797def82409683d"},
+      "blender-red-hue": {"output_sha256": "90fad90f1dac89baf62d6050e5b12929c353876c37bef17d87521b0918c53954", "report_sha256": "5a659af7904cb0f63b55075daa0005a19fe4061e5b0b0b9d795427a433c490b0"},
+      "blender-red-chroma": {"output_sha256": "541677c0c431e7cc86c08264695c1a3b1f35f2a9fe60b7d5903f7571537ced89", "report_sha256": "08397a67fd2766d0865a4adfc9228daca10bdd976a50d0e4026b18edcdd1f6df"},
+      "blender-red-brightness": {"output_sha256": "3ca290f70dc9583cb78484ffd59a7796a783b5064c79335ce8cd7559f82456dc", "report_sha256": "ad75174c7244797631e48578c9cd9b0b6d874f70978f5684f62c2e6f196cd3f1"},
+      "grading-highlights-hue": {"output_sha256": "b6baa6389b252bda4aad71876b426be2383cde4326e681d10a984861b2060248", "report_sha256": "93f73a456f966d031de0103bf5334baa429dc7708e7ced9e94d724abcd473f00"},
+      "grading-highlights-chroma": {"output_sha256": "5f1dd4903b654806292f414357a0b9f045e69ff2e11d1e4b3e55c33928d7c7fc", "report_sha256": "aac6bd8f3a0b7666ecf0b2f03abdea9bf57ea4bbe476818068da9a9226b8617e"},
+      "grading-highlights-brightness": {"output_sha256": "5ae27e67048641bf5dd8a5723a4320c51b820ca219c41d9fb9e84c7667964baf", "report_sha256": "29cf406b822e36611675b661b9ed96c6faf1a722d87dc910bc95feb49fbd0e84"},
+      "blending": {"output_sha256": "b6baa6389b252bda4aad71876b426be2383cde4326e681d10a984861b2060248", "report_sha256": "cfb4781b0f21ab30489823da387ce680fb520ed80d6e9a28a74b01b31ea6813b"},
+      "balance": {"output_sha256": "b6baa6389b252bda4aad71876b426be2383cde4326e681d10a984861b2060248", "report_sha256": "8d366a7cf58418914ff3058520efda7b7cfb84c668290de3bb729b7656be011e"}
+    },
+    "interpretation": "Both chroma controls mutate tables. Grading hue alone, blending alone and balance alone leave the otherwise-neutral table unchanged. The three Grading group names still require independent UI-order confirmation.",
+    "limit": "Nine synthetic single-field states; suffix guards only in the table generator probe. No complete NP3 import or native table-generation parity is established."
+  },
+  "scalar_matrix_oracle": {
+    "evidence_kind": "live_vendor_scalar_matrix_initialization_controls",
+    "probe": "tools/probe_kaiji_scalar_mode.c",
+    "runner": "tools/verify_kaiji_scalar.py",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/kaiji-scalar-matrix-v1/report.json",
+    "report_sha256": "be1f9c18a696eca3368f0034ff16030484457291d85faa4b9eaf673f01e34c35",
+    "table_sha256": "b6baa6389b252bda4aad71876b426be2383cde4326e681d10a984861b2060248",
+    "selector": 0,
+    "matrix_row_major": [0.436071339, 0.385066415, 0.143057225, 0.222502613, 0.716880769, 0.060614910, 0.013922978, 0.097068147, 0.713984047],
+    "grid": 33,
+    "processing_enums": [0, 2],
+    "output_flags": [0, 1],
+    "matrix_present": [false, true],
+    "cases": 8,
+    "actual_vendor_calls": 287496,
+    "checks": "All prefix/suffix guards intact; table/context/index inputs unchanged; RGB invariant to matrix; zero-matrix Lab uniformly[0,32768,32768]; initialized Lab varies on all channels; processing0 and2 agree.",
+    "center_rgb": [32640, 32640, 32640],
+    "center_initialized_lab": [34853, 32768, 32767],
+    "interpretation": "Missing preparation-stage matrix initialization caused the black Lab result. The uint16 channel interpretation and configured33-node grid are confirmed by controlled scalar evaluation.",
+    "limit": "This establishes matrix/mode controls for a supplied vendor table. Native rendering, complete factory configuration, image conversion and Lightroom acceptance remain unresolved."
   },
   "np3_state_to_generator_oracle": {
     "evidence_kind": "live_unmodified_vendor_np3_normalized_state_to_kaiji_table_generation",
@@ -200,7 +249,7 @@
         "report_sha256": "1527a7d73def418e5cf8d8fd94c260fa95a15a8d4884a6365859c10c389968a1"
       }
     },
-    "limit": "Proves NP3 normalized-state field placement into vendor table-generator inputs for two bounded states; generated tables remain opaque and no image pixels or Lightroom behavior are validated."
+    "limit": "Exercises selected normalized fields copied into a synthetic vendor state for two inputs. Values0..5 and custom tone curves are omitted. This does not independently prove application NP3 import, complete field placement, rendered colors or Lightroom behavior."
   },
   "integer_leaf_oracle": {
     "evidence_kind": "live_unmodified_vendor_integer_math_synthetic_cases",
