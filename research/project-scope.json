@@ -21,7 +21,7 @@
     "sequence_validation": "Explicit capture order, consecutive shot numbers, consistent observed metadata, no duplicate files",
     "nefx_writer": "Native packed14 RGB, Nikon metadata updates and CRCs, private preview, preserved source JPEGs, atomic no-overwrite publication",
     "dng": "Secondary library/research path with raw-sample and Adobe SDK validation",
-    "flexible_color": "First-release requirement; actual color processing not implemented"
+    "flexible_color": "Native NP3 curve extraction via nxc picture-curve; full color processing remains unimplemented"
   },
   "acceptance_boundaries": [
     "Synthetic fixture and saved vendor-output agreement is not authentic capture validation.",
@@ -35,7 +35,7 @@
     "Native radial correction and 8/32-frame Adobe default updates",
     "Multiple-output merge modes at the CLI boundary",
     "HE/HE* decoding, HLG, non-FX image areas and firmware coverage",
-    "Flexible Color/Picture Control formats, parameters, processing order and rendering fidelity",
+    "Flexible Color/Picture Control parameter application, processing order and rendering fidelity",
     "Bounded full-resolution memory use and cross-platform packaging"
   ]
 }
