@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-18",
+  "evidence_kind": "static_serializer_recovery_and_saved_synthetic_output_audit",
+  "dll_sha256": "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c",
+  "functions": {
+    "combine_pipeline": "0x350590",
+    "copy_input_container": "0x351670",
+    "copy_byte_vector": "0x347770",
+    "copy_image_vector_array": "0x355150",
+    "metadata_update": "0x352860",
+    "serialize_container": "0x345600",
+    "serialize_entry": "0x345440",
+    "serialize_external_value": "0x344fc0",
+    "serialize_image_payload": "0x3470d0",
+    "write_uint16": "0x347620",
+    "write_uint32": "0x3476c0"
+  },
+  "container": {
+    "format": "Classic TIFF, with 16-bit entry counts, 12-byte entries, and 32-bit offsets/counts. Not BigTIFF.",
+    "byte_order": {
+      "static": "The input II/MM marker selects writer byte swapping. RVA 0x5e812c contains II and selects flag 0; RVA 0x5e8128 contains MM and selects flag 1. The marker is copied, then TIFF magic and the first-IFD pointer use scalar writers.",
+      "observed": "All four audited outputs are II. MM and mixed outer/embedded byte orders have not been exercised.",
+      "embedded": "Nikon embedded TIFF headers are copied as stored; the serializer does not change its byte-order flag while writing their directories. Do not infer mixed-endian support."
+    },
+    "ifd_order": "Each directory is emitted in its internal entry-vector order. This serializer performs no evident tag sorting; upstream insertion may already maintain order.",
+    "first_ifd": "The first-IFD pointer is retained from the input container and used as an absolute seek target. Its observed value is 8; root IFD alignment is therefore an exception to the later 16-byte rule.",
+    "next_ifd": {
+      "static": "The serializer writes a four-byte zero after root, EXIF, MakerNote, Nikon preview, GPS, each SubIFD, and NikonNEFInfo entry lists.",
+      "observed": "All 48 directory next pointers across four outputs are zero.",
+      "limit": "The checked sources also have zero next pointers. Preservation of a nonzero input next-IFD chain is not demonstrated; native code must not silently assume it."
+    },
+    "pointer_relocation": "EXIF 0x8769, GPS 0x8825, SubIFDs 0x014a, MakerNote 0x927c, NikonNEFInfo 0xc7d5, and Nikon preview 0x0011 are regenerated from output positions. Image offsets 0x0201/0x0111 and lengths 0x0202/0x0117 are rewritten after payload emission.",
+    "alignment": {
+      "expression": "align16(x)=(x+15)&~15",
+      "directory_payload_cursor": "align16(directory_start+2+12*entry_count+4)",
+      "external_values": "For nonempty internal value vectors, assign value_offset=cursor-base, serialize, then advance cursor to align16(cursor+count*type_width).",
+      "later_directories": "EXIF, GPS, Nikon preview, and each SubIFD begin at align16(EOF).",
+      "nested_directories": "Nikon blobs start on a 16-byte boundary; their TIFF origin is blob_start+10 and their observed first IFD is blob_start+18. The embedded first IFD itself is not 16-byte aligned.",
+      "image_payloads": "Nonempty root, Nikon preview and SubIFD payload buffers begin at align16(EOF). No mandatory final file-length alignment was found.",
+      "padding": "The writer seeks across alignment gaps. In each audited output, all 113 gaps, totaling 891 bytes, contain zero; maximum gap length is 15. This is an observed fresh-output property, not a claim about arbitrary pre-existing files."
+    }
+  },
+  "entry_values": {
+    "internal_representation": "External values occupy eight-byte internal slots irrespective of TIFF type width; byte arrays are therefore not copied directly from that representation.",
+    "type_widths": {
+      "BYTE_ASCII_SBYTE_UNDEFINED": 1,
+      "SHORT_SSHORT": 2,
+      "LONG_SLONG_FLOAT": 4,
+      "RATIONAL_SRATIONAL_DOUBLE": 8
+    },
+    "external_threshold": "RVA 0x344fc0 writes out-of-line values only when count*type_width>4. Empty internal vectors use the entry's scalar value/offset field.",
+    "numeric_byte_order": "SHORT/SSHORT, LONG/SLONG/FLOAT, and DOUBLE swap 2, 4, 8 bytes when flag 1. RATIONAL/SRATIONAL swap each 32-bit component separately. BYTE/ASCII/SBYTE/UNDEFINED emit their low byte unchanged.",
+    "inline_limit": "The empty-vector branch emits the stored four-byte field through the uint32 writer. This does not establish correct MM inline SHORT/ASCII normalization by upstream parsing.",
+    "unknown_type_limit": "An unknown type maps to width 0 in the outer size calculation, so the external writer can return success without entering its inner default-failure branch. A native implementation should reject unsupported types explicitly; vendor malformed-input behavior is not a compatibility target."
+  },
+  "nikon_relative_offsets": {
+    "headers": "MakerNote and NikonNEFInfo retain a 10-byte Nikon header followed by an 8-byte TIFF header.",
+    "origin": "External entry offsets inside each embedded TIFF are absolute_output_position minus embedded_tiff_origin, with origin=blob_start+10.",
+    "container_entry": "The enclosing UNDEFINED entry points to blob_start and has count=aligned_end_of_embedded_tag_payloads-blob_start.",
+    "preview_ifd": "MakerNote tag 0x0011 and its JPEG offset 0x0201 remain relative to the MakerNote TIFF origin, even though the linked preview directory and JPEG are written after the declared MakerNote extent.",
+    "observed_example": {
+      "artifact": "synthetic-software-result.nefx",
+      "maker_note_start": 34096,
+      "maker_note_count": 1695472,
+      "maker_note_declared_end": 1729568,
+      "maker_note_tiff_origin": 34106,
+      "maker_note_ifd": 34114,
+      "preview_ifd": 1729792,
+      "preview_jpeg": 1729920,
+      "nikon_nef_info_start": 1856000,
+      "nikon_nef_info_count": 928,
+      "nikon_nef_info_tiff_origin": 1856010,
+      "nikon_nef_info_ifd": 1856018
+    },
+    "parser_requirement": "Retain access to the whole backing file when following Nikon preview offsets. A reader bounded to the MakerNote value byte slice will reject this vendor-produced layout."
+  },
+  "image_payload_ownership": {
+    "static_dataflow": [
+      "RVA 0x3512da copies the input container at combine_object+0x28 to output_container at combine_object+0x4630 using 0x351670. This is the first input of the current output's selected group.",
+      "The copy helper duplicates the Nikon preview byte vector at container+0xc8, root image vector at +0xf8, and SubIFD image-vector array at +0x160. Byte-vector helpers use memmove and allocate independent output-owned buffers.",
+      "Metadata update 0x352860 replaces SubIFD payload index 1 with the newly packed RGB buffer and creates MakerNote 0x0e2e from the new private preview. The other image vectors remain the copied source buffers.",
+      "Serializer 0x345600 writes root and Nikon preview byte vectors through fwrite at RVAs 0x346707 and 0x346288. Helper 0x3470d0 writes each nonempty SubIFD image vector verbatim at 0x3471b9 and updates its offset/length entries."
+    ],
+    "source_group_ownership": {
+      "evidence_kind": "static_dispatch_and_copy_dataflow",
+      "indexing": "Zero-based ABI input and output indices; g is the output index. Input order is retained at this DLL layer.",
+      "single_output_4_8_16_32": {"owner": "0", "dispatch_call_rvas": ["0x3494ff","0x3496a9","0x349a85","0x349e69"]},
+      "8_inputs_2_outputs": {"owner": "4*g", "dispatch_call_rva": "0x34988f"},
+      "16_inputs_4_outputs": {"owner": "4*g", "dispatch_call_rva": "0x349c6d"},
+      "32_inputs_2_outputs": {"owner": "16*g", "dispatch_call_rva": "0x34a065"},
+      "32_inputs_4_outputs": {"owner": "4*g", "dispatch_call_rva": "0x34a2d4", "selected_inputs": "[4*g..4*g+3, 16+4*g..19+4*g]; owner is not 8*g."},
+      "32_inputs_8_outputs": {"owner": "4*g", "dispatch_call_rva": "0x34a4c1"},
+      "lifetime": "Each dispatch allocates a fresh procedure via 0x348a90; later outputs do not inherit the previous output's mutated metadata."
+    },
+    "subifd_payload_order": "Indices 3 and above in ascending order, then 2, then 0, then 1. Empty vectors produce no payload writes. Raw index 1 is last for this container layout.",
+    "observed_nonempty_order": [
+      "IFD0/0x8769/0x927c/PreviewIFD/JPEG[0]",
+      "IFD0/JPEG[0]",
+      "IFD0/SubIFD[3]/strips[0]",
+      "IFD0/SubIFD[2]/JPEG[0]",
+      "IFD0/SubIFD[0]/JPEG[0]",
+      "IFD0/SubIFD[1]/strips[0]"
+    ],
+    "observed_auxiliary_payload": "SubIFD 3 retains the 98304-byte source buffer; SubIFDs 4 and 5 retain zero offsets and lengths. The SubIFD 1 raw payload changes in all four outputs.",
+    "jpeg_result": "All 16 JPEG comparisons across four outputs are byte-identical to their corresponding source JPEGs. This establishes preservation for these saved fixtures; it is not a decoded-image comparison or proof of NX Studio GUI behavior after later editing.",
+    "preview_distinction": "The preserved Nikon 640x424 JPEG and the regenerated private 640x424 RGB14 MakerNote 0x0e2e are separate payloads. Ordinary JPEG dimensions are not changed to the final combined raw dimensions.",
+    "jpeg_payloads": [
+      {
+        "path": "IFD0/JPEG[0]",
+        "bytes": 10053,
+        "dimensions": [160,120],
+        "sha256": "a9da59c24c9ed4846eae3e2ef035f746a70dd7c5f581064a244f7c25ed9619d7"
+      },
+      {
+        "path": "IFD0/0x8769/0x927c/PreviewIFD/JPEG[0]",
+        "bytes": 115273,
+        "dimensions": [640,424],
+        "sha256": "458f06e3906e6fb1f56cfc400036424d51071fd74bf53dc9c4a41be3a0ff5087"
+      },
+      {
+        "path": "IFD0/SubIFD[2]/JPEG[0]",
+        "bytes": 875872,
+        "dimensions": [1620,1080],
+        "sha256": "c4c65373535dfe8f056ffd211f8c420df5a60c15bf828554a4aa934438da3844"
+      },
+      {
+        "path": "IFD0/SubIFD[0]/JPEG[0]",
+        "bytes": 5697031,
+        "dimensions": [8256,5504],
+        "sha256": "cfd4d9248c060850e5e5eccc66520f138b7347dcf351a9398b8f4fd71ac169f0"
+      }
+    ]
+  },
+  "verification": {
+    "layout_tool": "tools/inspect_nefx_layout.py",
+    "layout_tool_sha256": "fc8f57b0f94e6728c2c75471e27fa3a9ca27b5f0c6e5b229a60254c35c9848bd",
+    "audit_script_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/audit_serialization.py",
+    "audit_script_sha256": "61f394f968c2c704daf9cf2ba94113de2a828c6a3f7aef9449576797e788cf0f",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/serialization-audit-report.json",
+    "report_sha256": "2c3cb392c5be15da53dc2e0f05819853907d2ef85a9e0fd3669bb25d3ddc4e3e",
+    "replay_layout": "uv run tools/inspect_nefx_layout.py <source> <output>",
+    "replay_full_audit": "uv run /workspaces/LumaForge/nxc-data/scratch/audit_serialization.py",
+    "jpeg_dimensions_reader": "Pillow 12.1.1 header inspection; no JPEG raster decoding was needed.",
+    "outputs": 4,
+    "directories": 48,
+    "external_value_starts_checked": 460,
+    "nonempty_image_payload_starts_checked": 24,
+    "jpeg_hash_comparisons": 16,
+    "jpeg_hash_mismatches": 0,
+    "unexpected_alignment_or_next_link_results": 0,
+    "all_padding_zero": true,
+    "scope": "Read saved files only; no new Wine or vendor execution. Fixture inputs share the same original camera JPEGs, so dynamic evidence does not distinguish source-frame selection when frames contain different previews.",
+    "artifacts": [
+      {
+        "source": "/workspaces/LumaForge/nxc-data/scratch/marker-enabled.NEF",
+        "source_sha256": "ea64a4497567c970c777c1db84455a2dd8fdbb7ed9b765dca61286fedd926205",
+        "output": "/workspaces/LumaForge/nxc-data/scratch/synthetic-software-result.nefx",
+        "output_sha256": "4370cfbe966a37d99ad5c2ec90de22fdb4228d31c5b90f61d20848ded38df9f9"
+      },
+      {
+        "source": "/workspaces/LumaForge/nxc-data/scratch/sparse-pipeline-v1/mode-4-iso-3200/frame-01.NEF",
+        "source_sha256": "e3bddb2e83bee3dea93b2e329ad97ed4066fda50c26d273586fcb1ed6a5d444a",
+        "output": "/workspaces/LumaForge/nxc-data/scratch/sparse-pipeline-v1/mode-4-iso-3200/normal.nefx",
+        "output_sha256": "c0941983f273713fe19fe9644e8347cd35f0489f51816a7ff497f56bbebceee7"
+      },
+      {
+        "source": "/workspaces/LumaForge/nxc-data/scratch/sparse-pipeline-scale2/mode-32-iso-3200/frame-01.NEF",
+        "source_sha256": "63d34406dfde7c20cd0c6e8d73fbf1b816f31b33982787ebd8e95ef7d44c3c06",
+        "output": "/workspaces/LumaForge/nxc-data/scratch/sparse-pipeline-scale2/mode-32-iso-3200/normal.nefx",
+        "output_sha256": "1c22863ec5e69a173cf71767f32a9f206b319df07ac9443bfaf7f4fc28972c59"
+      },
+      {
+        "source": "/workspaces/LumaForge/nxc-data/scratch/sparse-pipeline-radial/mode-16-iso-3200/frame-01.NEF",
+        "source_sha256": "58e5b798e26dbdabe18750f55447191b6ac360b75732e16da9779e685dc07899",
+        "output": "/workspaces/LumaForge/nxc-data/scratch/sparse-pipeline-radial/mode-16-iso-3200/correct.nefx",
+        "output_sha256": "6e30a11bd4fd4db73aef9a1fb46407045cfb873ded3319ea1485193afe095e62"
+      }
+    ]
+  },
+  "remaining": [
+    "Authentic pixel-shift captures and NX Studio GUI outputs with independently differing previews.",
+    "Big-endian and mixed-endian containers, inline packing edge cases, and alternate Nikon metadata versions.",
+    "Nonzero next-IFD chains, unexpected SubIFD order, missing pointer tags, and multi-strip or tiled inputs.",
+    "Files approaching classic TIFF 32-bit offset/count limits; large-file seeking does not establish representability.",
+    "Behavior of unknown tags whose payloads contain private offsets not recognized by this serializer.",
+    "Downstream consumers may show a preserved source JPEG while raw rendering uses the combined RGB data; application behavior remains unverified."
+  ]
+}
