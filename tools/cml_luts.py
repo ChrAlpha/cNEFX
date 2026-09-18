@@ -27,8 +27,8 @@ def icc_tags(profile: bytes) -> dict[bytes, bytes]:
     return tags
 
 
-def input_luts(profile: bytes) -> np.ndarray:
-    """Expand the Kaiji mft2 sampled input curves, without extra user LUTs."""
+def input_table(profile: bytes) -> bytes:
+    """Validate the recovered Kaiji RGB/Lab mft2 layout."""
     tag = icc_tags(profile).get(b"A2B0", b"")
     identity = struct.pack(">9i", 65536, 0, 0, 0, 65536, 0, 0, 0, 65536)
     if (
@@ -39,6 +39,12 @@ def input_luts(profile: bytes) -> np.ndarray:
         or struct.unpack_from(">HH", tag, 48) != (4096, 3)
     ):
         raise ValueError("Expected the recovered grid33 RGB/Lab mft2 layout.")
+    return tag
+
+
+def input_luts(profile: bytes) -> np.ndarray:
+    """Expand the Kaiji mft2 sampled input curves, without extra user LUTs."""
+    tag = input_table(profile)
     curves = np.frombuffer(tag, dtype=">u2", count=3 * 4096, offset=52)
     curves = curves.reshape(3, 4096).astype(np.float64)
     coordinate = np.arange(65536, dtype=np.float64) * (1.0 / 65535)

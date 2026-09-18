@@ -12,12 +12,12 @@ import subprocess
 from pathlib import Path
 
 import numpy as np
+from cml_grid import SRGB_HASH, build_grid
 from cml_interpolation import transform
 from cml_luts import input_luts, output_luts
 from verify_np3_header import digest, windows
 
 CML_HASH = "42d71afbe2d6e95d39a71ef7a6a4dfb2819e8d923c7b7e8d8b86d1166687df6f"
-SRGB_HASH = "49caea94c9d36322910350ee37f1fa09629bed70e01cf615a6863ad3f8d1475e"
 
 
 def pixel_inputs() -> np.ndarray:
@@ -113,11 +113,19 @@ def replay_snapshots(
     }
     if not all(item["equivalent"] for item in luts.values()):
         raise ValueError("Native profile LUTs differ from captured CML tables.")
-    native = transform(pixels, arrays[0], *generated)
+    grid = build_grid(source, target)
+    grid_metrics = dict(
+        metrics(grid[..., :3], arrays[0][..., :3]),
+        sha256=hashlib.sha256(grid.tobytes()).hexdigest(),
+    )
+    if not grid_metrics["equivalent"]:
+        raise ValueError("Native composed grid differs from captured CML grid.")
+    native = transform(pixels, grid, *generated)
     result = metrics(native, vendor)
     result["snapshot_sha256"] = hashes
     result["native_sha256"] = hashlib.sha256(native.tobytes()).hexdigest()
     result["native_luts"] = luts
+    result["native_grid"] = grid_metrics
     return result
 
 
@@ -220,6 +228,7 @@ def main() -> int:
         root / "tools/cml_snapshot.h",
         root / "tools/cml_interpolation.py",
         root / "tools/cml_luts.py",
+        root / "tools/cml_grid.py",
         root / "tools/verify_np3_header.py",
     ]
     profiles = []
@@ -252,8 +261,7 @@ def main() -> int:
             "Perceptual intent0, proof0, interleaved RGB16; no added LUTs.",
             "passed means complete evidence, not numeric equivalence.",
             "No claim that Little CMS is a pixel-exact Nikon substitute.",
-            "Interpolation uses a captured grid and native profile LUTs.",
-            "Native ICC-to-composed-grid generation remains unimplemented.",
+            "Native ICC composition is bounded to the recorded RGB/Lab-to-NKsRGB path.",
         ],
     }
     try:

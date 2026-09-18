@@ -451,8 +451,24 @@
     "output": "Parse NKsRGB forward rTRC/gTRC/bTRC. Invert original4096node curves into65536quantized entries using reciprocal-multiply/index-add/scale, then add12582912 in double and narrow tofloat32, taking low16bits. Expand the quantized inverse over internal8192..57343 using double interpolation/bias rounding; clamp endpoints outside. Direct unquantized inverse is not equivalent.",
     "output_lut_sha256": "8aea099ac93aa65bb9e20ce24f9b98493679378a46e4e3e2bd36f1351e0da63c",
     "static_path": "CML2a700 parses output matrix/TRC profile,19320 dispatches channels to18020 inverse curve. Assembly18471..184ac confirms arithmetic order. Input2390 and output3160 construct final LUTs.",
-    "verification": "Full pytest587passed in4.56s;25focused tests,scoped Ruff/format,ASCII/JSON/diff checks pass. Six live CML runs compare both native LUTs before pixel replay; all source hashes and guards stable. Failed v1 retained: hashing a non-contiguous NumPy array raised ValueError; corrected by explicit canonical tobytes before hashing.",
+    "verification": "Full pytest587passed in4.56s;25focused tests,scoped Ruff/format,ASCII/JSON/diff checks pass. Six live CML runs compare both native LUTs before pixel replay; all source hashes and guards stable. Independent reviewer verified17input hashes and replayed every LUT word with a separate scalar implementation; no defects found or Wine rerun. Failed v1 retained: hashing a non-contiguous NumPy array raised ValueError; corrected by explicit canonical tobytes before hashing.",
     "limit": "Strictly increasing sampled full-domain output TRCs, recovered grid33 RGB/Lab mft2 input and no extra user LUTs. Plateaus, decreasing/parametric curves and other flags are rejected. Only composed grid generation still uses CML in this profile-consumer experiment; full image rendering remains unverified."
+  },
+  "cml_native_grid_composition": {
+    "implementation": "tools/cml_grid.py",
+    "runner": "tools/verify_cml.py --snapshot",
+    "report": "cml-grid-native-v1/report.json",
+    "sha256": "86bc5d5e434b48c5f20ba14f44a803aa5a32edf07e6d9802c1e7e1dfa511bc23",
+    "cases": 6,
+    "compared_grid_color_words": 589824,
+    "different_grid_color_words": 0,
+    "compared_lut_words": 2359296,
+    "compared_pixel_words": 152352,
+    "different_lut_or_pixel_words": 0,
+    "path": "1eb60 samples32cubed coordinates axis*(65535/31).2ca60->2cde0->1d9a0 double tetrahedral interpolation of source33CLUT, vertex3+2+1+0 accumulation.2a3e0 applies3-entry output curves; middle32768 is not exact identity. Decode Lab L*100/65280,a/b /256-128;13e0 Lab-to-XYZ uses header illuminant, not wtpt.1b30 adaptation is identity here; target inverse XYZ matrix gives linear RGB, then multiply65535. Quantize via rgb65535*0.74999618524452583+6755399441063936, low32 interpreted signed, clamp0..65535.",
+    "native_boundary": "Native input LUT, composed grid, output LUT and Q14 interpolation all derive from ICC/pixel inputs. Captured tables are comparison targets only. Pinned external NKsRGB is still required; the upstream Kaiji ICC generation also uses an external Nikon template/calibration.",
+    "verification": "Six live vendor comparisons pass all grid color, LUT and pixel words. Grid padding is normalized to zero and excluded from the color-word count. Full pytest596passed in4.61s;34focused tests, scoped Ruff/format,ASCII/JSON/diff checks pass.",
+    "limit": "Pinned NKsRGB, v2.2 D50 RGB/Lab mft2 source, grid33 identity matrix and4096/3 curves, intent0/proof0, no extra LUTs, recorded SSE4.1 consumer. No source-image preprocessing, decoded-image rendering or Lightroom acceptance."
   },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
