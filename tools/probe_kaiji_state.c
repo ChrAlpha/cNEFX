@@ -18,14 +18,15 @@ static int read_state(const char *path, int32_t values[41]) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 4 && argc != 8 && argc != 12) {
+    if (argc != 4 && argc != 8 && argc != 12 && argc != 14) {
         fprintf(stderr, "Usage: probe_kaiji_state Rome2.dll state.bin output.bin "
-                "[highlights shadows white black [model strength saturation matrix]]\n");
+                "[highlights shadows white black [model strength saturation matrix "
+                "[contrast brightness]]]\n");
         return 2;
     }
-    int16_t settings[8] = {0};
-    const int low[8] = {-120, -120, -100, -100, 0, 0, -50, 0};
-    const int high[8] = {120, 120, 100, 100, 14, 256, 50, 2};
+    int16_t settings[10] = {0};
+    const int low[10] = {-120, -120, -100, -100, 0, 0, -50, 0, -256, 0};
+    const int high[10] = {120, 120, 100, 100, 14, 256, 50, 2, 256, 12};
     for (int i = 0; i < argc - 4; ++i) {
         char *end = NULL;
         errno = 0;
@@ -57,11 +58,15 @@ int main(int argc, char **argv) {
     *(uint16_t *)(state + 0x17e8) = (uint16_t)values[39];
     *(int16_t *)(state + 0x17ea) = (int16_t)values[40];
     if (argc >= 8) memcpy(state + 0x1758, settings, 4 * sizeof(int16_t));
-    if (argc == 12) {
+    if (argc >= 12) {
         memcpy(state + 0x1518, settings + 4, sizeof(int16_t));
         memcpy(state + 0x1520, settings + 5, sizeof(int16_t));
         memcpy(state + 0x1760, settings + 6, sizeof(int16_t));
         memcpy(state + 0x1524, settings + 7, sizeof(int16_t));
+    }
+    if (argc == 14) {
+        memcpy(state + 0x1548, settings + 8, sizeof(int16_t));
+        state[0x154a] = (uint8_t)settings[9];
     }
     void *address = (uint8_t *)module + 0x29f0b0;
     GenerateTables generate;
@@ -82,9 +87,11 @@ int main(int argc, char **argv) {
     }
     printf("{\"event\":\"kaiji_state\",\"output_bytes\":%lu,"
            "\"tone\":[%d,%d,%d,%d],\"model\":%d,\"strength\":%d,"
-           "\"saturation\":%d,\"matrix\":%d,\"guards_intact\":%s,\"success\":%s}\n",
+           "\"saturation\":%d,\"matrix\":%d,\"contrast\":%d,\"brightness\":%d,"
+           "\"guards_intact\":%s,\"success\":%s}\n",
            written, settings[0], settings[1], settings[2], settings[3],
            settings[4], settings[5], settings[6], settings[7],
+           settings[8], settings[9],
            guards ? "true" : "false", success ? "true" : "false");
     free(output);
     free(state);

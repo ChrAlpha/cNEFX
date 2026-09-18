@@ -13,6 +13,7 @@ import subprocess
 from pathlib import Path
 
 from kaiji_blender import blender_tables
+from kaiji_contrast import contrast_tables
 from kaiji_grading import COEFFICIENT_HASH, grading_tables
 from kaiji_input import input_matrix
 from kaiji_tone import tone_tables
@@ -129,6 +130,29 @@ def matrix_cases() -> list[dict]:
     ]
 
 
+def contrast_cases() -> list[dict]:
+    result = [
+        {
+            "name": f"c{contrast}-b{brightness}",
+            "contrast": contrast,
+            "brightness": brightness,
+        }
+        for contrast, brightness in itertools.product(
+            (-256, -128, 0, 128, 256), (0, 6, 12)
+        )
+    ]
+    rng = random.Random(20260919)
+    result.extend(
+        {
+            "name": f"random{i}",
+            "contrast": rng.randrange(-256, 257),
+            "brightness": rng.randrange(13),
+        }
+        for i in range(12)
+    )
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dll", type=Path, required=True)
@@ -137,7 +161,9 @@ def main() -> int:
     parser.add_argument("--wine-prefix", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
-        "--stage", choices=("grading", "blender", "tone", "input"), default="grading"
+        "--stage",
+        choices=("grading", "blender", "tone", "input", "contrast"),
+        default="grading",
     )
     parser.add_argument("--model-index", type=int, choices=(0, 14), default=0)
     parser.add_argument("--strength", type=int, default=0)
@@ -159,6 +185,7 @@ def main() -> int:
         Path(__file__),
         root / "tools/kaiji_grading.py",
         root / "tools/kaiji_blender.py",
+        root / "tools/kaiji_contrast.py",
         root / "tools/kaiji_tone.py",
         root / "tools/kaiji_input.py",
         root / "tools/flexible_math.py",
@@ -191,6 +218,7 @@ def main() -> int:
             "blender": blender_cases,
             "tone": tone_cases,
             "input": matrix_cases,
+            "contrast": contrast_cases,
         }[args.stage]()
         for case in selected:
             config = {
@@ -198,6 +226,8 @@ def main() -> int:
                 "strength": case.get("strength", args.strength),
                 "saturation": case.get("saturation", 0),
                 "matrix": case.get("matrix", 0),
+                "contrast": case.get("contrast", 0),
+                "brightness": case.get("brightness", 0),
             }
             extra = [str(value) for value in case.get("tone", [0, 0, 0, 0])]
             extra.extend(str(value) for value in config.values())
@@ -220,7 +250,7 @@ def main() -> int:
             elif args.stage == "tone":
                 native = tone_tables(coefficients, *case["tone"])
                 values = [0] * 41
-            else:
+            elif args.stage == "input":
                 native = (
                     input_matrix(
                         coefficients,
@@ -229,6 +259,15 @@ def main() -> int:
                         config["matrix"],
                     ),
                 )
+                values = [0] * 41
+            else:
+                sources, expanded = contrast_tables(
+                    coefficients,
+                    config["contrast"],
+                    config["brightness"],
+                    model_index=args.model_index,
+                )
+                native = sources + expanded
                 values = [0] * 41
             state = struct.pack("<41i", *values)
             state_path = args.output / f"{case['name']}.state.bin"
@@ -305,8 +344,16 @@ def main() -> int:
                     struct.unpack_from("<257H", data, 0x2E044),
                     struct.unpack_from("<4096H", data, 0x2E246),
                 )
-            else:
+            elif args.stage == "input":
                 vendor = (struct.unpack_from("<9h", data, 0x61D4),)
+            else:
+                vendor = tuple(
+                    struct.unpack_from("<257H", data, offset)
+                    for offset in (0x2583A, 0x25A3C, 0x25C3E, 0x25E40)
+                ) + tuple(
+                    struct.unpack_from("<4096i", data, offset)
+                    for offset in (0x26044, 0x2A044)
+                )
             differences = [
                 sum(a != b for a, b in zip(n, v, strict=True))
                 for n, v in zip(native, vendor, strict=True)
@@ -319,12 +366,15 @@ def main() -> int:
         report["sources_unchanged"] = all(
             digest(Path(p)) == h for p, h in hashes.items()
         )
-        count = {"grading": 40, "blender": 61, "tone": 97, "input": 45}[args.stage]
+        count = {"grading": 40, "blender": 61, "tone": 97, "input": 45, "contrast": 27}[
+            args.stage
+        ]
         words = {
             "grading": 3 * (65 + 4096),
             "blender": 6 * 32,
             "tone": 257 + 4096,
             "input": 9,
+            "contrast": 4 * 257 + 2 * 4096,
         }[args.stage]
         report["compared_words"] = len(report["cases"]) * words
         report["passed"] = (

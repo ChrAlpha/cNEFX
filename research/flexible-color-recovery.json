@@ -340,6 +340,23 @@
     "layout": "Nine signed16 words at output+0x61d4. Saturation factor from resource+0x62438+2*saturation is blended toward1024 by strength/256. First matrix row is copied; remaining six entries are scaled with signed rounding. Resource matrix entries are interleaved at0x5f424+6*entry+2*selector.",
     "limit": "This is the initial fixed-point color matrix, not the nine-double RGB-to-XYZ output matrix. Image conversion, complete application state and selector naming remain unverified."
   },
+  "native_contrast_oracle": {
+    "evidence_kind": "native_contrast_vs_live_vendor_table_generation",
+    "implementation": "tools/kaiji_contrast.py",
+    "runner": "tools/verify_kaiji_grading.py --stage contrast --model-index 14 --strength 256",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/kaiji-contrast-native-v1/report.json",
+    "report_sha256": "212f82a95bb06ceef8bd5269704404055d676bfecae612f74b66605ed1756080",
+    "cases": 27,
+    "coverage": "Contrast-256/-128/0/128/256 times biased brightness0/6/12, plus12 random states with seed20260919; model14, strength256.",
+    "compared_words": 248940,
+    "different_words": 0,
+    "parameter_offsets": {"contrast": "0x1548", "brightness": "0x154a"},
+    "output_source_offsets": ["0x2583a", "0x25a3c", "0x25c3e", "0x25e40"],
+    "output_int32_offsets": ["0x26044", "0x2a044"],
+    "coefficient_layout": "Base and signed-contrast curves are interleaved triples at0x35e7e and0x44362 plus model*0x606; brightness corrections at0x52846 and0x5708e plus model*0x404. Interpolate each source with signed rounding before applying256-abs(contrast) and abs(contrast) weights.",
+    "normalization_static": "The manual Flexible branch of0x27e980 converts the signed normalized contrast byte by round(contrast*64/25); param6 nonzero instead returns0. Other automatic/base-control branches require separate validation.",
+    "limit": "Regular family12 path with flags+0x174f and+0xe3c clear. Engine control units only; automatic contrast, log variants, complete NP3 import and image rendering remain unverified."
+  },
   "np3_state_to_generator_oracle": {
     "evidence_kind": "live_unmodified_vendor_np3_normalized_state_to_kaiji_table_generation",
     "probe": "tools/probe_kaiji_state.c",
