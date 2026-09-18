@@ -12,13 +12,74 @@ typedef void *(*Read)(void *, void *, void *);
 typedef void *(*GetTag)(void *, uint32_t, uint32_t, uint64_t, void *, uint32_t);
 typedef uint8_t (*Property)(void *, uint32_t, const void *, uint32_t *, void *, void *);
 typedef void (*Release)(void *);
+typedef uint64_t (*GetWB)(void *, double *, double *, double *, char, char);
 
 static void *slot(void *object, unsigned offset) {
     return (*(void ***)object)[offset / sizeof(void *)];
 }
 
+static int color_inputs(void *tags, const char *path) {
+    HMODULE rome = LoadLibraryA(path);
+    if (!rome) return 0;
+    char loaded[MAX_PATH];
+    DWORD length = GetModuleFileNameA(rome, loaded, MAX_PATH);
+    if (!length || length >= MAX_PATH) return 0;
+    for (DWORD i = 0; i < length; ++i) {
+        if (loaded[i] == '\\') loaded[i] = '/';
+        if (loaded[i] == '"' || (unsigned char)loaded[i] < 32) return 0;
+    }
+    const uint64_t guard = UINT64_C(0xa5a5a5a5a5a5a5a5);
+    struct { uint64_t before; double value; uint64_t after; } wb[3];
+    for (unsigned i = 0; i < 3; ++i) {
+        wb[i].before = wb[i].after = guard;
+        wb[i].value = -1.0;
+    }
+    GetWB get_wb;
+    void *address = (uint8_t *)rome + 0x128a00;
+    memcpy(&get_wb, &address, sizeof(get_wb));
+    uint64_t status = get_wb(tags, &wb[0].value, &wb[1].value, &wb[2].value, 0, 1);
+    int guards = 1;
+    for (unsigned i = 0; i < 3; ++i)
+        guards &= wb[i].before == guard && wb[i].after == guard;
+    printf("{\"event\":\"white_balance\",\"rome_path\":\"%s\",\"status\":%llu,"
+           "\"guards_intact\":%s,\"values\":[%.17g,%.17g,%.17g]}\n", loaded,
+           (unsigned long long)status, guards ? "true" : "false",
+           wb[0].value, wb[1].value, wb[2].value);
+    int success = status == 1 && guards;
+    GetTag get_tag;
+    address = slot(tags, 0x28);
+    memcpy(&get_tag, &address, sizeof(get_tag));
+    const uint32_t keys[] = {0x8000c, 0x8003b, 0x80e17, 0x80e2d};
+    for (unsigned i = 0; i < 4; ++i) {
+        struct { uint64_t before; double values[4]; uint64_t after; } data;
+        memset(&data, 0xa5, sizeof(data));
+        unsigned size = i == 3 ? 16 : 32;
+        void *error = get_tag(tags, keys[i], i == 3 ? 0x174 : 4, size, data.values, 0);
+        guards = data.before == guard && data.after == guard;
+        if (i == 3) {
+            const uint8_t *tail = (const uint8_t *)data.values + size;
+            for (unsigned j = 0; j < 16; ++j) guards &= tail[j] == 0xa5;
+        }
+        printf("{\"event\":\"color_tag\",\"key\":%u,\"success\":%s,"
+               "\"guards_intact\":%s,\"hex\":\"", keys[i], error ? "false" : "true",
+               guards ? "true" : "false");
+        const uint8_t *bytes = (const uint8_t *)data.values;
+        for (unsigned j = 0; j < size; ++j) printf("%02x", bytes[j]);
+        printf("\"}\n");
+        success &= guards && (i == 3 || !error);
+        if (error) {
+            Release release;
+            address = slot(error, 0);
+            memcpy(&release, &address, sizeof(release));
+            release(error);
+        }
+    }
+    FreeLibrary(rome);
+    return success;
+}
+
 int main(int argc, char **argv) {
-    if (argc != 4 || strlen(argv[2]) >= 260) return 2;
+    if ((argc != 4 && argc != 5) || strlen(argv[2]) >= 260) return 2;
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
     HMODULE module = LoadLibraryA(argv[1]);
     if (!module) return 3;
@@ -93,6 +154,7 @@ int main(int argc, char **argv) {
     }
     printf("{\"event\":\"colorbalance_iso\",\"status\":%u,\"value\":%u,"
            "\"guards_intact\":%s,\"success\":%s}\n", status, result[1], guards ? "true" : "false", success ? "true" : "false");
+    if (success && argc == 5) success = color_inputs(tags, argv[4]);
     void *release_objects[] = {loader, tags, stream};
     for (unsigned i = 0; i < 3; ++i) {
         Release release;
