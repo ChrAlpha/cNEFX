@@ -35,6 +35,27 @@ def controls() -> list[list[int]]:
     return result
 
 
+def range_mask(ranges: list[tuple[int, bytes]], *, complete: bool) -> bytearray:
+    mask = bytearray(0x34370)
+    if complete and (
+        len(ranges) != 1 or ranges[0][0] != 0 or len(ranges[0][1]) != len(mask)
+    ):
+        raise ValueError("Expected one complete native table snapshot.")
+    for offset, data in ranges:
+        if (
+            type(offset) is not int
+            or type(data) is not bytes
+            or offset < 0
+            or offset + len(data) > len(mask)
+            or any(mask[offset : offset + len(data)])
+        ):
+            raise ValueError("Native table ranges overlap or exceed the layout.")
+        mask[offset : offset + len(data)] = bytes([1]) * len(data)
+    if sum(mask) != (len(mask) if complete else 69670):
+        raise ValueError("Incomplete native table coverage.")
+    return mask
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("dll", "probe", "coefficients", "wine-prefix", "output"):
@@ -52,7 +73,6 @@ def main() -> int:
     paths = [
         args.dll,
         args.probe,
-        args.coefficients,
         Path(__file__),
         *(
             Path(sys.modules[name].__file__)
@@ -70,6 +90,7 @@ def main() -> int:
         root / "tools/probe_kaiji_state.c",
     ]
     hashes = {str(p.resolve()): digest(p) for p in paths}
+    hashes[str(args.coefficients.resolve())] = hashlib.sha256(coefficients).hexdigest()
     hashes[str((root / "tools/kaiji_oracle.py").resolve())] = digest(
         root / "tools/kaiji_oracle.py"
     )
@@ -102,7 +123,6 @@ def main() -> int:
     }
     args.output.mkdir(parents=True)
     baseline = None
-    mask = bytearray(0x34370)
     try:
         for index, values in enumerate(controls()):
             ranges = (
@@ -110,14 +130,8 @@ def main() -> int:
                 if args.native_complete
                 else expected_ranges(coefficients, values)
             )
-            if index == 0:
-                for offset, data in ranges:
-                    if any(mask[offset : offset + len(data)]):
-                        raise ValueError("Native table ranges overlap.")
-                    mask[offset : offset + len(data)] = bytes([1]) * len(data)
-                report["native_range_bytes"] = sum(mask)
-                if sum(mask) != (0x34370 if args.native_complete else 69670):
-                    raise ValueError("Incomplete native table coverage.")
+            mask = range_mask(ranges, complete=args.native_complete)
+            report["native_range_bytes"] = sum(mask)
             state = struct.pack("<41i", *values)
             state_path = args.output / f"case{index}.state.bin"
             table_path = args.output / f"case{index}.bin"
@@ -199,11 +213,12 @@ def main() -> int:
                 raise ValueError("Output size or input stability failure.")
             if baseline is None:
                 baseline = actual
-            predicted = (
-                bytearray(len(actual)) if args.native_complete else bytearray(baseline)
-            )
-            for offset, data in ranges:
-                predicted[offset : offset + len(data)] = data
+            if args.native_complete:
+                predicted = ranges[0][1]
+            else:
+                predicted = bytearray(baseline)
+                for offset, data in ranges:
+                    predicted[offset : offset + len(data)] = data
             if args.native_complete:
                 with (args.output / f"case{index}.native.bin").open("xb") as stream:
                     stream.write(predicted)
