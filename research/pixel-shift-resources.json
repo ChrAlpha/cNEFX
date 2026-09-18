@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-18",
+  "evidence_kind": "static_resource_recovery_and_live_dependency_probe",
+  "artifact": {
+    "filename": "prm.bin",
+    "sha256": "8d6f1bf219561f3c7c11c61b9b9e3317a369c9b5be5089ddffd82db96ca7f707",
+    "size_bytes": 17323363,
+    "source": "NX Studio 1.10.1 Windows installer"
+  },
+  "container": {
+    "header_bytes": 32,
+    "byte_order": "little-endian",
+    "required_magic_u32": "0x4e4f4b4e",
+    "required_version_u32": "0x01010000",
+    "header_third_u32_observed": 100000,
+    "record_header_bytes": 32,
+    "record_fields_u32": ["type", "id", "alias_id", "flags", "stored_bytes", "decoded_bytes", "reserved0", "reserved1"],
+    "layout": "Each record header is followed immediately by stored_bytes payload bytes. Records continue to EOF.",
+    "alias_behavior": "A nonzero alias_id redirects lookup to that id with the same type. The observed file contains no aliases.",
+    "vendor_limits": {"stored_bytes_max": 8388608, "decoded_bytes_max": 16777216},
+    "loader_rva": "0x33e790"
+  },
+  "payload_transform": {
+    "decoder_rva": "0x33e090",
+    "required_flags_on_this_loader_path": 3,
+    "steps": [
+      "Initialize uint32 state to 0x10dcd for each resource.",
+      "For each stored byte: state = (state * 0x6c078965 + 1) modulo 2^32; byte ^= (state >> 13) & 0xff.",
+      "Decompress the transformed byte stream with zlib."
+    ],
+    "verification": "All 147 direct records decoded successfully and matched declared lengths, totaling 64588272 decoded bytes.",
+    "record_types": {"0x1001": 70, "0x1002": 77},
+    "payload_distribution": "No decoded proprietary resource payload is stored in the repository."
+  },
+  "z8_record": {
+    "type": "0x1002",
+    "id": 1071,
+    "header_offset": "0x821794",
+    "flags": 3,
+    "stored_bytes": 122680,
+    "decoded_bytes": 422416,
+    "decoded_sha256": "d44561f16bf877a264ecfbb947f5b6635d6b0e9151fa70ca601d9b131804822f"
+  },
+  "merge_usage": {
+    "function_rva": "0x353b80",
+    "when": "Per-output counts 8 or 32, with a present nonempty TIFF XMP tag 700. Counts 4 and 16 bypass this update.",
+    "purpose": "Recompute Adobe Camera Raw defaults from camera metadata and resource tables; the resource is not used by the basic spatial-sampling loop or radial-correction coefficient parser.",
+    "namespace": "http://ns.adobe.com/camera-raw-defaults/1.0/",
+    "property_names_referenced": [
+      "crd:LuminanceSmoothing", "crd:LuminanceNoiseReductionDetail",
+      "crd:LuminanceNoiseReductionContrast", "crd:ColorNoiseReduction",
+      "crd:ColorNoiseReductionDetail", "crd:ColorNoiseReductionSmoothness",
+      "crd:Sharpness", "crd:SharpenRadius", "crd:SharpenDetail", "crd:SharpenEdgeMasking"
+    ],
+    "live_eight_frame_observation": {
+      "input_kind": "One marker-enabled normal Z8 NEF supplied eight times; synthetic sequence.",
+      "output_sha256": "343eba3dccda9d5115bb17faad89737fae837f7c75e213d6ae9adfb31ef48a9e",
+      "LuminanceSmoothing": {"source": 14, "output": 5},
+      "Sharpness": {"source": 46, "output": 48},
+      "reading_tool": "ExifTool 13.59",
+      "limitation": "Observed metadata values do not establish Lightroom's actual interpretation."
+    }
+  },
+  "missing_resource_probe": {
+    "evidence_kind": "live_vendor_dll_failure",
+    "setup": "Run the probe from a directory without prm.bin, keeping the DLL at its original path and supplying the eight distinct packed-14 fixtures.",
+    "last_progress_percent": 80,
+    "normal_return_event": false,
+    "wine_exit_status": 5,
+    "exception_code": "0xc0000005",
+    "exception_kind": "EXCEPTION_ACCESS_VIOLATION",
+    "accessed_address": "0xa82",
+    "static_correlation": "At RVA 0x353de6 the metadata update dereferences resource+0xa82 after the loader returned a null resource pointer.",
+    "local_evidence": "/workspaces/LumaForge/nxc-data/scratch/no-resource/failure-report.json"
+  },
+  "verification_commands": [
+    "uv run tools/inspect_prm.py /path/to/prm.bin --type 0x1002 --id 1071",
+    "exiftool -config '' -j -G1 -XMP-crd:all /path/to/eight-frame-output.nefx"
+  ],
+  "remaining": [
+    "Normalize all metadata-to-resource lookup equations and Adobe-default value derivation.",
+    "Verify the no-XMP branch, unsupported model IDs, malformed resources, and authentic capture metadata.",
+    "Check downstream Lightroom Classic behavior independently."
+  ]
+}
