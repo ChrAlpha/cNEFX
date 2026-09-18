@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "scope": "Nikon Z8 pixel-shift sequence identity, frame grouping, and NEFX metadata",
+  "observed_on": "2026-09-18",
+  "evidence_kind": "static_source_and_binary_analysis",
+  "source_versions": {
+    "LibRaw": {
+      "commit": "4006b2e47e47e9ca2a4fb855a261f1e3a2fec1f1",
+      "url": "https://github.com/LibRaw/LibRaw/tree/4006b2e47e47e9ca2a4fb855a261f1e3a2fec1f1",
+      "nikon_cpp_sha256": "7f5b4c7ee5952ad0072aa3123d389ce0dc30ea3a074f8bc0cef0592bfe4d99e2",
+      "open_cpp_sha256": "cbc69286856d9fe7dfe833d35e143f76ba26a0ca9121352e141bf68364bcfeca",
+      "decoders_libraw_cpp_sha256": "807fa664772445dd4ddf560ce2be57745c737a3df8b075793e7c1d1c76a179ca"
+    },
+    "ExifTool": {
+      "commit": "2200871d9cef988051d2a99d67df3bda6cbb30a8",
+      "url": "https://github.com/exiftool/exiftool/blob/2200871d9cef988051d2a99d67df3bda6cbb30a8/lib/Image/ExifTool/Nikon.pm",
+      "Nikon_pm_sha256": "9410b783cc5e591ec28d6bff66880adc8d9b056a545244bfd244d995a4422298"
+    }
+  },
+  "artifacts": {
+    "NkvRTL.dll": {
+      "path_outside_repository": "/workspaces/LumaForge/nxc-data/scratch/nx-studio-1.10.1/extracted/Program Files 64/Nikon/NXStudio/NkvRTL.dll",
+      "sha256": "fce4a6a5502c6e113c82553502e0cf793142273afbe814cd4d9eabf39e889a46",
+      "image_base": "0x180000000",
+      "exports": [
+        {"symbol": "??0CNkvPixelShiftData@@QEAA@XZ", "rva": "0xa6f0", "ordinal": 98},
+        {"symbol": "??0CNkvPixelShiftShootingInfoData@@QEAA@XZ", "rva": "0xa710", "ordinal": 101},
+        {"symbol": "??0CNkvPixelShiftCombineData@@QEAA@XZ", "rva": "0xa760", "ordinal": 95},
+        {"symbol": "??0CNkvPixelShiftShootingInfoData@@QEAA@AEBV0@@Z", "rva": "0x40c0", "ordinal": 100},
+        {"symbol": "??0CNkvPixelShiftShootingInfoData@@QEAA@$$QEAV0@@Z", "rva": "0x4140", "ordinal": 99},
+        {"symbol": "??0CNkvPixelShiftCombineData@@QEAA@AEBV0@@Z", "rva": "0x42a0", "ordinal": 94},
+        {"symbol": "??4CNkvPixelShiftShootingInfoData@@QEAAAEAV0@AEBV0@@Z", "rva": "0x41c0", "ordinal": 285},
+        {"symbol": "??4CNkvPixelShiftCombineData@@QEAAAEAV0@AEBV0@@Z", "rva": "0x4350", "ordinal": 281}
+      ],
+      "constructor_observations": [
+        {
+          "class": "CNkvPixelShiftData",
+          "rva": "0xa6f0",
+          "confirmed_fields": [
+            {"offset": "0x00", "width": 8, "initial_value": 0},
+            {"offset": "0x08", "width": 8, "initial_value": 0},
+            {"offset": "0x10", "width": 8, "initial_value": 0},
+            {"offset": "0x18", "width": 1, "initial_value": 1}
+          ],
+          "highest_written_byte_offset": "0x18",
+          "limitation": "Constructor writes alone do not establish trailing alignment padding."
+        },
+        {
+          "class": "CNkvPixelShiftShootingInfoData",
+          "rva": "0xa710",
+          "confirmed_fields": [
+            {"offset": "0x00", "width": 8, "initial_value": "pointer to allocated 0x78-byte tree sentinel"},
+            {"offset": "0x08", "width": 8, "initial_value": 0},
+            {"offset": "0x10", "width": 8, "initial_value": 0},
+            {"offset": "0x18", "width": 4, "initial_value": 0},
+            {"offset": "0x1c", "width": 1, "initial_value": 0}
+          ],
+          "observed_container_stride": "0x20",
+          "tree_sentinel": "At RVA 0xa72f, the allocated object's pointer fields at 0x00, 0x08, and 0x10 reference itself; bytes 0x18 and 0x19 are set to 1."
+        },
+        {
+          "class": "CNkvPixelShiftCombineData",
+          "rva": "0xa760",
+          "confirmed_fields": [
+            {"offset": "0x00", "width": 8, "initial_value": "pointer to allocated 0x78-byte tree sentinel"},
+            {"offset": "0x08", "width": 8, "initial_value": 0},
+            {"offset": "0x10", "width": 8, "initial_value": 0},
+            {"offset": "0x18", "width": 4, "initial_value": 0},
+            {"offset": "0x1c", "width": 1, "initial_value": 0},
+            {"offset": "0x20", "width": 8, "initial_value": 0},
+            {"offset": "0x28", "width": 8, "initial_value": 0},
+            {"offset": "0x30", "width": 8, "initial_value": 0},
+            {"offset": "0x38", "width": 4, "initial_value": 0},
+            {"offset": "0x3c", "width": 1, "initial_value": 1}
+          ],
+          "highest_written_byte_offset": "0x3c",
+          "observed_container_stride": "0x40 at Polaris RVA 0x1f4e7a",
+          "limitation": "Field meanings and ownership are not established by constructors alone."
+        }
+      ]
+    },
+    "Polaris.dll": {
+      "path_outside_repository": "/workspaces/LumaForge/nxc-data/scratch/nx-studio-1.10.1/extracted/Program Files 64/Nikon/NXStudio/Polaris.dll",
+      "sha256": "1c5638c9c370a236e52b3e4a18ff7ae746399743fb75b946a0fbfa899ba86993",
+      "import_iat_rvas": {
+        "CNkvPixelShiftShootingInfoData_const_copy": "0x2a7878",
+        "CNkvPixelShiftShootingInfoData_destructor": "0x2a7880",
+        "CNkvPixelShiftShootingInfoData_const_assignment": "0x2a7888",
+        "CNkvPixelShiftShootingInfoData_default": "0x2a79d0",
+        "CNkvPixelShiftShootingInfoData_move_copy": "0x2a79d8",
+        "CNkvPixelShiftCombineData_destructor": "0x2a79e0",
+        "CNkvPixelShiftCombineData_const_copy": "0x2a79e8",
+        "CNkvPixelShiftCombineData_const_assignment": "0x2a79f0"
+      },
+      "call_site_observations": [
+        {
+          "rva": "0x1686d6",
+          "target_iat_rva": "0x2a7878",
+          "confirmed": "A loop constructs CNkvPixelShiftShootingInfoData elements and advances source and destination pointers by 0x20 bytes per element.",
+          "implication": "The object representation used by this loop has a 0x20-byte stride; this does not reveal frame ordering."
+        },
+        {
+          "rva": "0x1f5c8c",
+          "target_iat_rva": "0x2a79d0",
+          "confirmed": "A default CNkvPixelShiftShootingInfoData is constructed before a record is populated and inserted into a container.",
+          "implication": "The class is part of Polaris metadata/container processing."
+        },
+        {
+          "rva": "0x1f5e7b",
+          "target_iat_rva": "0x2a7878",
+          "confirmed": "A CNkvPixelShiftShootingInfoData copy operation is used while growing or relocating a container.",
+          "implication": "The observed copies are container mechanics, not proof of capture sequence order."
+        }
+      ],
+      "grouping_function": {
+        "rva": "0x1f5960",
+        "caller_rva": "0x1f5582",
+        "confirmed": [
+          "The outer ordered tree is keyed by the sixth argument, a 32-bit value read from CNkvImagePropertyData offset 0x280 by the caller.",
+          "The nested ordered tree is keyed by the seventh argument, a 32-bit value read from CNkvImagePropertyData offset 0x284 by the caller.",
+          "Each inner record holds a 64-bit input item identifier followed by an object copied through the CNkvFilePath copy constructor.",
+          "If both the outer group key and inner frame key already exist, the function returns at RVAs 0x1f5a17 through 0x1f5a1a before changing the existing record; first occurrence wins.",
+          "ShootingInfoData offset 0x10 is initialized to the outer key if it was zero; offset 0x14 receives metadata-object offset 0x270 if zero; offset 0x18 receives metadata-object offset 0x274 if zero.",
+          "At RVAs 0x1f5ba1 through 0x1f5bb6, equality between the signed 32-bit offset-0x18 value and the inner tree's 64-bit item count sets the offset-0x1c byte to 1."
+        ],
+        "limitation": "These facts recover the NX Studio consumer behavior. They do not establish that burst identity is globally unique across cameras, cards, directory rollovers, or later sessions."
+      },
+      "metadata_key_dataflow": {
+        "property_population_rva": "0x22bfe0",
+        "group_and_frame_key": {
+          "vendor_metadata_key": "0x80056",
+          "vendor_type_id": "0x155",
+          "requested_block_length": 16,
+          "read_call_rva": "0x22c3c9",
+          "group_key_copy_rva": "0x22c3dc",
+          "frame_key_copy_rva": "0x22c3e5",
+          "group_key": "little-endian uint32 from returned block bytes 4..7 to CNkvImagePropertyData+0x280",
+          "frame_key": "little-endian uint32 from returned block bytes 8..11 to CNkvImagePropertyData+0x284",
+          "missing_or_failed_read": "Both destination fields are initialized to zero at RVA 0x22c37e."
+        },
+        "mode_and_expected_count": {
+          "function_rva": "0x238020",
+          "caller_rva": "0x22c363",
+          "vendor_metadata_key": "0x8005e",
+          "vendor_type_id": "0x177",
+          "requested_block_length": 28,
+          "read_call_rva": "0x23809c",
+          "mode_byte_offset": 4,
+          "mode_and_count": [
+            {"byte_value": 1, "mode": 1, "expected_frames": 4},
+            {"byte_value": 2, "mode": 2, "expected_frames": 8},
+            {"byte_value": 3, "mode": 3, "expected_frames": 16},
+            {"byte_value": 4, "mode": 4, "expected_frames": 32}
+          ],
+          "destinations": "Mode is stored at CNkvImagePropertyData+0x270; expected frame count is stored at +0x274. Missing, failed, or unrecognized data leaves zero values."
+        },
+        "relationship_to_file_tags": "The key suffix 0x0056, 16-byte length, and byte offsets align with ExifTool MakerNote 0x0056. The metadata service's exact raw-file-to-returned-block transformation has not been traced, so vendor returned-buffer offsets are distinguished from confirmed raw-file offsets."
+      },
+      "input_array_order": {
+        "function_rva": "0x1f4eb0",
+        "tree_walk_rvas": ["0x1f4f81", "0x1f4fa0", "0x1f4ff2", "0x1f503f"],
+        "path_array_store_rva": "0x1f4fd6",
+        "combine_call_rva": "0x1f516f",
+        "confirmed": "The function walks the inner tree in ascending unsigned 32-bit key order, obtains each CNkvFilePath full path through CNkvStringData::GetPtrUtf8, and appends that UTF-8 pointer to the input array supplied to PixelShiftCombine. There is no filename comparison in this path-array construction.",
+        "implication": "PixelShiftCombine array index zero corresponds to the smallest supplied frame key, not inherently to a hardcoded zero- or one-based capture index. The frame key's starting value still requires authentic samples."
+      }
+    }
+  },
+  "source_metadata_contract": {
+    "source": "LibRaw src/metadata/nikon.cpp and libraw_types.h",
+    "maker_note_tag": "0x0056",
+    "camera_scope": "LibRaw gates this parser on Nikon Z-series models; ExifTool's table comment names Z8/Z9.",
+    "LibRaw_required_length": 16,
+    "fields": [
+      {"offset": 0, "width": 4, "name": "FirmwareVersion56", "encoding": "ASCII string in ExifTool; four decimal digits in LibRaw"},
+      {"offset": 4, "width": 4, "name": "BurstIdentityPacked", "status": "packed; decoded by ExifTool masks below with inherited byte order"},
+      {"offset": 4, "width": 1, "name": "BurstFlag", "encoding": "ExifTool default int8u; nonzero enables the named Burst fields"},
+      {"offset": 8, "width": 4, "name": "BurstShotNumber", "encoding": "ExifTool int32u with inherited byte order"},
+      {"offset": 12, "width": 1, "name": "PixelShiftActive", "encoding": "ExifTool default int8u; 0 maps to No and 1 to Yes"}
+    ],
+    "identity_masks_from_ExifTool": [
+      {"name": "BurstStartSlotNumber", "offset": 4, "mask": "0x20000000", "right_shift": 29, "value_adjustment": "+1"},
+      {"name": "BurstStartFolderNumber", "offset": 4, "mask": "0x1ff80000", "right_shift": 19},
+      {"name": "BurstStartImageNumber", "offset": 4, "mask": "0x0007ffe0", "right_shift": 5},
+      {"name": "BurstStartImageType", "offset": 4, "mask": "0x0000001f", "NEF_value": 2}
+    ],
+    "LibRaw_limitations": "LibRaw stores only bytes 4-5 as a little-endian gid and byte 8 as fnum. These are narrower than ExifTool's packed 32-bit identity and shot-number fields, and must not be treated as a sufficient unique sequence identity.",
+    "source_lines": {"LibRaw_nikon_cpp": [607, 615], "ExifTool_Nikon_pm": [12089, 12152], "ExifTool_default_int8u_ExifTool_pm": [9891, 9892]},
+    "pixel_shift_shooting_settings": {
+      "number_of_shots_values": {"0": 4, "1": 8, "2": 16, "3": 32},
+      "delay_values_seconds": {"0": 0, "1": 1, "2": 2, "3": 3, "4": 5, "5": 10}
+    }
+  },
+  "nefx_decode_contract": {
+    "source": "LibRaw src/utils/open.cpp and src/decoders/decoders_libraw.cpp",
+    "confirmed": [
+      "Nikon Z-series data whose packed size matches the three-color 14-bit formula selects nikon_14bit_load_raw().",
+      "The three-color branch sets filters to 0, indicating no Bayer CFA in the decoded NEFX image.",
+      "The loader unpacks 21 packed bytes into twelve 14-bit channel samples stored as uint16: four pixels with three channels each."
+    ],
+    "formula_as_implemented": "ceilf(float(raw_width * 21 / 4) / 16.f) * 16 * raw_height; raw_width * 21 / 4 uses integer division before the float conversion",
+    "source_lines": {"src/utils/open.cpp": [690, 714], "src/decoders/decoders_libraw.cpp": [211, 267]},
+    "limitation": "This identifies a three-channel NEFX decode path; it does not define NEFX metadata tags, source frame ordering, or Nikon's numerical merge algorithm."
+  },
+  "ordering_status": {
+    "confirmed": [
+      "PixelShiftCombine.dll's 32-input dispatch groups caller-array positions as [0..3,16..19], [4..7,20..23], [8..11,24..27], and [12..15,28..31] for four eight-input merge calls; see nx-studio-1.10.1-windows.json.",
+      "Polaris builds the caller's input array in ascending unsigned 32-bit frame-key order using returned metadata key 0x80056 bytes 8..11. Array positions still do not establish spatial phase or whether real capture numbering begins at zero or one.",
+      "ExifTool interprets MakerNote 0x0056 as burst identity, shot number, and a pixel-shift-active flag. This is source-level evidence; no genuine pixel-shift sequence has validated the complete grouping contract."
+    ],
+    "unknown": [
+      "The complete mapping from frame identity to sensor spatial phase is not established.",
+      "No authentic Z8 pixel-shift NEF sequence or NX Studio NEFX output is available for correlation.",
+      "No filename ordering rule is proven; nxc must not infer ordering from lexicographic names or adjacent timestamps alone.",
+      "CNkvPixelShiftShootingInfoData offsets 0x10, 0x14, 0x18, and 0x1c now have dataflow meanings: group key, mode, expected frame count, and completeness flag. Other CNkvPixelShiftData fields remain unresolved.",
+      "The exact raw-file-to-vendor-metadata-block transformation for 0x80056 and 0x8005e remains unresolved.",
+      "NEFX container tag semantics and metadata preservation rules remain unresolved."
+    ]
+  },
+  "evidence_commands": [
+    "objdump -p NkvRTL.dll",
+    "objdump -d -M intel --start-address=0x18000a6f0 --stop-address=0x18000a7c0 NkvRTL.dll",
+    "objdump -d -M intel --start-address=0x1801686d0 --stop-address=0x1801687bd Polaris.dll",
+    "objdump -d -M intel --start-address=0x1801f5300 --stop-address=0x1801f56c0 Polaris.dll",
+    "objdump -d -M intel --start-address=0x1801f5960 --stop-address=0x1801f5bd6 Polaris.dll",
+    "objdump -d -M intel --start-address=0x1801f4eb0 --stop-address=0x1801f5175 Polaris.dll",
+    "objdump -d -M intel --start-address=0x18022c352 --stop-address=0x18022c3ee Polaris.dll",
+    "objdump -d -M intel --start-address=0x180238020 --stop-address=0x180238130 Polaris.dll",
+    "rg -n 'BurstTable_0x0056|PixelShift' /workspaces/LumaForge/LibRaw/src/metadata/nikon.cpp /workspaces/LumaForge/nxc-data/scratch/Nikon-exiftool.pm"
+  ]
+}

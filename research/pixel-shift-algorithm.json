@@ -1,0 +1,214 @@
+{
+  "schema_version": 1,
+  "project": "NX Ctudio",
+  "observed_on": "2026-09-18",
+  "evidence_kind": "static_binary_analysis",
+  "binary": {
+    "filename": "PixelShiftCombine.dll",
+    "file_version": "1.2.1.3000",
+    "sha256": "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c",
+    "image_base": "0x180000000",
+    "source_release": "NX Studio 1.10.1 Windows"
+  },
+  "scope": "Arithmetic and spatial mapping after RAW decoding, before NEFX serialization. Static recovery is not an authentic-image fidelity result.",
+  "function_map": [
+    {"va": "0x180350290", "role": "Initialize merge context and place eight-input paths into internal slots 0..3 and 16..19."},
+    {"va": "0x180350590", "role": "Read, decode, preprocess, reconstruct, optionally correct, crop, encode, and write one output."},
+    {"va": "0x18034ba60", "role": "Four-frame metadata-selected sample correction for ISO at most 3200; complete branch equations remain to be normalized."},
+    {"va": "0x18034df80", "role": "Two-frame vertical-offset averaging plus metadata-selected source replacement, ISO at most 3200."},
+    {"va": "0x18034e420", "role": "Two-frame vertical-offset averaging, ISO above 3200."},
+    {"va": "0x18034aca0", "role": "Optional radial correction of red and blue planes using separate coefficient triples."},
+    {"va": "0x18034b2c0", "role": "Separable four-by-four cubic resampling with output clamped to the supplied interval."},
+    {"va": "0x18034b8b0", "role": "Apply CropArea and interleave three planes into RGB samples."},
+    {"va": "0x18034e700", "role": "Build 640 by 424 preview using integer sample-area averaging."}
+  ],
+  "input_slots": {
+    "status": "confirmed_static",
+    "slot_stride_bytes": 560,
+    "slot_zero_context_offset": "0x8",
+    "raw_vector_in_slot_offset": "0x1b0",
+    "four_sixteen_thirty_two_input_placement": "Input position i is copied to internal slot i.",
+    "eight_input_placement": [0, 1, 2, 3, 16, 17, 18, 19],
+    "evidence_vas": ["0x1803502ee", "0x1803503c0", "0x1803503e5"]
+  },
+  "preprocessing_dispatch": {
+    "status": "confirmed_static",
+    "iso_source": "EXIF tag 0x8827, copied into frame offset 0x1c8 and merge-context offset 0x1d0.",
+    "iso_source_va": "0x180351d9f",
+    "threshold_iso": 3200,
+    "modes": [
+      {"inputs": 4, "low_iso": "Apply 0x18034ba60 to slots 0..3.", "high_iso": "No preprocessing call before plane reconstruction."},
+      {"inputs": 8, "low_iso": "Apply 0x18034df80 to slot pairs (j,j+16), j=0..3.", "high_iso": "Apply 0x18034e420 to the same pairs."},
+      {"inputs": 16, "low_iso": "Apply 0x18034ba60 separately to consecutive slot groups 0..3, 4..7, 8..11, 12..15.", "high_iso": "No preprocessing call before plane reconstruction."},
+      {"inputs": 32, "low_iso": "Apply 0x18034df80 to slot pairs (j,j+16), j=0..15.", "high_iso": "Apply 0x18034e420 to the same pairs."}
+    ],
+    "evidence_vas": ["0x1803506c0", "0x1803507a0", "0x180350880", "0x180350956"]
+  },
+  "two_frame_preprocessing": {
+    "status": "confirmed_static",
+    "definition": "A and B are uint16 RAW planes with identical width W and height H. Only A is replaced.",
+    "base_equations": [
+      "For y < 2: Aout[y,x] = A[y,x].",
+      "For y >= 2: Aout[y,x] = floor((A[y,x] + B[y-2,x]) / 2)."
+    ],
+    "arithmetic": "Operands are promoted to 32-bit unsigned integers before addition; unsigned shift by one floors the average. No additional gain, black subtraction, or saturation is applied by these averaging instructions.",
+    "low_iso_overrides": [
+      "For each metadata-selected sample (x,y), replace Aout[y,x] with B[y-2,x].",
+      "Also replace Aout[y+2,x] with A[y+2,x], discarding the base average at that location."
+    ],
+    "source_selection": "The second pair member is displaced by two full RAW rows; the source row is y-2, not y.",
+    "evidence_vas": ["0x18034e1a0", "0x18034e2ab", "0x18034e580", "0x18034e621"],
+    "limitation": "The physical sensor-displacement sign is not inferred from this buffer-coordinate relation. Metadata-selected row semantics and valid bounds require authentic files."
+  },
+  "sample_selection_metadata": {
+    "status": "confirmed_static",
+    "source_tag": "Nikon MakerNote 0x005e",
+    "accepted_version_ascii": "0100",
+    "minimum_bytes": 28,
+    "required_nonzero_byte_offset": 4,
+    "parse_function_va": "0x180351ff0",
+    "record_copy": "Raw tag bytes 4..27 are copied into frame offsets 0x1e8..0x1ff, then into preprocessing argument offsets 0x28..0x3f.",
+    "fields": [
+      {"tag_offset": 6, "type": "uint16le", "used_as": "Reference height in row-origin adjustment."},
+      {"tag_offset": 8, "type": "uint16le", "used_as": "Reference width in horizontal bounds."},
+      {"tag_offset": 10, "type": "uint16le", "used_as": "Horizontal half-grid minimum after division by two."},
+      {"tag_offset": 12, "type": "uint16le", "used_as": "Initial row before reference-height adjustment."},
+      {"tag_offset": 14, "type": "uint16le", "used_as": "Middle-loop row increment."},
+      {"tag_offset": 16, "type": "uint16le", "used_as": "Outer-loop row increment."},
+      {"tag_offset": 18, "type": "uint8", "used_as": "Inner-loop row increment."},
+      {"tag_offset": 19, "type": "uint8", "used_as": "Middle-loop count."},
+      {"tag_offset": 20, "type": "uint8", "used_as": "Outer-loop count."},
+      {"tag_offset": 22, "type": "uint8", "used_as": "First term of inner-loop count."},
+      {"tag_offset": 24, "type": "uint8", "used_as": "Second term of inner-loop count; total is byte22 + byte24 + 1."}
+    ],
+    "selection_equations": [
+      "Set y = uint16le(tag,12) - trunc((uint16le(tag,6) - H) / 2).",
+      "Nested outer, middle, inner loops each start at one. Before iterations after the first, add that loop's row increment to the same cumulative y variable; y is not reset between loops.",
+      "For a selected row with 0 <= y <= H, set x=1 and iterate k=1..trunc(W/2)-2.",
+      "Accept k only when k >= floor(uint16le(tag,10)/2), k >= trunc((uint16le(tag,8)-W)/4), and k <= trunc((uint16le(tag,8)-W)/4)+trunc(W/2).",
+      "Only on accepted k, increment x by two unless k==1, then process sample (x,y)."
+    ],
+    "limitations": [
+      "Field names are operational descriptions, not Nikon-defined semantic names.",
+      "The observed row check alone allows y==H and does not protect y-2 or y+2; valid vendor metadata presumably constrains this, but that invariant has not been proved.",
+      "Do not classify this block as PDAF metadata or diffraction compensation without additional evidence."
+    ]
+  },
+  "plane_reconstruction": {
+    "status": "confirmed_static",
+    "loop_va_range": ["0x180350c54", "0x180351010"],
+    "width_height_definition": "W and H are decoded RAW buffer dimensions from TIFF image tags 0x0100 and 0x0101, not the visible CropArea.",
+    "sample_type": "uint16",
+    "phase_x_table": {"va": "0x1805eadf0", "values": [0, 1, 1, 0]},
+    "phase_y_table": {"va": "0x1805eade0", "values": [0, 0, 1, 1]},
+    "channel_table": {
+      "va": "0x1805eada0",
+      "channel_indices": {"0": "R", "1": "G", "2": "B"},
+      "within_block_corner_order": ["top_left", "top_right", "bottom_right", "bottom_left"],
+      "rows_by_four_frame_index": [[2, 1, 0, 1], [1, 2, 1, 0], [0, 1, 2, 1], [1, 0, 1, 2]],
+      "interpretation_limit": "The channel names follow the subsequent RGB interleave; the table is also consistent with an RGGB source mosaic."
+    },
+    "modes": [
+      {"inputs": 4, "phase_group_count": 1, "scale": 1, "used_slots_after_preprocessing": [0, 1, 2, 3]},
+      {"inputs": 8, "phase_group_count": 1, "scale": 1, "used_slots_after_preprocessing": [0, 1, 2, 3]},
+      {"inputs": 16, "phase_group_count": 4, "scale": 2, "used_slots_after_preprocessing": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]},
+      {"inputs": 32, "phase_group_count": 4, "scale": 2, "used_slots_after_preprocessing": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]}
+    ],
+    "intermediate_geometry": {"width": "scale * (W-1)", "height": "scale * (H-1)", "planes": 3},
+    "equations": [
+      "For group g and frame j in 0..3, A is the preprocessed RAW plane from slot 4*g+j.",
+      "For every logical pixel (u,v) in [0,W-2] x [0,H-2], destination is (scale*u+phase_x[g], scale*v+phase_y[g]).",
+      "Read source A[v+1-phase_y[j], u+1-phase_x[j]].",
+      "Select output channel using row j of channel_table and parity corner (u mod 2,v mod 2).",
+      "If the selected channel is G and j>=2, output floor((existing_G + source_sample)/2); otherwise assign source_sample directly."
+    ],
+    "consequences": [
+      "Each destination pixel has one red observation, two green observations, and one blue observation per four-frame group.",
+      "Sixteen-input mode places consecutive four-frame groups on output sublattices (0,0), (1,0), (1,1), (0,1).",
+      "Eight and thirty-two input modes first reduce repeated frame pairs, then use the four or sixteen input spatial mapping.",
+      "The reconstruction loop performs no interpolation for the basic spatial arrangement and no motion-dependent weight selection."
+    ],
+    "limitations": [
+      "These indices refer to the caller-supplied order. Authentic capture identifiers must still be related to that order.",
+      "No conclusion about motion rejection elsewhere in NX Studio follows from the absence of such logic in this loop.",
+      "RAW decoder normalization, low-ISO preprocessing, and optional correction remain part of the total numerical pipeline."
+    ]
+  },
+  "optional_radial_correction": {
+    "status": "confirmed_static",
+    "enable_field": "Merge context byte 0x4808, passed from the exported boolean option.",
+    "function_va": "0x18034aca0",
+    "execution_order": "After RGB plane reconstruction and before final crop.",
+    "parameters": {
+      "center_x_q8": "Signed integer at reconstruction-parameter offset 0x90.",
+      "center_y_q8": "Signed integer at reconstruction-parameter offset 0x98.",
+      "red_coefficients_q20": ["0xa0", "0xa8", "0xb0"],
+      "blue_coefficients_q20": ["0xb8", "0xc0", "0xc8"]
+    },
+    "equations": [
+      "cx = scale * ((W-1)/2 + center_x_q8/256 - 1).",
+      "cy = scale * ((H-1)/2 + center_y_q8/256 - 1).",
+      "radius = scale * sqrt(W*W + H*H) / 2.",
+      "For destination (x,y), dx=x-cx, dy=y-cy and t=sqrt(dx*dx+dy*dy)/radius.",
+      "For each of red and blue, k=1+a+b*t*t+c*t*t*t where a,b,c are that channel's signed integer coefficients divided by 1048576.",
+      "Resample that channel at (cx+k*dx, cy+k*dy); copy green unchanged."
+    ],
+    "semantic_limit": "The arithmetic matches lateral chromatic aberration correction; the public option name must be verified at the caller."
+  },
+  "cubic_sampler": {
+    "status": "confirmed_static",
+    "function_va": "0x18034b2c0",
+    "support": "For each axis, sample integer positions trunc(coordinate)-1 through trunc(coordinate)+2.",
+    "kernel": [
+      "For d=abs(integer_position-coordinate) <= 1: weight = 1 - 2*d*d + d*d*d.",
+      "For 1 < d <= 2: weight = 4 - 8*d + 5*d*d - d*d*d.",
+      "For d > 2: weight = 0."
+    ],
+    "boundary_behavior": "Skip out-of-bounds source taps; weights are not renormalized.",
+    "conversion": "Sum all valid sample*weight_x*weight_y products in double precision, clamp with fmax(sum,0) then fmin(...,16383), then truncate toward zero to uint16.",
+    "constant_vas": {"minus_five": "0x1805edf50", "one": "0x1805edee8", "two": "0x1805edef8", "four": "0x1805edf00", "eight": "0x1805edf08"},
+    "limitation": "Negative coordinates use truncation toward zero, not floor. Exact floating-point parity requires testing against the vendor routine."
+  },
+  "final_crop": {
+    "status": "confirmed_static",
+    "function_va": "0x18034b8b0",
+    "source_tag": "Nikon MakerNote 0x0045 CropArea: left, top, width, height as four uint16 values.",
+    "equations": [
+      "Multiply all four CropArea values by scale.",
+      "Final width = scale*crop_width; final height = scale*crop_height.",
+      "Output[y,x,c] = intermediate[scale*(crop_top-1)+y, scale*(crop_left-1)+x, c]."
+    ],
+    "layout": "Three consecutive uint16 values per pixel, in plane order 0,1,2.",
+    "arithmetic_limit": "The vendor doubles CropArea in 16-bit words and then sign-extends each word; a replacement should validate dimensions explicitly rather than inherit wrapping behavior.",
+    "important_distinction": "The intermediate one-pixel crop is not the final exported image size. Final visible dimensions come from CropArea."
+  },
+  "low_iso_four_frame_correction": {
+    "status": "partially_recovered_static",
+    "function_va": "0x18034ba60",
+    "verified_properties": [
+      "Copies all four input planes and modifies only metadata-selected samples in the copies.",
+      "Uses neighboring aligned channels across the four RAW planes, local two-sample means, channel ratios, and row offsets up to two.",
+      "Contains selection tolerances 0.1, 0.3, and 0.4; blend weights include 0.3, 0.5, and 0.7.",
+      "Contains intensity thresholds 300, 500, and 2000 and caps corrected samples at 16383.",
+      "Copies corrected planes back to all four source vectors after processing."
+    ],
+    "remaining": "Normalize all ratio-selection branches and zero-denominator/NaN behavior into an independently reviewable specification; verify with a vendor routine oracle and authentic sensor metadata.",
+    "semantic_limit": "The metadata-selected sparse-row behavior suggests sensor sample repair, but an exact Nikon feature name is not established."
+  },
+  "verification_commands": [
+    "objdump -d -M intel --start-address=0x180350290 --stop-address=0x180351010 /path/to/PixelShiftCombine.dll",
+    "objdump -s --start-address=0x1805eada0 --stop-address=0x1805eae00 /path/to/PixelShiftCombine.dll",
+    "objdump -d -M intel --start-address=0x18034df80 --stop-address=0x18034e700 /path/to/PixelShiftCombine.dll",
+    "objdump -d -M intel --start-address=0x18034aca0 --stop-address=0x18034ba60 /path/to/PixelShiftCombine.dll",
+    "objdump -d -M intel --start-address=0x180351ff0 --stop-address=0x180352250 /path/to/PixelShiftCombine.dll",
+    "objdump -s --start-address=0x1805ede90 --stop-address=0x1805edf60 /path/to/PixelShiftCombine.dll"
+  ],
+  "unverified": [
+    "All formulas against actual vendor execution, especially floating-point and metadata edge cases.",
+    "Capture sequence identity and ordering in authentic pixel-shift files.",
+    "Complete low-ISO four-frame correction branch specification.",
+    "RAW decoder calibration and camera-specific normalization.",
+    "Numerical equality to authentic NX Studio NEFX output.",
+    "Lightroom Classic color and editing fidelity."
+  ]
+}
