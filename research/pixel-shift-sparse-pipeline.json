@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-18",
+  "evidence_kind": "live_full_file_vendor_synthetic_sparse_pipeline",
+  "dll_sha256": "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c",
+  "verifier": "tools/verify_sparse_pipeline.py",
+  "inputs": "Previously decoded independent packed-14 fixtures, patched into new files with nonzero Nikon 0x005e selection fields and EXIF ISO 3200 or 3201. No authentic pixel-shift captures are used.",
+  "selection": {
+    "reference_height": 432,
+    "reference_width": 640,
+    "half_grid_start": 2,
+    "first_row": 12,
+    "middle_step": 0,
+    "outer_step": 0,
+    "inner_step": 1,
+    "middle_count": 1,
+    "outer_count": 1,
+    "inner_before": 0,
+    "inner_after": 5,
+    "selected_coordinates": "Rows 12 through 17, odd columns 1 through 635. Adjacent rows deliberately exercise dependencies on earlier working-buffer writes."
+  },
+  "observations": [
+    {"input_count": 4, "iso_values": [3200,3201], "radial_values": [false,true], "outputs": 4, "samples_per_output": 803904, "different_samples": 0, "opposite_iso_differences_per_output": 2173},
+    {"input_count": 8, "iso_values": [3200,3201], "radial_values": [false,true], "outputs": 4, "samples_per_output": 803904, "different_samples": 0, "opposite_iso_differences_per_output": 10112},
+    {"input_count": 16, "iso_values": [3200,3201], "radial_values": [false,true], "outputs": 4, "samples_per_output": 3215616, "different_samples": 0, "opposite_iso_differences_per_output": 8516},
+    {"input_count": 32, "iso_values": [3200,3201], "radial_values": [false,true], "outputs": 4, "samples_per_output": 3215616, "different_samples": 0, "opposite_iso_differences_per_output": 40442}
+  ],
+  "stress_radial_observations": {
+    "input_counts": [4,16],
+    "iso_values": [3200,3201],
+    "radial_values": [false,true],
+    "center_q8": [192,-128],
+    "red_coefficients_q20": [-120,350,-90],
+    "blue_coefficients_q20": [280,-180,70],
+    "outputs": 8,
+    "samples": 16078080,
+    "different_samples": 0,
+    "wrong_iso_corrected_output_differences": {"4":5605,"16":21158}
+  },
+  "totals": {"outputs": 24, "samples": 48234240, "different_samples": 0},
+  "reports": [
+    {"path_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/sparse-pipeline-v1/report.json", "sha256": "0791cfab12d9b559418ccc08db70cb166b2f5203db854e86c6af722f58fdc868", "note": "4/8-frame pilot; runner predates diagnostics-only changes."},
+    {"path_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/sparse-pipeline-scale2/report.json", "sha256": "7cda1be9dfc146a5e170ef9a0a043efb6dd458c2f6ead665aa41dda512407870", "note": "16/32-frame checks."},
+    {"path_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/sparse-pipeline-radial/report.json", "sha256": "28efbba52c818406194bb385190699574e51d840eccf7ff351234187770aee93", "note": "4/16-frame sparse repair combined with both centers and all six nonzero radial coefficients."}
+  ],
+  "confirmed_for_these_inputs": [
+    "ISO 3200 takes the low-ISO repair branch; ISO 3201 bypasses it. Wrong-ISO control outputs differ in every case.",
+    "Four-frame and sixteen-frame modes use the normalized four-plane sparse repair before spatial assembly.",
+    "Eight-frame and thirty-two-frame modes average pairs with a two-row displacement, replace selected rows from the second member, and preserve first-member samples two rows below.",
+    "Six consecutive selected rows preserve the cumulative metadata row order and working-copy dependencies.",
+    "The full read, preprocess, reconstruct, optional correction, crop, encode and decode pipeline matches the independent reference."
+  ],
+  "remaining": [
+    "Other radial coefficient ranges, malformed selectors, and exact branch-threshold neighborhoods",
+    "Mixed per-frame ISO or selection metadata, malformed dimensions and real firmware variants",
+    "Authentic Z8 sequence metadata, real capture fidelity and Lightroom Classic acceptance"
+  ]
+}

@@ -53,8 +53,7 @@
   },
   "remaining": [
     "Exact threshold-focused neighborhoods and independent branch review",
-    "Full-file preprocessing dispatch with nonzero metadata and both ISO sides",
-    "Two-frame sparse overrides used in eight- and thirty-two-frame modes",
+    "Broader full-file metadata variants beyond the cases in pixel-shift-sparse-pipeline.json",
     "Authentic Z8 sequence metadata, firmware/compression variants, and Lightroom Classic acceptance"
   ]
 }
