@@ -62,7 +62,10 @@ int main(int argc, char **argv) {
                            guarded(sizeof(int))};
     uint8_t *snapshot = malloc(TABLE_BYTES);
     if (!table || !context || !snapshot) return 3;
-    for (int i = 0; i < 3; ++i) if (!planes[i] || !indices[i]) return 3;
+    for (int i = 0; i < 3; ++i) {
+        if (!planes[i] || !indices[i]) return 3;
+        memset(planes[i], 0xff, PLANE_BYTES);
+    }
     if (!read_table(argv[2], table)) return 4;
     uint32_t flags = (uint32_t)atoi(argv[4]), matrix = (uint32_t)atoi(argv[5]);
     uint32_t processing = (uint32_t)atoi(argv[6]), grid = GRID;
@@ -107,7 +110,13 @@ int main(int argc, char **argv) {
     unchanged &= memcmp(context, context_snapshot, CONTEXT_BYTES) == 0;
     guards &= intact(table, TABLE_BYTES) && intact(context, CONTEXT_BYTES);
     for (int i = 0; i < 3; ++i) guards &= intact(planes[i], PLANE_BYTES);
-    int success = guards && unchanged && write_planes(argv[3], planes);
+    int rgb_valid = 1;
+    if (flags) {
+        for (int channel = 0; channel < 3; ++channel)
+            for (int i = 0; i < GRID_POINTS; ++i)
+                if (((uint16_t *)planes[channel])[i] > 0xff00) rgb_valid = 0;
+    }
+    int success = guards && unchanged && rgb_valid && write_planes(argv[3], planes);
     printf("{\"event\":\"kaiji_scalar_lattice\",\"flags\":%u,\"matrix\":%u,"
            "\"processing\":%u,\"selector\":0,\"grid\":%u,\"calls\":%u,"
            "\"guards_intact\":%s,\"inputs_unchanged\":%s,\"success\":%s}\n",
