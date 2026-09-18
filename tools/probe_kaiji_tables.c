@@ -22,8 +22,8 @@ int main(int argc, char **argv) {
     memset(output + 0x34370, 0xa5, 16);
     *(uint32_t *)(state + 0x0c) = 1071;
     *(uint32_t *)(state + 0x151c) = 12;
-    *(uint32_t *)(state + 0x17ec) = 0x10000;
-    *(uint16_t *)(state + 0x17ee) = 0;
+    *(uint16_t *)(state + 0x17ec) = 0;
+    *(uint16_t *)(state + 0x17ee) = 1;
     *(uint16_t *)(state + 0x17f0) = 2;
     const char *mode = argc == 4 ? argv[3] : "neutral";
     if (!strcmp(mode, "blender-red-hue")) *(int32_t *)(state + 0x1764) = 64;
