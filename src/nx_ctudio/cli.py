@@ -57,7 +57,46 @@ def main(argv: list[str] | None = None) -> int:
     inspect.add_argument(
         "--json", action="store_true", help="Write a JSON report to stdout."
     )
+    merge = commands.add_parser(
+        "merge",
+        help="Experimentally synthesize ordered Z8 frames into native NEFX.",
+        description=(
+            "Native experimental Z8 pixel-shift synthesis. Supply a complete sequence "
+            "in capture order. HE/HE*, radial correction, color rendering and "
+            "Adobe default updates are not supported. Output is never overwritten."
+        ),
+    )
+    merge.add_argument("files", nargs="+", type=Path)
+    merge.add_argument("--output", "-o", type=Path, required=True)
+    merge.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
+    if args.command == "merge":
+        from .merge import merge as synthesize
+
+        try:
+            report = synthesize(args.files, args.output)
+            exit_code = 0
+        except (Exception, KeyboardInterrupt) as exc:
+            exit_code = 130 if isinstance(exc, KeyboardInterrupt) else 1
+            report = {
+                "status": "error",
+                "backend": "native",
+                "error": {
+                    "code": "cancelled" if exit_code == 130 else "merge_failed",
+                    "message": str(exc) or "Synthesis cancelled.",
+                },
+            }
+        if args.json:
+            print(json.dumps(report, indent=2, ensure_ascii=True))
+        elif exit_code:
+            print(f"nxc: {report['error']['message']}", file=sys.stderr)
+        else:
+            print(f"ok: {report['output']}")
+            print(f"  SHA-256: {report['sha256']}")
+            print(f"  Samples verified: {report['samples_verified']}")
+            for limitation in report["limitations"]:
+                print(f"  {limitation}")
+        return exit_code
     report: dict[str, Any] = {
         "schema_version": 1,
         "tool": {"name": "NX Ctudio", "version": __version__},
