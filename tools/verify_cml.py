@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 
 import numpy as np
+from cml_interpolation import transform
 from verify_np3_header import digest, windows
 
 CML_HASH = "42d71afbe2d6e95d39a71ef7a6a4dfb2819e8d923c7b7e8d8b86d1166687df6f"
@@ -27,7 +28,9 @@ def pixel_inputs() -> np.ndarray:
     return np.vstack((corners, ramp, random)).astype("<u2")
 
 
-def validate_events(events: list, dll: Path, pixels: int) -> None:
+def validate_events(
+    events: list, dll: Path, pixels: int, snapshot: bool = False
+) -> None:
     if not events or events[0].get("event") != "provider":
         raise ValueError("Missing CML provider event.")
     loaded = bytes.fromhex(events[0]["path_hex"]).decode("ascii").replace("\\", "/")
@@ -48,6 +51,23 @@ def validate_events(events: list, dll: Path, pixels: int) -> None:
             "processed",
         )
     ]
+    if snapshot:
+        expected.extend(
+            [
+                {
+                    "event": "cml_state",
+                    "dimensions": [32, 32, 32],
+                    "channels": [3, 3],
+                    "mode": 1,
+                    "entry_rva": 0x1F320,
+                    "inner_rva": 0x245C0,
+                    "flags": [1, 0, 0, 0],
+                    "identity_masks": [7, 0],
+                    "mxcsr_rounding": [0, 0],
+                },
+                {"event": "snapshots", "result": 0},
+            ]
+        )
     expected.append(
         {
             "event": "complete",
@@ -58,13 +78,31 @@ def validate_events(events: list, dll: Path, pixels: int) -> None:
         }
     )
     if len(events) != len(expected) + 1 or any(
-        set(event) != set(reference)
-        or any(
-            type(event[k]) is not type(v) or event[k] != v for k, v in reference.items()
-        )
+        json.dumps(event, sort_keys=True) != json.dumps(reference, sort_keys=True)
         for event, reference in zip(events[1:], expected, strict=True)
     ):
         raise ValueError("CML lifecycle, guards, output or cleanup mismatch.")
+
+
+def replay_snapshots(output: Path, pixels: np.ndarray, vendor: np.ndarray) -> dict:
+    arrays, hashes = [], {}
+    for name, shape in (
+        ("grid", (32, 32, 32, 4)),
+        ("input-lut", (3, 65536)),
+        ("output-lut", (3, 65536)),
+    ):
+        path = Path(f"{output}.{name}.bin")
+        hashes[name] = digest(path)
+        arrays.append(np.frombuffer(path.read_bytes(), dtype="<u2").reshape(shape))
+    if np.any(arrays[0][..., 3]) or not np.array_equal(
+        arrays[1], np.tile(np.arange(65536, dtype="<u2"), (3, 1))
+    ):
+        raise ValueError("Expected zero grid padding and exact identity input LUTs.")
+    native = transform(pixels, *arrays)
+    result = metrics(native, vendor)
+    result["snapshot_sha256"] = hashes
+    result["native_sha256"] = hashlib.sha256(native.tobytes()).hexdigest()
+    return result
 
 
 def little_cms(
@@ -141,6 +179,7 @@ def main() -> int:
     ):
         parser.add_argument(f"--{name}", type=Path, required=True)
     parser.add_argument("--profile-report-sha256", required=True)
+    parser.add_argument("--snapshot", action="store_true")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     if args.output.exists() or args.output.resolve().is_relative_to(root):
@@ -162,6 +201,8 @@ def main() -> int:
         args.profile_report,
         Path(__file__),
         root / "tools/probe_cml.c",
+        root / "tools/cml_snapshot.h",
+        root / "tools/cml_interpolation.py",
         root / "tools/verify_np3_header.py",
     ]
     profiles = []
@@ -194,6 +235,7 @@ def main() -> int:
             "Perceptual intent0, proof0, interleaved RGB16; no added LUTs.",
             "passed means complete evidence, not numeric equivalence.",
             "No claim that Little CMS is a pixel-exact Nikon substitute.",
+            "Interpolation replay uses captured tables, not native ICC composition.",
         ],
     }
     try:
@@ -208,6 +250,7 @@ def main() -> int:
                     windows(args.output_profile),
                     windows(pixel_path),
                     windows(output),
+                    *(["snapshot"] if args.snapshot else []),
                 ],
                 cwd=args.dll.resolve().parent,
                 env=dict(
@@ -236,12 +279,18 @@ def main() -> int:
             report["cases"].append(case)
             if result.returncode:
                 raise ValueError("CML process failed.")
-            validate_events(events, args.dll, len(pixels))
+            validate_events(events, args.dll, len(pixels), args.snapshot)
             data = output.read_bytes()
             if len(data) != len(payload):
                 raise ValueError("CML output size mismatch.")
             case["vendor_sha256"] = hashlib.sha256(data).hexdigest()
             vendor = np.frombuffer(data, dtype="<u2").reshape(pixels.shape)
+            if args.snapshot:
+                case["interpolation"] = replay_snapshots(output, pixels, vendor)
+                if not case["interpolation"]["equivalent"]:
+                    raise ValueError(
+                        "Native CML interpolation differs from vendor output."
+                    )
             for flags in (0, 0x100):
                 native, version = little_cms(
                     args.lcms,

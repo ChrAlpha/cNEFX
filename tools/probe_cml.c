@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "cml_snapshot.h"
 
 typedef int (*Create)(void **);
 typedef int (*CreateTransformer)(void **, void *);
@@ -52,7 +53,7 @@ static int intact(const Buffer *buffer, int unchanged) {
     if (result) { failure = name; goto cleanup; } } while (0)
 
 int main(int argc, char **argv) {
-    if (argc != 6) return 2;
+    if (argc != 6 && !(argc == 7 && !strcmp(argv[6], "snapshot"))) return 2;
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
     HMODULE dll = LoadLibraryA(argv[1]);
     if (!dll) return 3;
@@ -106,8 +107,11 @@ int main(int argc, char **argv) {
     STEP("transform_set", set_transform(transformer, xform));
     STEP("input_bits", input_bits(transformer, 16));
     STEP("output_bits", output_bits(transformer, 16));
+    unsigned rounding_before = (_mm_getcsr() >> 13) & 3;
     STEP("processed", process(transformer, (int)pixels, 1, inputs[2].data,
                               output.data, inputs[2].size, output.size));
+    if (argc == 7)
+        STEP("snapshots", cml_snapshot(dll, xform, transformer, argv[5], rounding_before));
     guards = intact(&output, 0);
     for (unsigned i = 0; i < 3; ++i) guards &= intact(&inputs[i], 1);
     if (!guards) { failure = "buffer_guards"; goto cleanup; }

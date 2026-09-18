@@ -68,3 +68,55 @@ def test_lifecycle_requires_intact_inputs_and_release(tmp_path):
     events[0]["path_hex"] = b"Z:/shadow/CML10.dll".hex()
     with pytest.raises(ValueError, match="provider"):
         validate_events(events, dll, 8464)
+
+
+def test_snapshot_lifecycle_rejects_other_kernels_and_nested_booleans(tmp_path):
+    dll = tmp_path / "CML10.dll"
+    events = [{"event": "provider", "path_hex": windows(dll).encode().hex()}]
+    events += [
+        {"event": name, "result": 0}
+        for name in (
+            "xform_created",
+            "input_profile",
+            "output_profile",
+            "intent",
+            "proof",
+            "transformer_created",
+            "transform_set",
+            "input_bits",
+            "output_bits",
+            "processed",
+        )
+    ]
+    state = {
+        "event": "cml_state",
+        "dimensions": [32, 32, 32],
+        "channels": [3, 3],
+        "mode": 1,
+        "entry_rva": 0x1F320,
+        "inner_rva": 0x245C0,
+        "flags": [1, 0, 0, 0],
+        "identity_masks": [7, 0],
+        "mxcsr_rounding": [0, 0],
+    }
+    events.extend(
+        [
+            state,
+            {"event": "snapshots", "result": 0},
+            {
+                "event": "complete",
+                "pixels": 8464,
+                "saved": True,
+                "inputs_and_guards_intact": True,
+                "released": True,
+            },
+        ]
+    )
+    validate_events(events, dll, 8464, True)
+    state["mode"] = 0
+    with pytest.raises(ValueError):
+        validate_events(events, dll, 8464, True)
+    state["mode"] = 1
+    state["flags"][0] = True
+    with pytest.raises(ValueError):
+        validate_events(events, dll, 8464, True)
