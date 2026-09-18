@@ -16,6 +16,7 @@ from verify_np3_header import digest, windows
 from nx_ctudio import _tiff
 
 ASTEROID_HASH = "00733061041d2c36fc580b770c6d94a7872e1bcef7f93befde07e33ff7204ed6"
+STRATO_HASH = "140ca66b7be15a892af07820a608cd9956c71aa42b780de38f36e963e9bbf221"
 DECODER = r"""
 use strict;
 use warnings;
@@ -32,6 +33,15 @@ print $plain;
 """
 
 
+def provider_matches(actual: object, dll: Path) -> bool:
+    expected = windows(dll.resolve().parent / "Strato10.dll")
+    return (
+        isinstance(actual, str)
+        and actual.replace("\\", "/").casefold()
+        == expected.replace("\\", "/").casefold()
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("dll", "probe", "wine-prefix", "output"):
@@ -43,6 +53,8 @@ def main() -> int:
         parser.error("Output must be a new directory outside the repository.")
     if digest(args.dll) != ASTEROID_HASH:
         parser.error("Unexpected Asteroid11.dll.")
+    if digest(args.dll.resolve().parent / "Strato10.dll") != STRATO_HASH:
+        parser.error("Unexpected Strato10.dll dependency.")
     perl = json.loads(
         subprocess.run(
             [
@@ -143,9 +155,19 @@ def main() -> int:
                 "passed": False,
             }
             report["cases"].append(case)
+            if (
+                len(events) != 3
+                or not isinstance(events[1], dict)
+                or not provider_matches(events[1].get("strato_path"), args.dll)
+            ):
+                raise ValueError("Unexpected loaded Strato10.dll provider.")
             expected = [
                 {"event": "load_init", "success": True},
-                {"event": "read_metadata", "success": True},
+                {
+                    "event": "read_metadata",
+                    "success": True,
+                    "strato_path": events[1]["strato_path"],
+                },
                 {
                     "event": "colorbalance_iso",
                     "status": 1,

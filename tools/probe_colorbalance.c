@@ -22,6 +22,14 @@ int main(int argc, char **argv) {
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
     HMODULE module = LoadLibraryA(argv[1]);
     if (!module) return 3;
+    char strato_path[MAX_PATH];
+    HMODULE strato = GetModuleHandleA("Strato10.dll");
+    DWORD path_length = strato ? GetModuleFileNameA(strato, strato_path, MAX_PATH) : 0;
+    if (!path_length || path_length >= MAX_PATH) return 3;
+    for (DWORD i = 0; i < path_length; ++i) {
+        if (strato_path[i] == '\\') strato_path[i] = '/';
+        if (strato_path[i] == '"' || (unsigned char)strato_path[i] < 32) return 3;
+    }
     void *stream = NULL, *tags = NULL, *loader = NULL;
     void *address;
     Factory create;
@@ -50,7 +58,8 @@ int main(int argc, char **argv) {
     memcpy(&read, &address, sizeof(read));
     /* Optional metadata consumers must be explicit null ABI arguments. */
     error = read(loader, NULL, NULL);
-    printf("{\"event\":\"read_metadata\",\"success\":%s}\n", error ? "false" : "true");
+    printf("{\"event\":\"read_metadata\",\"strato_path\":\"%s\",\"success\":%s}\n",
+           strato_path, error ? "false" : "true");
     fflush(stdout);
     if (error) return 7;
     uint8_t allocation[0xd08 + 64];
