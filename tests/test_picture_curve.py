@@ -31,6 +31,18 @@ def test_curve_name_is_the_primary_api_with_compatibility_alias() -> None:
     assert generate_curve(payload) == generate_table(payload)
 
 
+def test_rendering_curve_uses_12_bit_quantization() -> None:
+    payload = curve(settings=(0, 255, 0, 255, 2, 20))
+    expected = tuple(int(4095 * math.pow(i / 256, 1 / 2.2) + 0.5) for i in range(257))
+    assert generate_curve(payload, sample_max=4095) == expected
+
+
+@pytest.mark.parametrize("maximum", [0, 255, 4096, 32768, True, 4095.0])
+def test_rejects_unverified_sample_ranges(maximum) -> None:
+    with pytest.raises(ValueError, match="12-bit and 15-bit"):
+        generate_curve(curve(), sample_max=maximum)
+
+
 def test_decreasing_two_point_curve_is_linear() -> None:
     assert generate_table(curve(((0, 255), (255, 0)))) == tuple(
         int(32767 * (1 - i / 256) + 0.5) for i in range(257)

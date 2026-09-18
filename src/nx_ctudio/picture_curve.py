@@ -99,12 +99,15 @@ def _validate(
     return x, y, input_min, input_max, output_min, output_max, gamma
 
 
-def generate_curve(payload: bytes) -> tuple[int, ...]:
+def generate_curve(payload: bytes, *, sample_max: int = 32767) -> tuple[int, ...]:
     """Generate the 257-entry uint16 table from an NP3 curve record.
 
     The stored table bytes at offset 64 are deliberately ignored; the Nikon
-    importer regenerates samples from the point and level fields.
+    importer regenerates samples from the point and level fields. The rendering
+    table uses 4095; the NP3 parameter table uses 32767.
     """
+    if type(sample_max) is not int or sample_max not in (4095, 32767):
+        raise ValueError("Only 12-bit and 15-bit curve samples are supported.")
     x, y, input_min, input_max, output_min, output_max, gamma = _validate(payload)
     derivatives = _natural_derivatives(x, y)
     table: list[int] = []
@@ -121,7 +124,7 @@ def generate_curve(payload: bytes) -> tuple[int, ...]:
                 curve += math.pow(normalized, 1.0 / gamma) - normalized
         curve = min(1.0, max(0.0, curve))
         curve = curve * (output_max - output_min) + output_min
-        table.append(int(32767.0 * curve + 0.5))
+        table.append(int(float(sample_max) * curve + 0.5))
     return tuple(table)
 
 

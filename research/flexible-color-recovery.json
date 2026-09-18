@@ -357,6 +357,22 @@
     "normalization_static": "The manual Flexible branch of0x27e980 converts the signed normalized contrast byte by round(contrast*64/25); param6 nonzero instead returns0. Other automatic/base-control branches require separate validation.",
     "limit": "Regular family12 path with flags+0x174f and+0xe3c clear. Engine control units only; automatic contrast, log variants, complete NP3 import and image rendering remain unverified."
   },
+  "native_custom_curve_replacement_oracle": {
+    "evidence_kind": "native_custom_curve_vs_vendor_kaiji_replacement",
+    "implementation": "src/nx_ctudio/picture_curve.py generate_curve(sample_max=4095)",
+    "probe": "tools/probe_kaiji_curve.c",
+    "runner": "tools/verify_kaiji_curve.py",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/kaiji-custom-curve-native-v1/report.json",
+    "report_sha256": "6e5b7f90bc5cd958e8d19925570b6e98fb47bf52cd55d0c227eb187fc5db0119",
+    "cases": 46,
+    "coverage": "Five pinned public NP3 curves and18 synthetic curves; each generated with neutral and extreme highlights/shadows/white/black settings.",
+    "compared_words": 200238,
+    "different_words": 0,
+    "tone_control_bypass_confirmed": true,
+    "guards": "Prefix and suffix on all caller-owned parser buffers, owner state, Kaiji state/table and reconstructed curve-list view.",
+    "curve_bridge": "NP3 parser0x137080, curve loader0x132770, public curve object internal pointer+0x20 (confirmed by wrapper0x126d90); KaijiParam+0x678 points to a list view with pointer array+8 and count+0x18. KaijiParam+0x1756 enables replacement;0x151720 samples with scale4096 and flags60.",
+    "limit": "This exercises genuine NP3 curve import and the Kaiji replacement branch with a reconstructed list view. Full application construction, contrast suppression upstream and image rendering remain unverified."
+  },
   "np3_state_to_generator_oracle": {
     "evidence_kind": "live_unmodified_vendor_np3_normalized_state_to_kaiji_table_generation",
     "probe": "tools/probe_kaiji_state.c",
