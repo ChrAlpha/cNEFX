@@ -1,0 +1,146 @@
+/* Research-only bridge from live SDK image controls to vendor-owned Kaiji. */
+#ifndef NXC_IMAGE_KAIJI_H
+#define NXC_IMAGE_KAIJI_H
+
+static int kaiji_guards(uint8_t *const buffers[5], const size_t sizes[5]) {
+    int intact = 1;
+    for (unsigned i = 0; i < 5; ++i) {
+        if (!buffers[i]) continue;
+        for (unsigned j = 0; j < 32; ++j)
+            intact &= buffers[i][j] == 0xa5 && buffers[i][32 + sizes[i] + j] == 0xa5;
+    }
+    return intact;
+}
+
+static int collect_kaiji(HMODULE dll, void *image, void *services, const char *prefix) {
+    typedef void (*BuildRequest)(void *, void *, const char *);
+    typedef void *(*ConstructPicture)(void *);
+    typedef uint8_t (*BuildConfig)(void *, void *, void *, void *, uint32_t);
+    typedef void *(*GetUtilities)(void *);
+    typedef uint32_t (*SelectEngine)(uint8_t, uint32_t, uint32_t);
+    typedef void *(*Factory)(void *, const void *, uint32_t, uint8_t, uint8_t);
+    typedef void (*Generate)(void *, void *, void *, uint32_t);
+    typedef void (*Destructor)(void *);
+    const size_t sizes[5] = {0x2f0, 0xaa0, 0xdc8, 16, 0x34370};
+    uint8_t *buffers[5] = {0}, *data[5] = {0}, *control = NULL;
+    void *cms = NULL;
+    int constructed = 0, guards = 1, saved = 0;
+    const char *failure = NULL;
+    Destructor destroy_picture;
+    void *address = (uint8_t *)dll + 0x12f390;
+    memcpy(&destroy_picture, &address, sizeof(destroy_picture));
+
+    Request request_service;
+    address = slot(services, 8);
+    memcpy(&request_service, &address, sizeof(request_service));
+    int result = request_service(services, (uint8_t *)dll + 0x789f00, &cms);
+    printf("{\"event\":\"kaiji_cms\",\"result\":%d,\"present\":%s}\n",
+           result, cms ? "true" : "false");
+    fflush(stdout);
+    if (result || !cms) { failure = "cms_service"; goto cleanup; }
+
+    GetUtilities get_utilities;
+    address = slot(cms, 0x70);
+    memcpy(&get_utilities, &address, sizeof(get_utilities));
+    void *utilities = get_utilities(cms);
+    HMODULE renderer = GetModuleHandleA("image_render.n5m");
+    if (!utilities) { failure = "cms_utilities"; goto cleanup; }
+    if (!renderer) { failure = "renderer_module"; goto cleanup; }
+
+    BuildRequest build_request;
+    ConstructPicture construct;
+    BuildConfig build_config;
+    SelectEngine selector;
+    Factory factory;
+    Generate generate;
+    address = (uint8_t *)renderer + 0x48fa20;
+    memcpy(&build_request, &address, sizeof(build_request));
+    address = (uint8_t *)dll + 0x12f1d0;
+    memcpy(&construct, &address, sizeof(construct));
+    address = (uint8_t *)dll + 0x19b7d0;
+    memcpy(&build_config, &address, sizeof(build_config));
+    address = (uint8_t *)dll + 0x20a700;
+    memcpy(&selector, &address, sizeof(selector));
+    address = (uint8_t *)dll + 0x28fe80;
+    memcpy(&factory, &address, sizeof(factory));
+    address = (uint8_t *)dll + 0x29f0b0;
+    memcpy(&generate, &address, sizeof(generate));
+
+    for (unsigned i = 0; i < 5; ++i) {
+        buffers[i] = malloc(sizes[i] + 64);
+        if (!buffers[i]) { failure = "buffer_allocation"; goto cleanup; }
+        memset(buffers[i], 0xa5, sizes[i] + 64);
+        data[i] = buffers[i] + 32;
+        memset(data[i], 0, sizes[i]);
+    }
+    build_request(image, data[0], NULL);
+    if (!kaiji_guards(buffers, sizes)) { failure = "request_guards"; goto cleanup; }
+    construct(data[1]);
+    constructed = 1;
+    if (!kaiji_guards(buffers, sizes)) { failure = "picture_guards"; goto cleanup; }
+
+    /* The builder defines AL only; the upper return-register bits are not status. */
+    result = build_config(utilities, data[0], data[2], data[1], 0);
+    printf("{\"event\":\"kaiji_config\",\"result\":%d}\n", result);
+    fflush(stdout);
+    if (result) { failure = "configuration"; goto cleanup; }
+    if (!kaiji_guards(buffers, sizes)) { failure = "configuration_guards"; goto cleanup; }
+    uint32_t profile, variant;
+    memcpy(&profile, data[2] + 4, sizeof(profile));
+    memcpy(&variant, data[2] + 0x120, sizeof(variant));
+    uint32_t selected = selector(data[2][0x90], profile, variant);
+    printf("{\"event\":\"kaiji_engine\",\"value\":%u}\n", selected);
+    fflush(stdout);
+    if (selected != 9) { failure = "unsupported_engine"; goto cleanup; }
+
+    factory(data[3], data[2], 32, 0, 0);
+    uint8_t *wrapper, *kaiji;
+    memcpy(&wrapper, data[3], sizeof(wrapper));
+    memcpy(&control, data[3] + 8, sizeof(control));
+    if (!kaiji_guards(buffers, sizes)) { failure = "factory_guards"; goto cleanup; }
+    if (!wrapper || !control) { failure = "factory_shared_pair"; goto cleanup; }
+    memcpy(&kaiji, wrapper + 0x18, sizeof(kaiji));
+    if (!kaiji) { failure = "factory_parameters"; goto cleanup; }
+
+    saved = save(prefix, "request", data[0], 0x2f0);
+    saved &= save(prefix, "config", data[2], 0xdc8);
+    saved &= save(prefix, "kaiji", kaiji, 0x17f8);
+    generate(kaiji, NULL, data[4], 0);
+    saved &= save(prefix, "table", data[4], 0x34370);
+    guards = kaiji_guards(buffers, sizes);
+    printf("{\"event\":\"kaiji_tables\",\"guards_intact\":%s,\"saved\":%s}\n",
+           guards ? "true" : "false", saved ? "true" : "false");
+    fflush(stdout);
+    if (!guards) failure = "table_guards";
+    else if (!saved) failure = "snapshot_write";
+
+cleanup:
+    /* Shared engine destruction still needs the copied picture and live image. */
+    if (control && InterlockedDecrement((LONG *)(control + 8)) == 0) {
+        Destructor destroy;
+        address = slot(control, 0);
+        memcpy(&destroy, &address, sizeof(destroy));
+        destroy(control);
+        if (InterlockedDecrement((LONG *)(control + 12)) == 0) {
+            address = slot(control, 8);
+            memcpy(&destroy, &address, sizeof(destroy));
+            destroy(control);
+        }
+    }
+    if (constructed) destroy_picture(data[1]);
+    if (cms) {
+        Release release;
+        address = slot(cms, 0x18);
+        memcpy(&release, &address, sizeof(release));
+        release(cms);
+    }
+    guards &= kaiji_guards(buffers, sizes);
+    for (unsigned i = 0; i < 5; ++i) free(buffers[i]);
+    if (failure) printf("{\"event\":\"kaiji_failure\",\"stage\":\"%s\"}\n", failure);
+    printf("{\"event\":\"kaiji_released\",\"guards_intact\":%s}\n",
+           guards ? "true" : "false");
+    fflush(stdout);
+    return saved && guards && !failure;
+}
+
+#endif

@@ -224,8 +224,11 @@ static int collect_top(HMODULE dll, void *image, const char *prefix) {
     return saved && guards;
 }
 
+#include "image_kaiji.h"
+
 int main(int argc, char **argv) {
-    if ((argc != 5 && argc != 6) || strlen(argv[2]) >= 260 || strlen(argv[3]) >= 260) return 2;
+    if (argc < 5 || argc > 7 || strlen(argv[2]) >= 260 || strlen(argv[3]) >= 260
+        || (argc == 7 && strcmp(argv[6], "kaiji"))) return 2;
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
     HMODULE dll = LoadLibraryA(argv[1]);
     if (!dll) return 3;
@@ -260,8 +263,9 @@ int main(int argc, char **argv) {
         fflush(stdout);
         success = !result && service && load_metadata(service, image, argv[3]);
     }
-    if (success && argc == 6) success = import_picture(dll, image, argv[5]);
+    if (success && argc >= 6) success = import_picture(dll, image, argv[5]);
     if (success) success = collect_top(dll, image, argv[4]);
+    if (success && argc == 7) success = collect_kaiji(dll, image, service, argv[4]);
     dump_log(dll);
     success &= providers();
     close_sdk();

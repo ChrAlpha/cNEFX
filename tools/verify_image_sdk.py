@@ -10,10 +10,11 @@ import subprocess
 from pathlib import Path
 
 from image_controls import source_controls, verify_top
+from image_kaiji import verify_image_table
 from inspect_np3 import parse
 from kaiji_grading import COEFFICIENT_HASH
 from kaiji_index import MODE_TABLE_HASH
-from kaiji_oracle import MOON_HASH
+from kaiji_oracle import MOON_HASH, dependency_hashes
 from np3_parameters import normalize_flexible, parameter_blocks
 from verify_colorbalance import ASTEROID_HASH, STRATO_HASH
 from verify_np3_header import DLL_HASH, digest, windows
@@ -32,6 +33,9 @@ PINNED = {
     ),
     "Services/picture_control.n5m": (
         "485a56e5be41dfeaece9426b026e2f843f6e6cab8372aeca72252f141f246484"
+    ),
+    "Services/image_render.n5m": (
+        "b9572f5b176861f69fe1407e7e1e18734a9983cd73421411efd999f4409bccd8"
     ),
 }
 
@@ -59,8 +63,7 @@ def provider_paths(
         if value.casefold() != canonical.replace("\\", "/").casefold():
             raise ValueError(f"Unexpected loaded provider: {name}")
         loaded.append(expected)
-    required = ["Rome2.dll", "Asteroid11.dll", "Strato10.dll", "Moon2.dll", "CML10.dll"]
-    required += ["Services/metadata.n5m", "Services/picture_control.n5m"]
+    required = list(PINNED)
     if not {str((vendor / name).resolve()) for name in required} <= set(loaded):
         raise ValueError("Missing required loaded providers.")
     return sorted(set(loaded))
@@ -82,7 +85,9 @@ def picture_controls(data: bytes) -> dict:
     }
 
 
-def validate_events(events: list, picture: dict | None = None) -> None:
+def validate_events(
+    events: list, picture: dict | None = None, *, kaiji: bool = False
+) -> None:
     steps = [e for e in events if e.get("event") not in ("provider", "sdk_log")]
     expected = [
         {"event": "initialized", "result": 0},
@@ -107,6 +112,16 @@ def validate_events(events: list, picture: dict | None = None) -> None:
                 "values": picture["normalized_values"],
             },
         )
+    if kaiji:
+        if picture is None:
+            raise ValueError("Kaiji validation requires an imported NP3.")
+        expected[-1:-1] = [
+            {"event": "kaiji_cms", "result": 0, "present": True},
+            {"event": "kaiji_config", "result": 0},
+            {"event": "kaiji_engine", "value": 9},
+            {"event": "kaiji_tables", "guards_intact": True, "saved": True},
+            {"event": "kaiji_released", "guards_intact": True},
+        ]
     if len(steps) != len(expected) or any(
         any(type(event.get(k)) is not type(v) or event[k] != v for k, v in ref.items())
         for event, ref in zip(steps, expected, strict=True)
@@ -133,7 +148,10 @@ def main() -> int:
     parser.add_argument("--metadata-report-sha256", required=True)
     parser.add_argument("--picture-control", type=Path, action="append", default=[])
     parser.add_argument("--originals-only", action="store_true")
+    parser.add_argument("--kaiji", action="store_true")
     args = parser.parse_args()
+    if args.kaiji and not args.picture_control:
+        parser.error("--kaiji requires --picture-control.")
     root = Path(__file__).resolve().parents[1]
     if args.output.exists() or args.output.resolve().is_relative_to(root):
         parser.error("Output must be a new directory outside the repository.")
@@ -196,6 +214,12 @@ def main() -> int:
         *args.picture_control,
     ]
     hashes = {str(p.resolve()): digest(p) for p in paths}
+    if args.kaiji:
+        hashes.update(dependency_hashes(args.dll, args.probe))
+        dependencies = [root / "tools/image_kaiji.h"]
+        dependencies += list((root / "tools").glob("kaiji_*.py"))
+        dependencies += [root / "tools/image_kaiji.py", root / "tools/flexible_math.py"]
+        hashes.update({str(p.resolve()): digest(p) for p in dependencies})
     args.output.mkdir(parents=True)
     report = {
         "evidence_kind": "native_source_controls_vs_live_sdk_top",
@@ -204,11 +228,18 @@ def main() -> int:
         "passed": False,
         "picture_import": bool(args.picture_control),
         "originals_only": args.originals_only,
+        "kaiji_tables": args.kaiji,
         "limits": [
             "Selected metadata fields and selector only, not complete TOP parity.",
-            "Other selector arguments are SDK outputs, not natively recovered.",
-            "NP3 checks cover normalized values and curve activation, "
-            "not curve contents.",
+            "Without --kaiji, other selector arguments remain SDK outputs "
+            "and curve checks cover activation only.",
+            "Kaiji comparison covers model14, full strength, matrix0, brightness6, "
+            "no application EV adjustment and source ISO bucket6.",
+            "Blend mix is captured from the live Kaiji object, not natively derived.",
+            "Calibration row0 and auxiliary selector22 are bounded observed defaults; "
+            "general metadata derivation and blend-mix selection remain unresolved.",
+            "Selected Kaiji fields and complete tables, not every parameter byte.",
+            "Table comparison precedes full engine preparation and its output matrix.",
             "Original photographs are ordinary Z8 captures; variants modify metadata.",
             "No Flexible Color rendering, image-domain or Lightroom parity claim.",
         ],
@@ -254,6 +285,7 @@ def main() -> int:
                     windows(path),
                     windows(prefix),
                     *([windows(np3)] if np3 else []),
+                    *(["kaiji"] if args.kaiji else []),
                 ],
                 cwd=vendor,
                 env=dict(
@@ -284,7 +316,7 @@ def main() -> int:
             report["cases"].append(case)
             if result.returncode:
                 raise ValueError("SDK probe failed.")
-            validate_events(events, picture)
+            validate_events(events, picture, kaiji=args.kaiji)
             case["loaded_providers"] = provider_paths(
                 events, hashes, vendor, args.wine_prefix
             )
@@ -297,6 +329,32 @@ def main() -> int:
                     if any(case[suffix][k] != v for k, v in picture.items()):
                         raise ValueError("NP3 import disagrees with active TOPParam.")
                 case[f"{suffix}_sha256"] = hashlib.sha256(data).hexdigest()
+            if args.kaiji:
+                snapshots = {}
+                for name, size in (
+                    ("request", 0x2F0),
+                    ("config", 0xDC8),
+                    ("kaiji", 0x17F8),
+                    ("table", 0x34370),
+                ):
+                    snapshots[name] = prefix.with_suffix(f".{name}.bin").read_bytes()
+                    if len(snapshots[name]) != size:
+                        raise ValueError(f"Incorrect {name} snapshot size.")
+                    case[f"{name}_sha256"] = hashlib.sha256(snapshots[name]).hexdigest()
+                curve = next(
+                    (r.payload for r in parse(np3.read_bytes()) if r.identifier == 2),
+                    None,
+                )
+                case["kaiji"] = verify_image_table(
+                    snapshots["kaiji"],
+                    snapshots["table"],
+                    picture,
+                    expected,
+                    case["active"],
+                    coefficients,
+                    modes,
+                    curve,
+                )
             case["passed"] = True
         report["sources_unchanged"] = all(
             digest(Path(p)) == h for p, h in hashes.items()
