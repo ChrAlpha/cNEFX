@@ -263,8 +263,11 @@ def main() -> int:
             parser.error("Research outputs must be outside the repository.")
     if args.output.exists() or args.report.exists() or args.stages.exists():
         parser.error("Output, report and stage directory must not already exist.")
-    if args.output.resolve() == args.report.resolve():
-        parser.error("Output and report must be different paths.")
+    destinations = [p.resolve() for p in (args.output, args.report, args.stages)]
+    for index, left in enumerate(destinations):
+        for right in destinations[index + 1 :]:
+            if left.is_relative_to(right) or right.is_relative_to(left):
+                parser.error("Output, report and stage directory must not overlap.")
     report = {
         "evidence_kind": "research_nefx_to_linear_dng_roundtrip",
         "source": str(args.source.resolve()),
