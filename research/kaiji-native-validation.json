@@ -244,6 +244,31 @@
     "independent_review": "Independent rebuilt-probe live replay passed14/14 with identical case records: color-inputs-independent-v1/report.json SHA2560bc515ec022673ddd337b1b584b937e7daffee1e9a0bf3f85d14c9e7fd725f4d. A second read-only review replayed all saved values and26input hashes; no defects found in the declared scope.",
     "limit": "No application WB override, full application initialization, Flexible Color photograph, pixel-shift capture, or rendered-image parity. ExifTool still decrypts ColorBalance."
   },
+  "sdk_top_source_controls": {
+    "implementation": "tools/image_controls.py",
+    "probe": "tools/probe_image_sdk.c",
+    "runner": "tools/verify_image_sdk.py",
+    "report": "sdk-top-native-v2/report.json",
+    "sha256": "6c6a6bface686d91c08ee575691521c653cc7e62869f7f16c3f5bffeb59ef64d",
+    "evidence_kind": "native_source_controls_vs_live_sdk_top",
+    "files": 14,
+    "original_captures": 2,
+    "controlled_variants": 12,
+    "top_snapshots": 28,
+    "top_bytes_each": 1232,
+    "mismatched_validated_fields": 0,
+    "lifecycle": "Actual SDK creates INikonImage and loads NEF through the metadata service. TOP generator constructor0x28ce20 uses image and camera1071; initializer0x289130 and consumer0x28a190 generate source and working banks. Guards and clean SDK closure verified.",
+    "native_fields": "RGB source gains, WB uint16 levels, ColorBalance ISO code, ISO lookup offset and bucket, processing0 and mode0 match both banks. Native camera_index matches the captured index using the observed remaining selector arguments.",
+    "iso_mapping": "offset=coefficients[0x830+min(108,((iso-72)>>2)&255)]; bucket=min(6,((iso-80)>>2)&255). Byte narrowing precedes upper clamp. The pinned resource threshold at0x89e is80.",
+    "original_controls": [
+      {"iso_code": 104, "iso_offset": 8, "iso_bucket": 6, "camera_index": 8, "picture_control_id": 1, "profile_row": 4, "profile_family": 3},
+      {"iso_code": 231, "iso_offset": 39, "iso_bucket": 6, "camera_index": 39, "picture_control_id": 719, "profile_row": 2, "profile_family": 2}
+    ],
+    "banks": "Source begins at outer TOP+8; working begins at+0x258. Banked absolute offsets differ by0x250. WB and processing/mode remain shared baseline values. Camera1071, source calibration row0, and Picture Control profile row are distinct.",
+    "provenance": "Pinned Rome/Asteroid/Strato/Moon/CML and metadata/picture_control modules; actual loaded provider paths checked. Wine loads its own system32/zlib1.dll, recorded explicitly instead of attributing the unused vendor copy. Input code, photographs, decoded metadata, modules and ICC files hash-stable.",
+    "independent_review": "Read-only reviewer replayed14cases/28snapshots, verified105input hashes and28loaded providers per case, and cross-checked ABI/ownership.20tests and strict C11 syntax checks passed. Wine was not rerun; timeout/failure cleanup and leak freedom are not established.",
+    "limit": "Selected fields and selector only, not complete TOP reconstruction. Remaining selector fields are vendor outputs. Neither original uses Flexible Color; profile14/family12 code cannot be generalized to these profile4/family3 and profile2/family2 captures. No source-image rendering or Lightroom comparison."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",

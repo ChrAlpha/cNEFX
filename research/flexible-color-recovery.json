@@ -307,6 +307,17 @@
     "coefficient_offsets": {"base": "0x5cae8", "highlight_weights": "0x5ccea", "shadow_weights": "0x5d4f2", "white_black_scaling": "0x62364", "quadratic_transitions": "0x6236c"},
     "limit": "Family12, synthetic model0, custom-curve flag clear. Does not test NP3-to-engine unit conversion, contrast, saturation, custom-curve replacement or image rendering."
   },
+  "sdk_lifecycle_recovery": {
+    "probe": "tools/probe_image_sdk.c",
+    "exports": {"initialize": "0xc7b60", "create_image": "0xc7ba0", "get_services": "0xc7bd0", "close": "0xc7b80", "result_log": "0xc7c20"},
+    "options": "96-byte structure; observed uint64 words1,0,64,0x40000 followed by zeros. Word5/+0x28 is the explicit UTF-8 Services directory path.",
+    "failure_resolved": "Initial result12 was generic Critical service not loaded. Result-log vtable+10 returns count; +18(index) returns code/message/result-string structure. Actual log reported missing C:/Program Files/Common Files/Nikon/Profiles/NKsRGB.icm, then Error creating CMS service. It was not a missing SystemParameters factory.",
+    "profiles": "Extracted25 DataFiles/Profile entries from the pinned original installer into external sdk-profiles-v1, then copied without overwrite to the research Wine prefix. NKsRGB.icm SHA25649caea94c9d36322910350ee37f1fa09629bed70e01cf615a6863ad3f8d1475e. Initialization, image creation, services and closure then succeeded.",
+    "registration": "Rome0x108cb0 calls0x2ee70 to build12 internal factories, merges version2 external n5m factories, and registers them. SystemParameters is built in and initializes without external modules. Six critical getters reuse error12; inspect SDK diagnostics to identify the failed service.",
+    "metadata_service": "RequestService slot+8 UUID d586b260-85cc-11dd-ad8b-0800200c9a66. Start slot+28(image,48-byte options), first option is source UTF-8 path. Step+30, result+38, complete+40, release+18. Source0 completed in17 steps during the bounded pilot.",
+    "top_generator": "Constructor0x28ce20 creates0x438-byte IRegisterGeneratorParamBase<4098,TOPParam> with actual image and camera1071. Initialize0x289130 writes0x4d0-byte TOPParam; apply0x28a190 takes scale1.0. Embedded collector begins at generator+18. Destructor vtable+0 with flag0 preserves caller-owned buffer.",
+    "limit": "Vendor SDK is a research oracle only. Selected native metadata/control parity is recorded in kaiji-native-validation.json; full application-state import, NP3 activation and rendering remain incomplete."
+  },
   "profile_consumer_domain_static": {
     "evidence_kind": "decompilation_assembly_and_constants_no_live_renderer",
     "consumer": "image_render cms0 is labeled Converts Camera RGB to Working RGB-16. Setup0x246da0 calls0x2492f0, then CCMSUtilities slot+0xf0 at Rome2 RVA0x1a10f0. Profile generation uses slot+a0/RVA0x1a08a0 or slot+a8/RVA0x19f9b0; both reach configuration builder0x19b7d0 and the Kaiji factory.",
