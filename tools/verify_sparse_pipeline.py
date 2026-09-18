@@ -155,6 +155,10 @@ def main() -> int:
         "rawpy_version": rawpy.__version__,
         "libraw_version": list(rawpy.libraw_version),
         "reference_sha256": sha256(Path(__file__).with_name("sparse_reference.py")),
+        "radial_reference_sha256": sha256(Path(__file__).with_name("verify_radial.py")),
+        "sampling_reference_sha256": sha256(
+            Path(__file__).with_name("verify_vendor_matrix.py")
+        ),
         "runner_sha256": sha256(Path(__file__)),
         "cases": [],
         "passed": False,
@@ -263,7 +267,13 @@ def main() -> int:
                         else diagnostics
                     ),
                 )
-            except (OSError, ValueError, RuntimeError, KeyError) as error:
+            except (
+                OSError,
+                ValueError,
+                RuntimeError,
+                KeyError,
+                rawpy.LibRawError,
+            ) as error:
                 case["error"] = str(error)
             report["cases"].append(case)
             (args.output / "report.json").write_text(
