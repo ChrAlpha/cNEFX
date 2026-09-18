@@ -9,11 +9,13 @@ import os
 import subprocess
 from pathlib import Path
 
+from color_inputs import source_blend_inputs
 from image_controls import source_controls, verify_top
 from image_kaiji import verify_image_table
 from inspect_np3 import parse
 from kaiji_grading import COEFFICIENT_HASH
 from kaiji_index import MODE_TABLE_HASH
+from kaiji_mix import CALIBRATION_HASH
 from kaiji_oracle import MOON_HASH, dependency_hashes
 from np3_parameters import normalize_flexible, parameter_blocks
 from verify_colorbalance import ASTEROID_HASH, STRATO_HASH
@@ -149,9 +151,13 @@ def main() -> int:
     parser.add_argument("--picture-control", type=Path, action="append", default=[])
     parser.add_argument("--originals-only", action="store_true")
     parser.add_argument("--kaiji", action="store_true")
+    parser.add_argument("--blend-calibration", type=Path)
     args = parser.parse_args()
-    if args.kaiji and not args.picture_control:
-        parser.error("--kaiji requires --picture-control.")
+    if args.kaiji and (not args.picture_control or args.blend_calibration is None):
+        parser.error("--kaiji requires --picture-control and --blend-calibration.")
+    blend_calibration = args.blend_calibration.read_bytes() if args.kaiji else None
+    if args.kaiji and hashlib.sha256(blend_calibration).hexdigest() != CALIBRATION_HASH:
+        parser.error("Unexpected blend calibration hash.")
     root = Path(__file__).resolve().parents[1]
     if args.output.exists() or args.output.resolve().is_relative_to(root):
         parser.error("Output must be a new directory outside the repository.")
@@ -215,6 +221,7 @@ def main() -> int:
     ]
     hashes = {str(p.resolve()): digest(p) for p in paths}
     if args.kaiji:
+        hashes[str(args.blend_calibration.resolve())] = CALIBRATION_HASH
         hashes.update(dependency_hashes(args.dll, args.probe))
         dependencies = [root / "tools/image_kaiji.h"]
         dependencies += list((root / "tools").glob("kaiji_*.py"))
@@ -235,9 +242,10 @@ def main() -> int:
             "and curve checks cover activation only.",
             "Kaiji comparison covers model14, full strength, matrix0, brightness6, "
             "no application EV adjustment and source ISO bucket6.",
-            "Blend mix is captured from the live Kaiji object, not natively derived.",
+            "Blend inputs require source AUTO1/AUTO0 and decrypted ColorBalance0803; "
+            "application WB overrides and native decryption remain unimplemented.",
             "Calibration row0 and auxiliary selector22 are bounded observed defaults; "
-            "general metadata derivation and blend-mix selection remain unresolved.",
+            "general metadata derivation of those defaults remains unresolved.",
             "Selected Kaiji fields and complete tables, not every parameter byte.",
             "Table comparison precedes full engine preparation and its output matrix.",
             "Original photographs are ordinary Z8 captures; variants modify metadata.",
@@ -271,9 +279,9 @@ def main() -> int:
                 raise ValueError("Decoded ColorBalance hash mismatch.")
             hashes[str(path.resolve())] = source["source_sha256"]
             hashes[str(decoded_path.resolve())] = digest(decoded_path)
-            expected = source_controls(
-                _tiff.read(path.read_bytes()), decoded, coefficients
-            )
+            tree = _tiff.read(path.read_bytes())
+            expected = source_controls(tree, decoded, coefficients)
+            blend_inputs = source_blend_inputs(tree, decoded) if args.kaiji else None
             picture = picture_controls(np3.read_bytes()) if np3 else None
             prefix = args.output / f"case{run_index}"
             result = subprocess.run(
@@ -354,6 +362,8 @@ def main() -> int:
                     coefficients,
                     modes,
                     curve,
+                    blend_inputs,
+                    blend_calibration,
                 )
             case["passed"] = True
         report["sources_unchanged"] = all(

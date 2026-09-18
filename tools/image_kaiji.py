@@ -7,6 +7,7 @@ import struct
 
 from flexible_math import round_divide32
 from kaiji_index import camera_index
+from kaiji_mix import blend_mix
 from kaiji_table import generate_table
 
 
@@ -84,6 +85,8 @@ def verify_image_table(
     coefficients: bytes,
     modes: bytes,
     curve: bytes | None,
+    blend_inputs: dict,
+    blend_calibration: bytes,
 ) -> dict:
     values = picture["normalized_values"]
     settings = application_settings(values, picture["custom_curve"])
@@ -103,6 +106,23 @@ def verify_image_table(
     if top["selector_inputs"] != selector or top["camera_index"] != index:
         raise ValueError("Native application selector disagrees with working TOP.")
     observed = verify_state(state, values, settings, index)
+    captured = {
+        "correction_matrix": list(struct.unpack_from("<9h", state, 0xB4)),
+        "wb_levels_signed": list(struct.unpack_from("<2h", state, 0x152E)),
+        "wb_mode": struct.unpack_from("<I", state, 0x66C)[0],
+        "wb_value": struct.unpack_from("<i", state, 0x674)[0],
+    }
+    if captured != blend_inputs:
+        raise ValueError("Native source blend inputs disagree with live Kaiji state.")
+    native_mix = blend_mix(
+        blend_calibration,
+        blend_inputs["correction_matrix"],
+        *blend_inputs["wb_levels_signed"],
+        blend_inputs["wb_mode"],
+        blend_inputs["wb_value"],
+    )
+    if native_mix != observed["blend_mix"]:
+        raise ValueError("Native blend selection disagrees with live Kaiji state.")
     effective = values.copy()
     if curve is not None:
         effective[0] = 0
@@ -111,7 +131,7 @@ def verify_image_table(
         effective,
         camera_index=index,
         curve_payload=curve,
-        blend_mix=observed["blend_mix"],
+        blend_mix=native_mix,
     )
     if len(table) != len(native):
         raise ValueError("Expected a complete 213872-byte Kaiji table.")
@@ -120,7 +140,9 @@ def verify_image_table(
         raise ValueError(f"Native image table differs in {differences} bytes.")
     return {
         "fields": observed,
-        "vendor_inputs": {"blend_mix": observed["blend_mix"]},
+        "vendor_inputs": {},
+        "native_blend_inputs": blend_inputs,
+        "native_blend_mix": native_mix,
         "selector_inputs": selector,
         "compared_bytes": len(native),
         "different_bytes": differences,

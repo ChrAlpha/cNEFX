@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 import struct
 
+from colorbalance import import_decoded
+
 from nx_ctudio import _tiff
 
 
@@ -56,3 +58,20 @@ def white_balance_levels(rgb: tuple[float, float, float]) -> tuple[int, int]:
     ):
         raise ValueError("Expected three finite white-balance gains in (0, 128).")
     return int(rgb[0] * 512), int(rgb[2] * 512)
+
+
+def source_blend_inputs(root: _tiff.Directory, decoded: bytes) -> dict:
+    """Recover source-only Kaiji blend inputs for observed AUTO1/AUTO0 metadata."""
+    levels = white_balance_levels(source_white_balance(root))
+    typed = import_decoded(decoded)
+    maker = root.tags[34665].children[0].tags[37500].children[0]
+    modes = {b"AUTO1       \0": 17, b"AUTO0       \0": 20}
+    mode = maker.tags.get(5)
+    if mode is None or mode.kind != 2 or mode.count != 13 or mode.payload not in modes:
+        raise ValueError("Only observed AUTO1/AUTO0 white-balance modes are supported.")
+    return {
+        "correction_matrix": list(struct.unpack_from("<9h", typed, 0xA6)),
+        "wb_levels_signed": [(v + 32768) % 65536 - 32768 for v in levels],
+        "wb_mode": modes[mode.payload],
+        "wb_value": struct.unpack_from("<h", typed, 0x4A)[0],
+    }

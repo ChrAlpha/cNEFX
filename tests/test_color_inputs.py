@@ -12,6 +12,7 @@ from nx_ctudio import _tiff
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from color_inputs import (  # noqa: E402
     rational_gains,
+    source_blend_inputs,
     source_white_balance,
     white_balance_levels,
 )
@@ -148,3 +149,32 @@ def test_processing_override_is_not_treated_as_absent(tmp_path):
     rome = tmp_path / "Rome2.dll"
     with pytest.raises(ValueError, match="processing"):
         validate_color_events(events(rome), root, rome)
+
+
+@pytest.mark.parametrize(
+    "name,mode", [(b"AUTO1       \0", 17), (b"AUTO0       \0", 20)]
+)
+@pytest.mark.parametrize("value", [-32768, -52, 0, 1834, 32767])
+def test_source_blend_fields_preserve_signed_words_and_order(name, mode, value):
+    root, maker = source()
+    maker.set(5, 2, name)
+    decoded = bytearray(b"0803" + bytes(162))
+    matrix = [-32768, -2, -1, 0, 1, 2, 4, 16384, 32767]
+    struct.pack_into("<h", decoded, 0x3A, value)
+    struct.pack_into("<9h", decoded, 0x90, *matrix)
+    assert source_blend_inputs(root, bytes(decoded)) == {
+        "correction_matrix": matrix,
+        "wb_levels_signed": [1536, 2048],
+        "wb_mode": mode,
+        "wb_value": value,
+    }
+
+
+@pytest.mark.parametrize(
+    "name,kind", [(b"AUTO2       \0", 2), (b"AUTO1\0", 2), (b"AUTO1       \0", 7)]
+)
+def test_unknown_or_malformed_blend_mode_is_rejected(name, kind):
+    root, maker = source()
+    maker.set(5, kind, name)
+    with pytest.raises(ValueError, match="AUTO1/AUTO0"):
+        source_blend_inputs(root, b"0803" + bytes(162))

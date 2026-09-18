@@ -336,6 +336,24 @@
     "verification": "27focused tests, scoped Ruff/format, strict C11 compilation and diff checks pass. Numerical evidence is live vendor execution by the builder; independent metadata-origin review is separate.",
     "limit": "Explicit scalar/matrix inputs and pinned external calibration only. No general camera coverage, application override recovery or rendered-image parity."
   },
+  "source_blend_input_recovery": {
+    "implementation": "tools/color_inputs.py source_blend_inputs and tools/image_kaiji.py",
+    "runner": "tools/verify_image_sdk.py --kaiji --blend-calibration PATH",
+    "report": "sdk-kaiji-source-mix-v1/report.json",
+    "sha256": "41056bd2a757de2b00d28fca34ed7507ca117dde71686b367cb2ff2f7afeaab1",
+    "cases": 42,
+    "coverage": "Two ordinary source captures plus12controlled WB variants, each with vanilla,mixed-curve and mixed-no-curve NP3.",
+    "compared_table_bytes": 8982624,
+    "different_table_bytes": 0,
+    "native_blend_values_observed": [0,5,6],
+    "captured_generator_inputs_remaining": 0,
+    "matrix": "ColorBalance0803 decoded+0x90 -> typed+0xa6 -> config+0xac -> Kaiji+0xb4, nine signed16 Q14 words in row-major order. Matrix property0x11000111 expands signed16 to32-bit slots; config retains low16 without permutation.",
+    "wb_mode": "Source MakerNote5 ASCII/count13 AUTO1 maps17 and AUTO0 maps20. Asteroid importer0x434090 produces typed tag0x80005. Config builder reads this for source-WB request state into+0x664, copied to Kaiji+0x66c. Other source modes fail closed for now.",
+    "wb_value": "Property0x100015d reads signed16 typed ColorBalance+0x4a, corresponding to decoded+0x3a. Config+0x66c -> Kaiji+0x674 stores the sign-extended value. Originals1834/-52 match. Request+0x1a0 is a different field and must not supply the blend input.",
+    "wb_levels": "Native source gains -> TOP uint16 levels -> signed16 interpretation at Kaiji+0x152e/+0x1530. No normalization by green is introduced.",
+    "verification": "550pytest tests passed in4.77s, scoped Ruff/format and diff checks passed.127input hashes remain stable. Independent assembly/metadata reviewer recovered mode/value/matrix origins and confirmed the original matrix copies; live42case execution and numerical leaf testing were performed by the builder.",
+    "limit": "Source AUTO1/AUTO0, inactive0103 adjustment, unity fine WB, ColorBalance0803 decrypted externally. Row0/auxiliary22 and other application defaults remain bounded. No full engine preparation, input-image transfer/WB/matrix order or rendered-image acceptance."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",
