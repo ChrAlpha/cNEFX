@@ -57,6 +57,8 @@ def top_controls(data: bytes, *, active: bool) -> dict:
         "picture_control_id": at(bank + 0xB8, "I"),
         "profile_row": at(bank + 0x208, "I"),
         "profile_family": at(bank + 0x20C, "I"),
+        "custom_curve": at(bank + 0x170, "B") != 0,
+        "normalized_values": list(struct.unpack_from("<41i", data, bank + 0xCC)),
     }
     result["selector_inputs"] = levels + [
         at(bank + 0x200, "B"),

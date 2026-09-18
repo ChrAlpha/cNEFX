@@ -10,13 +10,16 @@ import subprocess
 from pathlib import Path
 
 from image_controls import source_controls, verify_top
+from inspect_np3 import parse
 from kaiji_grading import COEFFICIENT_HASH
 from kaiji_index import MODE_TABLE_HASH
 from kaiji_oracle import MOON_HASH
+from np3_parameters import normalize_flexible, parameter_blocks
 from verify_colorbalance import ASTEROID_HASH, STRATO_HASH
 from verify_np3_header import DLL_HASH, digest, windows
 
 from nx_ctudio import _tiff
+from nx_ctudio.picture_curve import generate_curve
 
 PINNED = {
     "Rome2.dll": DLL_HASH,
@@ -63,7 +66,23 @@ def provider_paths(
     return sorted(set(loaded))
 
 
-def validate_events(events: list) -> None:
+def picture_controls(data: bytes) -> dict:
+    records = parse(data)
+    blocks = parameter_blocks(records)
+    _, values = normalize_flexible(blocks["flexible"])
+    curve = next((record.payload for record in records if record.identifier == 2), None)
+    if curve is not None:
+        generate_curve(curve)
+    return {
+        "picture_control_id": 32,
+        "profile_row": 14,
+        "profile_family": 12,
+        "normalized_values": values,
+        "custom_curve": curve is not None,
+    }
+
+
+def validate_events(events: list, picture: dict | None = None) -> None:
     steps = [e for e in events if e.get("event") not in ("provider", "sdk_log")]
     expected = [
         {"event": "initialized", "result": 0},
@@ -77,11 +96,24 @@ def validate_events(events: list) -> None:
         {"event": "top_guards", "intact": True, "saved": True},
         {"event": "closed"},
     ]
+    if picture is not None:
+        expected.insert(
+            6,
+            {
+                "event": "picture_imported",
+                "result": 0,
+                "guards_intact": True,
+                "input_unchanged": True,
+                "values": picture["normalized_values"],
+            },
+        )
     if len(steps) != len(expected) or any(
         any(type(event.get(k)) is not type(v) or event[k] != v for k, v in ref.items())
         for event, ref in zip(steps, expected, strict=True)
     ):
         raise ValueError("SDK lifecycle, TOP status or guard mismatch.")
+    if picture is not None and any(type(v) is not int for v in steps[6]["values"]):
+        raise ValueError("Malformed normalized Picture Control values.")
     if any(e.get("event") == "sdk_log" and e.get("code") for e in events):
         raise ValueError("SDK reported a nonzero diagnostic code.")
 
@@ -99,6 +131,8 @@ def main() -> int:
     ):
         parser.add_argument(f"--{name}", type=Path, required=True)
     parser.add_argument("--metadata-report-sha256", required=True)
+    parser.add_argument("--picture-control", type=Path, action="append", default=[])
+    parser.add_argument("--originals-only", action="store_true")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     if args.output.exists() or args.output.resolve().is_relative_to(root):
@@ -149,12 +183,17 @@ def main() -> int:
                 "verify_np3_header.py",
                 "verify_colorbalance.py",
                 "kaiji_oracle.py",
+                "np3_parameters.py",
+                "inspect_np3.py",
             )
         ),
         *(p for p in vendor.glob("*.dll") if p.name != "zlib1.dll"),
         args.wine_prefix / "drive_c/windows/system32/zlib1.dll",
         *vendor.glob("Services/*.n5m"),
         *profiles.glob("*.icm"),
+        Path(generate_curve.__code__.co_filename),
+        root / "src/nx_ctudio/picture_control.py",
+        *args.picture_control,
     ]
     hashes = {str(p.resolve()): digest(p) for p in paths}
     args.output.mkdir(parents=True)
@@ -163,15 +202,27 @@ def main() -> int:
         "input_hashes": hashes,
         "cases": [],
         "passed": False,
+        "picture_import": bool(args.picture_control),
+        "originals_only": args.originals_only,
         "limits": [
             "Selected metadata fields and selector only, not complete TOP parity.",
             "Other selector arguments are SDK outputs, not natively recovered.",
+            "NP3 checks cover normalized values and curve activation, "
+            "not curve contents.",
             "Original photographs are ordinary Z8 captures; variants modify metadata.",
             "No Flexible Color rendering, image-domain or Lightroom parity claim.",
         ],
     }
     try:
-        for source in oracle["cases"]:
+        selected = [
+            s
+            for s in oracle["cases"]
+            if not args.originals_only or s["variant"] == "original"
+        ]
+        configs = [(s, p) for s in selected for p in (args.picture_control or [None])]
+        if not configs:
+            raise ValueError("No source cases selected.")
+        for run_index, (source, np3) in enumerate(configs):
             if source.get("passed") is not True:
                 raise ValueError("Unsuccessful source-metadata case.")
             matches = [
@@ -192,7 +243,8 @@ def main() -> int:
             expected = source_controls(
                 _tiff.read(path.read_bytes()), decoded, coefficients
             )
-            prefix = args.output / f"case{index}"
+            picture = picture_controls(np3.read_bytes()) if np3 else None
+            prefix = args.output / f"case{run_index}"
             result = subprocess.run(
                 [
                     "/usr/lib/wine/wine64",
@@ -201,6 +253,7 @@ def main() -> int:
                     windows(vendor / "Services"),
                     windows(path),
                     windows(prefix),
+                    *([windows(np3)] if np3 else []),
                 ],
                 cwd=vendor,
                 env=dict(
@@ -218,18 +271,20 @@ def main() -> int:
                 if line.startswith("{")
             ]
             case = {
-                "index": index,
+                "index": run_index,
+                "source_index": index,
                 "source_sha256": source["source_sha256"],
                 "variant": source["variant"],
                 "events": events,
                 "returncode": result.returncode,
                 "stderr": result.stderr,
                 "passed": False,
+                "np3_sha256": digest(np3) if np3 else None,
             }
             report["cases"].append(case)
             if result.returncode:
                 raise ValueError("SDK probe failed.")
-            validate_events(events)
+            validate_events(events, picture)
             case["loaded_providers"] = provider_paths(
                 events, hashes, vendor, args.wine_prefix
             )
@@ -238,6 +293,9 @@ def main() -> int:
                 case[suffix] = verify_top(
                     data, expected, coefficients, modes, active=suffix == "active"
                 )
+                if picture is not None and suffix == "active":
+                    if any(case[suffix][k] != v for k, v in picture.items()):
+                        raise ValueError("NP3 import disagrees with active TOPParam.")
                 case[f"{suffix}_sha256"] = hashlib.sha256(data).hexdigest()
             case["passed"] = True
         report["sources_unchanged"] = all(
@@ -245,7 +303,7 @@ def main() -> int:
         )
         report["passed"] = (
             report["sources_unchanged"]
-            and len(report["cases"]) == len(oracle["cases"])
+            and len(report["cases"]) == len(configs)
             and all(c["passed"] for c in report["cases"])
         )
     except (Exception, KeyboardInterrupt) as exc:

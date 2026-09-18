@@ -6,13 +6,19 @@ import sys
 from pathlib import Path
 
 import pytest
+from test_np3 import flexible_records, np3
 
 from nx_ctudio import _tiff
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import image_controls  # noqa: E402
 from image_controls import source_controls, top_controls, verify_top  # noqa: E402
-from verify_image_sdk import PINNED, provider_paths, validate_events  # noqa: E402
+from verify_image_sdk import (  # noqa: E402
+    PINNED,
+    picture_controls,
+    provider_paths,
+    validate_events,
+)
 from verify_np3_header import windows  # noqa: E402
 
 
@@ -160,3 +166,62 @@ def test_providers_require_loaded_paths_and_handle_wine_zlib(tmp_path):
     events[0]["path_hex"] = b"Z:/shadow/Rome2.dll".hex()
     with pytest.raises(ValueError, match="Unexpected"):
         provider_paths(events, hashes, vendor, wine)
+
+
+def picture(curve=False):
+    overrides = {0x1900: bytes((119, 4)), 0x1C00: bytes((137, 3))}
+    if curve:
+        payload = bytearray(578)
+        payload[:13] = b"I0" + bytes([0, 255, 0, 255, 1, 0, 2, 0, 0, 255, 255])
+        overrides[2] = bytes(payload)
+    return np3.serialize(flexible_records(overrides))
+
+
+@pytest.mark.parametrize("curve", [False, True])
+def test_picture_expectations_use_imported_profile_and_curve_presence(curve):
+    result = picture_controls(picture(curve))
+    assert result["picture_control_id"] == 32
+    assert result["profile_row"] == 14
+    assert result["profile_family"] == 12
+    assert result["normalized_values"][:6] == [-2, 0, 0, 3, 0, 0]
+    assert result["normalized_values"][-2:] == [50, 0]
+    assert result["custom_curve"] is curve
+
+
+def test_picture_lifecycle_requires_guarded_import_before_top():
+    expected = picture_controls(picture())
+    event = {
+        "event": "picture_imported",
+        "result": 0,
+        "guards_intact": True,
+        "input_unchanged": True,
+        "values": expected["normalized_values"],
+    }
+    events = lifecycle()
+    events.insert(6, event)
+    validate_events(events, expected)
+    for field in ("input_unchanged", "guards_intact"):
+        with pytest.raises(ValueError):
+            validate_events(
+                events[:6] + [dict(event, **{field: False})] + events[7:], expected
+            )
+    with pytest.raises(ValueError):
+        validate_events(lifecycle(), expected)
+    event["values"] = event["values"][:-1] + [True]
+    with pytest.raises(ValueError):
+        validate_events(events, expected)
+
+
+def test_top_picture_values_and_curve_flag_use_the_selected_bank():
+    data = bytearray(0x4D0)
+    source_values = list(range(41))
+    working_values = list(range(-20, 21))
+    struct.pack_into("<41i", data, 0xCC, *source_values)
+    struct.pack_into("<41i", data, 0x31C, *working_values)
+    data[0x170], data[0x3C0] = 0, 1
+    source_result = top_controls(bytes(data), active=False)
+    active_result = top_controls(bytes(data), active=True)
+    assert source_result["normalized_values"] == source_values
+    assert source_result["custom_curve"] is False
+    assert active_result["normalized_values"] == working_values
+    assert active_result["custom_curve"] is True

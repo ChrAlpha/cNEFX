@@ -269,6 +269,24 @@
     "independent_review": "Read-only reviewer replayed14cases/28snapshots, verified105input hashes and28loaded providers per case, and cross-checked ABI/ownership.20tests and strict C11 syntax checks passed. Wine was not rerun; timeout/failure cleanup and leak freedom are not established.",
     "limit": "Selected fields and selector only, not complete TOP reconstruction. Remaining selector fields are vendor outputs. Neither original uses Flexible Color; profile14/family12 code cannot be generalized to these profile4/family3 and profile2/family2 captures. No source-image rendering or Lightroom comparison."
   },
+  "sdk_np3_import": {
+    "probe": "tools/probe_image_sdk.c",
+    "runner": "tools/verify_image_sdk.py --originals-only --picture-control PATH",
+    "report": "sdk-np3-import-v3/report.json",
+    "sha256": "2f21c91791811d99d0b37d89b0293653eeed4a9db0ea673b1c579b5e51be13eb",
+    "cases": 16,
+    "coverage": "Two ordinary real NEFs times eight NP3 files: vanilla, noop, white, black, max-point, asymmetric and two mixed controls.",
+    "abi": "Picture Control property getter Rome0x7bb80(image), import0xe7480(picture,bytes,length,0,1), normalized getter0xe8e20(picture,164-byte output). The PCEngine wrapper slot1f0 is not this property ABI.",
+    "compared_normalized_values": 1312,
+    "mismatches": 0,
+    "active_fields": "All41 normalized values match both the live getter and working TOP. Picture Control32, profile row14, family12 and custom-curve activation match. Source/working normalized offsets are0xcc/0x31c; curve flags0x170/0x3c0.",
+    "guards": "NP3 prefix/suffix, unchanged NP3 input, normalized getter and TOP guards pass. SDK lifecycle, loaded providers and stable input hashes are required.",
+    "observation": "With mixed normalized contrast62/-75 and a custom curve, working TOP selector contrast is0. Application-level suppression still needs native prediction; low-level explicit contrast APIs retain their existing meaning.",
+    "compatibility_report": "sdk-top-compat-v1/report.json",
+    "compatibility_sha256": "6b5bfacb5cece00e7284c17ed539d0d13212d1c1ef80c23072bb6fdb1a40d6d0",
+    "independent_review": "Reviewer replayed all16 prior-v2 cases,32 snapshots and1312 normalized-value comparisons, plus2 no-NP3 cases; all input hashes matched.24 focused tests and strict C11 syntax checks passed. Curve-content verification gap is now explicit in runner limits; v3 reruns the same16 cases after that clarification.",
+    "limit": "Curve presence only, not live curve samples. Remaining selector arguments are captured vendor outputs. No complete application-state reconstruction, source-image rendering or Lightroom parity."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",

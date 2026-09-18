@@ -3,6 +3,7 @@
 #include <tlhelp32.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef int (*Initialize)(const void *);
@@ -20,6 +21,9 @@ typedef void *(*BuildGenerator)(void *, void *, uint32_t);
 typedef uint64_t (*InitializeTOP)(void *, void *);
 typedef uint64_t (*ApplyTOP)(void *, void *, double);
 typedef void *(*DestroyGenerator)(void *, uint64_t);
+typedef void *(*GetPicture)(void *);
+typedef uint64_t (*ImportPicture)(void *, const void *, uint64_t, uint8_t, uint8_t);
+typedef void *(*GetFlexible)(void *, void *);
 
 static void *slot(void *object, unsigned offset) {
     return (*(void ***)object)[offset / sizeof(void *)];
@@ -27,6 +31,55 @@ static void *slot(void *object, unsigned offset) {
 
 static void print_hex(const uint8_t *bytes, size_t size) {
     for (size_t i = 0; i < size; ++i) printf("%02x", bytes[i]);
+}
+
+static int import_picture(HMODULE dll, void *image, const char *path) {
+    FILE *file = fopen(path, "rb");
+    if (!file) return 0;
+    if (fseek(file, 0, SEEK_END)) { fclose(file); return 0; }
+    long length = ftell(file);
+    if (length < 52 || length > 4 * 1024 * 1024 || fseek(file, 0, SEEK_SET)) {
+        fclose(file); return 0;
+    }
+    uint8_t *allocation = malloc((size_t)length + 64), *copy = malloc((size_t)length);
+    if (!allocation || !copy) { free(allocation); free(copy); fclose(file); return 0; }
+    memset(allocation, 0xa5, (size_t)length + 64);
+    uint8_t *data = allocation + 32;
+    int complete = fread(data, 1, (size_t)length, file) == (size_t)length
+                && fgetc(file) == EOF && !ferror(file);
+    fclose(file);
+    if (!complete) { free(allocation); free(copy); return 0; }
+    memcpy(copy, data, (size_t)length);
+    GetPicture get;
+    ImportPicture import;
+    GetFlexible flexible;
+    void *address = (uint8_t *)dll + 0x7bb80;
+    memcpy(&get, &address, sizeof(get));
+    address = (uint8_t *)dll + 0xe7480;
+    memcpy(&import, &address, sizeof(import));
+    address = (uint8_t *)dll + 0xe8e20;
+    memcpy(&flexible, &address, sizeof(flexible));
+    void *picture = get(image);
+    if (!picture) { free(allocation); free(copy); return 0; }
+    /* This concrete property ABI differs from the older PCEngine wrapper. */
+    uint64_t result = import(picture, data, (uint64_t)length, 0, 1);
+    struct { uint64_t before[4]; int32_t values[41]; uint8_t after[32]; } output;
+    memset(&output, 0xa5, sizeof(output));
+    if (!result) flexible(picture, output.values);
+    int guards = 1;
+    for (unsigned i = 0; i < 32; ++i)
+        guards &= allocation[i] == 0xa5 && data[length + i] == 0xa5
+               && ((uint8_t *)output.before)[i] == 0xa5 && output.after[i] == 0xa5;
+    int unchanged = !memcmp(copy, data, (size_t)length);
+    printf("{\"event\":\"picture_imported\",\"result\":%llu,"
+           "\"guards_intact\":%s,\"input_unchanged\":%s,\"values\":[",
+           (unsigned long long)result, guards ? "true" : "false", unchanged ? "true" : "false");
+    for (unsigned i = 0; i < 41; ++i) printf("%s%d", i ? "," : "", output.values[i]);
+    puts("]}");
+    fflush(stdout);
+    free(copy);
+    free(allocation);
+    return !result && guards && unchanged;
 }
 
 static int providers(void) {
@@ -172,7 +225,7 @@ static int collect_top(HMODULE dll, void *image, const char *prefix) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 5 || strlen(argv[2]) >= 260 || strlen(argv[3]) >= 260) return 2;
+    if ((argc != 5 && argc != 6) || strlen(argv[2]) >= 260 || strlen(argv[3]) >= 260) return 2;
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
     HMODULE dll = LoadLibraryA(argv[1]);
     if (!dll) return 3;
@@ -207,6 +260,7 @@ int main(int argc, char **argv) {
         fflush(stdout);
         success = !result && service && load_metadata(service, image, argv[3]);
     }
+    if (success && argc == 6) success = import_picture(dll, image, argv[5]);
     if (success) success = collect_top(dll, image, argv[4]);
     dump_log(dll);
     success &= providers();
