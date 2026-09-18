@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-18",
+  "evidence_kind": "live_vendor_dll_with_synthetic_inputs",
+  "environment": {
+    "host": "Linux x86-64",
+    "wine": "wine-10.0 (Debian 10.0~repack-6)",
+    "compiler": "x86_64-w64-mingw32-gcc 14.2.0",
+    "probe_source": "tools/probe_pixelshift.c",
+    "dll_sha256": "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c",
+    "prm_bin_sha256": "8d6f1bf219561f3c7c11c61b9b9e3317a369c9b5be5089ddffd82db96ca7f707",
+    "host_process": "A standalone MinGW C executable; NXStudio.exe was never started.",
+    "runtime_libraries": "Wine built-in Windows and Microsoft C/C++ runtime DLL implementations; the application directory was passed only as the explicit PixelShiftCombine.dll path.",
+    "prm_bin_placement": "Copied beside the probe EXE for successful output tests. Its necessity has not yet been established."
+  },
+  "inputs": {
+    "source": "A normal Z8 lossless 14-bit NEF, not a pixel-shift capture.",
+    "original_sha256": "0f44ec054c311c4a6c4c162ba6b956495d690dca7a237400c3ae54773393bdbb",
+    "original_unchanged_after_tests": true,
+    "synthetic_copy_sha256": "ea64a4497567c970c777c1db84455a2dd8fdbb7ed9b765dca61286fedd926205",
+    "synthetic_mutation": {
+      "tag": "Nikon MakerNote 0x005e",
+      "tag_absolute_offset_in_this_fixture": 35968,
+      "byte_offset_within_tag": 4,
+      "before": 0,
+      "after": 1,
+      "all_other_bytes": "unchanged"
+    },
+    "sequence": "The same synthetic copy is supplied four times. All sparse-repair selection fields remain zero. This is an invalid physical capture sequence intentionally used to isolate the ABI and sampling equations."
+  },
+  "cases": [
+    {
+      "name": "invalid_count",
+      "input_count": 3,
+      "observed": "DLL loads and returns false without a progress callback."
+    },
+    {
+      "name": "cancel_before_read",
+      "input_count": 4,
+      "observed": "Progress callback receives (1,1,5); returning true causes false return without output."
+    },
+    {
+      "name": "missing_input",
+      "input_count": 4,
+      "observed": "Progress 5 then false return."
+    },
+    {
+      "name": "normal_single_frame_repeated",
+      "input_count": 4,
+      "observed": "The unchanged normal NEF is rejected after progress 5."
+    },
+    {
+      "name": "enabled_marker_repeated",
+      "input_count": 4,
+      "observed": "Progress 5,10,20,30,50,60,70,80,95,100; true return and a readable NEFX.",
+      "software_argument": "NX Ctudio probe",
+      "software_tag_read_back": "NX Ctudio probe",
+      "output_sha256": "4370cfbe966a37d99ad5c2ec90de22fdb4228d31c5b90f61d20848ded38df9f9",
+      "output_size_bytes": 247094288,
+      "raw_width": 8256,
+      "raw_height": 5504,
+      "bits_per_sample": [14,14,14],
+      "samples_per_pixel": 3,
+      "photometric_interpretation": 2,
+      "nikon_compression": 10,
+      "libraw_decoder": "nikon_14bit_load_raw()",
+      "libraw_filters": 0,
+      "black_level": [1008,1008,1008,1008],
+      "white_level": 16383
+    },
+    {
+      "name": "output_parent_missing",
+      "observed": "Progress through 80 then write-error callback code 1; callback returns true and the DLL returns false. No unbounded retry."
+    }
+  ],
+  "numerical_check": {
+    "script": "tools/verify_repeated_frame.py",
+    "comparison": "LibRaw-decoded vendor output versus recovered integer sampling, green averaging, and final crop applied to the LibRaw-decoded source.",
+    "output_sha256": "4370cfbe966a37d99ad5c2ec90de22fdb4228d31c5b90f61d20848ded38df9f9",
+    "command": "uv run tools/verify_repeated_frame.py /workspaces/LumaForge/nxc-data/scratch/marker-enabled.NEF /workspaces/LumaForge/nxc-data/scratch/synthetic-software-result.nefx",
+    "shape": [5504,8256,3],
+    "samples_compared": 136323072,
+    "different_samples": 0,
+    "max_absolute_error": 0,
+    "limitations": [
+      "Repeated frames cannot distinguish a permutation of otherwise identical input arrays.",
+      "Zero sparse-repair fields do not exercise the low-ISO correction branches.",
+      "Chromatic correction is disabled.",
+      "Only four-input, one-output mode is numerically checked here."
+    ]
+  },
+  "conclusions": [
+    "A standalone process can load and call this DLL without starting NX Studio.",
+    "The recovered Microsoft x64 ABI is operational for short inline Software strings and ASCII file paths.",
+    "The input parser requires a nonzero mode marker, but this probe shows it does not reject four identical marker-enabled files as an invalid physical sequence.",
+    "The four-frame numerical sampling equations match this synthetic repeated-frame output exactly."
+  ],
+  "not_proven": [
+    "A Linux-native implementation or a redistributable vendor backend",
+    "Authentic Nikon pixel-shift image fidelity",
+    "Full ABI ownership and Unicode-path behavior",
+    "All mode, ISO, sparse-repair, radial-correction, and failure branches",
+    "Lightroom Classic compatibility or color fidelity"
+  ]
+}

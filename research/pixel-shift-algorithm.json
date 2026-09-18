@@ -98,6 +98,7 @@
     "status": "confirmed_static",
     "loop_va_range": ["0x180350c54", "0x180351010"],
     "width_height_definition": "W and H are decoded RAW buffer dimensions from TIFF image tags 0x0100 and 0x0101, not the visible CropArea.",
+    "geometry_assumption": "The normalized equations assume positive even W and H. The vendor's inclusive two-by-two block loops can write beyond the logical last column or row for odd dimensions; odd-dimension support is not established.",
     "sample_type": "uint16",
     "phase_x_table": {"va": "0x1805eadf0", "values": [0, 1, 1, 0]},
     "phase_y_table": {"va": "0x1805eade0", "values": [0, 0, 1, 1]},
@@ -132,7 +133,16 @@
       "These indices refer to the caller-supplied order. Authentic capture identifiers must still be related to that order.",
       "No conclusion about motion rejection elsewhere in NX Studio follows from the absence of such logic in this loop.",
       "RAW decoder normalization, low-ISO preprocessing, and optional correction remain part of the total numerical pipeline."
-    ]
+    ],
+    "internal_consistency_check": {
+      "kind": "independent_arithmetic_check_not_vendor_execution",
+      "widths": [4, 6, 8, 10],
+      "heights": [4, 6, 8, 10],
+      "scales": [1, 2],
+      "cases": 32,
+      "destination_pixels_checked": 2880,
+      "result": "Every source index stayed in bounds and every destination pixel received exactly one red, two green, and one blue observations."
+    }
   },
   "optional_radial_correction": {
     "status": "confirmed_static",
@@ -144,6 +154,24 @@
       "center_y_q8": "Signed integer at reconstruction-parameter offset 0x98.",
       "red_coefficients_q20": ["0xa0", "0xa8", "0xb0"],
       "blue_coefficients_q20": ["0xb8", "0xc0", "0xc8"]
+    },
+    "coefficient_source": {
+      "container": "TIFF SubIFD tag 0xc7d5 nested Nikon metadata, child tag 0x0007.",
+      "parser_va": "0x180352250",
+      "minimum_block_bytes": 88,
+      "endianness": "little-endian int32 assembled from four bytes",
+      "red_coefficients_q20_byte_offsets": [44, 28, 20],
+      "blue_coefficients_q20_byte_offsets": [80, 64, 56],
+      "evidence": "NefFileReader at 0x180343990 parses tag 0xc7d5 into frame+0x168; 0x180352250 extracts child tag 7 fields, which 0x180350590 copies into reconstruction parameters."
+    },
+    "center_source": {
+      "container": "Nikon MakerNote tag 0x0054",
+      "parser_va": "0x180351a90",
+      "minimum_block_bytes": 20,
+      "endianness": "little-endian int32 assembled from four bytes",
+      "center_x_q8_byte_offset": 4,
+      "center_y_q8_byte_offset": 12,
+      "evidence": "Frame fields +0x1d4 and +0x1dc are copied from first-frame context offsets +0x1dc and +0x1e4 to reconstruction-parameter offsets +0x90 and +0x98."
     },
     "equations": [
       "cx = scale * ((W-1)/2 + center_x_q8/256 - 1).",

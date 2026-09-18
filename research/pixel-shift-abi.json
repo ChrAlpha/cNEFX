@@ -54,6 +54,10 @@
       "validation": "same non-null/NUL scan as inputs",
       "evidence": "0x1803492a6..0x1803492cb; Polaris calls GetFullPath at 0x1801f5099 and GetPtrUtf8 at 0x1801f50a3"
     },
+    "file_open_encoding": {
+      "status": "confirmed_static",
+      "finding": "File-open helper RVA 0x34ec10 converts paths with helper 0x34eb10, which calls MultiByteToWideChar with code page 65001 (UTF-8), then calls _wfopen_s. Native Windows argv from a narrow main function is not sufficient to guarantee Unicode correctness; the host must supply UTF-8 explicitly."
+    },
     "software": {
       "status": "confirmed_static",
       "purpose": "Copied into TIFF Software tag 0x0131, including the terminating NUL",
@@ -74,7 +78,23 @@
       "purpose": "When nonzero, calls RVA 0x34aca0 after channel assembly and before the 50-percent callback. That routine remaps first and third planes with distinct radial polynomials while copying the middle plane unchanged.",
       "evidence": ["0x3510ab..0x3510dd", "0x34b05d..0x34b137"],
       "ui_name_hypothesis": "Lateral chromatic aberration correction",
-      "limitation": "The UI label and exact provenance of polynomial coefficients have not been traced. This flag must not be described as motion rejection based on this evidence."
+      "coefficient_provenance": "RVA 0x352250 reads tag 7 (minimum 88 bytes) from the nested NikonNEFInfo directory reached via raw SubIFD tag 0xc7d5. The first input's coefficients populate the assembly descriptor consumed by RVA 0x34aca0. They are not loaded from prm.bin on this path.",
+      "coefficient_offsets_in_tag7": {
+        "plane0_constant": 44,
+        "plane0_r2": 28,
+        "plane0_r3": 20,
+        "plane2_constant": 80,
+        "plane2_r2": 64,
+        "plane2_r3": 56
+      },
+      "center_offsets_in_makernote_tag54": {"center_x": 4, "center_y": 12},
+      "descriptor_dataflow": "Worker reconstruction descriptor starts at RBP+0x20. At RVA 0x350aa9, context+0x1dc (first frame+0x1d4) is copied to RBP+0xb0, hence descriptor+0x90. The next three 16-byte copies from context+0x208/+0x218/+0x228 populate descriptor+0xa0/+0xb0/+0xc0. This distinguishes the tag-0x54 center fields from tag-7 coefficient fields.",
+      "coefficient_format": "Little-endian 32-bit integers, interpreted as signed in the remapping routine. Center offsets use a 1/256 scale; the six radial coefficients use a 1/1048576 scale.",
+      "formula": "With original raw dimensions W,H and q=2 for 16/32-input output or q=1 for 4/8-input output, cx=q*((W-1)/2+center_x/256-1), cy=q*((H-1)/2+center_y/256-1), R=q*sqrt(W*W+H*H)/2, r=sqrt((x-cx)^2+(y-cy)^2)/R. For each corrected plane, k=1+(a+b*r*r+c*r*r*r)/1048576 and sample source at (cx+k*(x-cx),cy+k*(y-cy)). Plane 1 is copied unchanged.",
+      "interpolation": "Helper RVA 0x34b2c0 uses a separable 4x4 cubic convolution kernel. For t=absolute coordinate distance, w(t)=1-2*t*t+t*t*t for t<=1, w(t)=4-8*t+5*t*t-t*t*t for 1<t<=2, and zero otherwise. Integer coordinate conversion truncates toward zero; sample offsets are -1,0,1,2; out-of-bounds samples are omitted. The weighted sum is clamped to [0,16383] and truncated to integer.",
+      "interpolation_evidence": ["0x34b340..0x34b399: truncation and four rows", "0x34b3a0..0x34b444: bounds and horizontal weights", "0x34b444..0x34b4bf: vertical weights", "0x34b81d..0x34b892: clamp and truncation", "double constants at RVAs 0x5edee8=1, 0x5edef8=2, 0x5edf00=4, 0x5edf08=8, 0x5edf50=-5"],
+      "coefficient_evidence": ["0x344886 selects raw SubIFD tag 0xc7d5; 0x344afb passes nested directory at metadata+0x148", "0x352284 selects tag 7; 0x3522ae checks minimum count 88", "0x350ab8..0x350ade copies parsed first-input coefficient fields", "0x34ae61..0x34af99 derives center/radius/scales; 0x34b05d..0x34b137 applies radial mapping"],
+      "limitation": "The UI label and valid coefficient ranges need further verification. Numerical equivalence has not been tested dynamically. This flag must not be described as motion rejection based on this evidence."
     },
     "supported_pairs": [[4,1],[8,1],[8,2],[16,1],[16,4],[32,1],[32,2],[32,4],[32,8]],
     "supported_pairs_evidence_rvas": ["0x349477", "0x349481", "0x349624", "0x349632", "0x349740", "0x349a00", "0x349a0e", "0x349b1e", "0x349dde", "0x349ded", "0x349f04", "0x34a145", "0x34a3b5"],
@@ -94,6 +114,10 @@
     "evidence": ["0x33eae8..0x33eb23: ECX=0 before GetModuleFileNameW via IAT RVA 0x37e100", "0x33eb66..0x33eb72: append UTF-16 prm.bin", "0x33ebef..0x33ec0b: _wfopen_s via IAT RVA 0x37e3b8", "0x5e7eb4: UTF-16 r", "0x5e7ec0: UTF-16 prm.bin"],
     "cache": "The successful path is stored at global RVA 0x5f6440; initialization flag is at 0x607210. Loader RVA 0x33e790 later opens the cached path as L\"rb\".",
     "caller": "RVA 0x353ccb calls 0x33ea90 from metadata update helper 0x353b80. That helper is called at 0x352db5 in output metadata preparation.",
+    "conditional_lookup": "Helper RVA 0x353b80 returns immediately for per-output input_count 4 or 16. The lookup path is reachable for 8/32 when TIFF XMP tag 700 is present and nonempty. It selects a resource ID from TIFF Model tag 0x0110 via RVA 0x342bd0; a four-input success therefore does not verify prm.bin loading.",
+    "model_resource_table_rva": "0x5eac80",
+    "model_resource_ids": {"NIKON Z 8":1071,"NIKON Z f":1073,"NIKON Z6_3":1072,"NIKON Z5_2":1075,"NIKON ZR":1076,"NIKON Q2270":1075,"NIKON Q2210":1076},
+    "model_table_encoding": "Seven 40-byte records. Offset 0 is uint32 resource ID; offset 4 is uint16 model byte length; offset 8 stores each model byte minus 0x20. Model tag count must be length+1.",
     "initial_file_checks": "Loader 0x33e790 reads 32 bytes and requires DWORD 0x4e4f4b4e at offset 0 and DWORD 0x01010000 at offset 4; checks at RVAs 0x33e838 and 0x33e845.",
     "limitation": "Static path construction is confirmed. Missing-file behavior for each camera, payload decoding, and calibration semantics need further verification."
   },
@@ -121,9 +145,9 @@
   },
   "limitations": [
     "No real NEF/NEFX pair was available.",
-    "No standalone invocation has been run.",
-    "The static ABI has not yet been checked with a Windows/Wine harness; source-level names and qualifiers remain reconstructed.",
-    "The export performs reconstruction and writes output files, but output format and metadata fidelity are not established by this ABI analysis."
+    "This artifact records static analysis. Separate dynamic evidence is recorded in research/pixel-shift-runtime-probe.json; those runs were not independently repeated by the ABI analyst.",
+    "Source-level names and qualifiers remain reconstructed. Heap-backed Software string ownership and non-ASCII paths have not been dynamically verified.",
+    "Authentic sequence behavior and metadata fidelity are not established by this ABI analysis."
   ],
   "analysis_commands": [
     "objdump -d -M intel --start-address=0x1803490d0 --stop-address=0x18034a410 PixelShiftCombine.dll",
