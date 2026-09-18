@@ -63,10 +63,30 @@
     "boundaries": ["six 0.1 ratio comparisons", "0.3 displaced ratio", "0.4 color ratio", "mean intensity 2000", "estimate delta 500", "diagonal delta 300", "guard delta 2000", "diagonal ratio 1.1", "upper clipping path"],
     "distinguishable_target_triplets": 52,
     "total_target_triplets": 56,
-    "limit": "The t=r+0.1 triplet keeps the same output in each orientation, so those four triplets verify values but do not distinguish branch direction. The upper clipping triplet exercises the cap path, not every possible representable cap crossing.",
-    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/sparse-thresholds-v3/report.json",
-    "input_sha256": "cd7b4d9e82b0d20a799b7150b544534bb9fc560a92b8eea8b3ae393e3891c223",
-    "output_sha256": "9f45e7d3176f466e33560c5e346b03954d379dc7925005d988f11c159436e160"
+    "stage_one_survival_control": {
+      "target": "Stage-one t+0.1<r with r=1, s=1.1, and t=0.899/0.900/0.901. All frame orientations are exercised at selected coordinate y=4,x=5.",
+      "vendor_target_values_in_each_frame": [929,900,901],
+      "reason": "At the below-boundary setting, s=r+0.1 prevents the low-displaced stage-two branch from replacing the stage-one 0.7 blend.",
+      "mutation_method": "Parse the unchanged sparse_reference.py and replace only the first t+0.1<r comparison in an in-memory function copy. The vendor binary and source reference remain unchanged.",
+      "reversed_gt": {
+        "different_cases": 8,
+        "different_samples": 8,
+        "below_boundary_vendor_target": 929,
+        "below_boundary_mutated_target": 1000,
+        "targeted_orientations_detected": 4,
+        "acceptance": "The verifier fails unless the below-boundary target distinguishes the reversed comparator in every frame orientation."
+      },
+      "inclusive_le": {
+        "different_cases": 0,
+        "different_samples": 0,
+        "interpretation": "This final-output oracle cannot establish strict versus inclusive equality behavior here. With t+0.1=r and r<s, stage two takes close-replace and overwrites either stage-one result. The original strict comparator is retained from static recovery."
+      }
+    },
+    "limit": "The 52 differing target triplets do not imply 52 independently distinguished branch boundaries. The t=r+0.1 triplet remains constant in every orientation; stage-one strict-versus-inclusive equality is masked by a later overwrite. The upper clipping triplet exercises the cap path, not every representable cap crossing.",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/sparse-thresholds-survival-20260918-review1/report.json",
+    "report_sha256": "3bf95815962562385f08df856d5cea9a8a12eae289a1a58bea4793a59f1ecbdd",
+    "input_sha256": "7c10de83ac5aaf9e384e4277a944aab73fe1a6a4c7487f9498bb8a8ce9b9548d",
+    "output_sha256": "c61d264861d863d8a7fb8c6f3c8b7683cf7b8671cd803db7d0f713e23280cb31"
   },
   "remaining": [
     "Exhaustive representable-value coverage is not established by these finite fixtures",

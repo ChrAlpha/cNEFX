@@ -15,6 +15,7 @@ from pathlib import Path
 
 from sparse_reference import Selection, repair
 from sparse_thresholds import cases as threshold_cases
+from sparse_thresholds import mutation_checks
 
 DLL_SHA256 = "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c"
 WIDTH, HEIGHT = 16, 12
@@ -144,6 +145,7 @@ def main() -> int:
         selected_samples = 0
         trace: Counter[str] = Counter()
         failures = []
+        observed = []
         with output_path.open("rb") as stream:
             if stream.read(8) != struct.pack("<4sI", b"NXCO", len(cases)):
                 raise ValueError("Unexpected output header.")
@@ -152,6 +154,8 @@ def main() -> int:
                 if len(block) != CASE_BYTES:
                     raise ValueError(f"Truncated output at {name}.")
                 actual = struct.unpack(f"<{PLANE_SIZE * 4}H", block)
+                if args.thresholds:
+                    observed.append(actual)
                 expected = repair(planes, WIDTH, HEIGHT, selection, trace)
                 selected_samples += 4 * len(selection.coordinates(WIDTH, HEIGHT))
                 mismatches = []
@@ -192,6 +196,14 @@ def main() -> int:
             reference_branch_counts=dict(sorted(trace.items())),
             passed=differences == 0 and changed > 0,
         )
+        if args.thresholds:
+            report["mutation_controls"] = mutation_checks(cases, observed)
+            report["passed"] = (
+                report["passed"]
+                and report["mutation_controls"][
+                    "reversed_predicate_detected_in_each_frame"
+                ]
+            )
     except subprocess.TimeoutExpired as error:
         diagnostics = error.stderr or b""
         report.update(

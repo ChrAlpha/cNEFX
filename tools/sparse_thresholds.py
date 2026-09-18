@@ -1,7 +1,11 @@
 """Controlled neighborhoods straddling recovered sparse-repair thresholds."""
 
+import ast
 from fractions import Fraction
+from pathlib import Path
+from types import FunctionType
 
+import sparse_reference
 from sparse_reference import Selection
 
 
@@ -40,7 +44,9 @@ def cases() -> list[tuple[str, Selection, list[list[int]]]]:
                 if boundary == "s_at_r_plus_0.1":
                     s, t = Fraction(11, 10) + step, Fraction(1, 2)
                 elif boundary == "t_plus_0.1_at_r":
-                    s, t = Fraction(21, 20), Fraction(9, 10) + step
+                    # Equality at s=r+0.1 prevents stage two from replacing the
+                    # stage-one blend when t+0.1 is below r.
+                    s, t = Fraction(11, 10), Fraction(9, 10) + step
                 elif boundary == "t_plus_0.1_at_s":
                     s, t = Fraction(4, 5), Fraction(7, 10) + step
                 elif boundary == "t_at_r_plus_0.1":
@@ -103,3 +109,83 @@ def cases() -> list[tuple[str, Selection, list[list[int]]]]:
                     )
                 )
     return result
+
+
+def mutation_checks(
+    fixtures: list[tuple[str, Selection, list[list[int]]]],
+    observed: list[tuple[int, ...]],
+) -> dict:
+    """Compare in-memory reference mutants with the unchanged vendor outputs."""
+    source_path = Path(sparse_reference.__file__)
+    source = source_path.read_text()
+    mutations = {}
+    for name, operator in (("reversed_gt", ast.Gt), ("inclusive_le", ast.LtE)):
+        tree = ast.parse(source)
+        function = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "repair_value"
+        )
+        pattern = ast.parse("t + 0.1 < r", mode="eval").body
+        matches = sorted(
+            (
+                node
+                for node in ast.walk(function)
+                if isinstance(node, ast.Compare) and ast.dump(node) == ast.dump(pattern)
+            ),
+            key=lambda node: node.lineno,
+        )
+        if len(matches) != 2:
+            raise ValueError("Expected the two recovered t+0.1<r comparisons.")
+        matches[0].ops[0] = operator()
+        namespace = vars(sparse_reference).copy()
+        exec(
+            compile(ast.Module(body=[function], type_ignores=[]), source_path, "exec"),
+            namespace,
+        )
+        mutated = FunctionType(sparse_reference.repair.__code__, namespace)
+        results = []
+        different_cases = different_samples = 0
+        for (case_name, selection, planes), actual in zip(
+            fixtures, observed, strict=True
+        ):
+            expected = mutated(planes, 16, 12, selection, None)
+            differences = sum(
+                value != expected[frame][pixel]
+                for frame in range(4)
+                for pixel, value in enumerate(actual[frame * 192 : (frame + 1) * 192])
+            )
+            different_cases += differences > 0
+            different_samples += differences
+            if "-t_plus_0.1_at_r-" in case_name:
+                frame = int(case_name.split("-")[1][1:])
+                pixel = 4 * 16 + 5
+                results.append(
+                    {
+                        "name": case_name,
+                        "vendor_target": actual[frame * 192 + pixel],
+                        "mutated_target": expected[frame][pixel],
+                        "different_samples": differences,
+                    }
+                )
+        mutations[name] = {
+            "different_cases": different_cases,
+            "different_samples": different_samples,
+            "targeted_cases": results,
+        }
+    targeted = mutations["reversed_gt"]["targeted_cases"]
+    below = [case for case in targeted if case["name"].endswith("--1")]
+    detected = len(below) == 4 and all(
+        case["vendor_target"] != case["mutated_target"] for case in below
+    )
+    return {
+        "comparison": "Stage-one t+0.1<r; the later comparison is unchanged.",
+        "method": "Mutate a parsed copy of the reference in memory only.",
+        "reversed_predicate_detected_in_each_frame": detected,
+        "mutations": mutations,
+        "limitation": (
+            "An inclusive stage-one comparison is masked at equality by the later "
+            "close-replace branch. Distinct triplet outputs alone do not prove "
+            "strict-versus-inclusive branch coverage."
+        ),
+    }
