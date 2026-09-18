@@ -61,7 +61,14 @@
         "different_samples": 0,
         "input_dimensions": [[632,424],[1264,848],[1264,848],[8256,5504]],
         "source_kinds": ["four-frame sparse fixture", "thirty-two-frame sparse fixture", "sixteen-frame sparse fixture with radial stress", "full-size four-frame repeated source"],
-        "zero_preview_pixels": [4447,0,0,0]
+        "zero_preview_pixels": [4447,0,0,0],
+        "replay": "uv run tools/verify_nefx_preview.py <artifact paths in this order>",
+        "artifacts": [
+          {"path_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/sparse-pipeline-v1/mode-4-iso-3200/normal.nefx", "sha256": "c0941983f273713fe19fe9644e8347cd35f0489f51816a7ff497f56bbebceee7"},
+          {"path_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/sparse-pipeline-scale2/mode-32-iso-3200/normal.nefx", "sha256": "1c22863ec5e69a173cf71767f32a9f206b319df07ac9443bfaf7f4fc28972c59"},
+          {"path_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/sparse-pipeline-radial/mode-16-iso-3200/correct.nefx", "sha256": "6e30a11bd4fd4db73aef9a1fb46407045cfb873ded3319ea1485193afe095e62"},
+          {"path_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/synthetic-software-result.nefx", "sha256": "4370cfbe966a37d99ad5c2ec90de22fdb4228d31c5b90f61d20848ded38df9f9"}
+        ]
       },
       "limit": "Other embedded JPEG previews were not numerically verified. The small-image zero intervals are vendor behavior, not a claimed desirable native preview policy."
     }
