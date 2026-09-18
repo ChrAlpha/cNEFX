@@ -183,8 +183,30 @@
     "asteroid11_sha256": "00733061041d2c36fc580b770c6d94a7872e1bcef7f93befde07e33ff7204ed6",
     "source_correction": "The earlier ShotInfo label was incorrect. Rome2 collector0x29b510 reads metadata key0x80097 with type0x109 and size0xd08 into the buffer passed to property0x100016b. This is ColorBalance, not MakerNote ShotInfo0x0091.",
     "field_reader": "Asteroid11 CreateTagControl0x4cfbe0 creates vtable0x8730c0; slot+d0 dispatches to0x4df120 then0x4df930. Property0x100016b selects branch0x4e1f64: versions0703/0803 return the little-endian uint16 at decoded typed-buffer+a0.",
-    "raw_import_boundary": "Both available real Z8 NEFs contain166-byte ColorBalance0803 records. The service returns a0xd08-byte typed buffer; raw-file offset+a0 is not established as the equivalent field. Reader0x4fc1a0 allocates/converts this typed buffer; import layout and decryption still need comparison.",
+    "raw_import_boundary": "Both available real Z8 NEFs contain166-byte ColorBalance0803 records. The service returns a0xd08-byte typed buffer. Asteroid11 reader0x4fc1a0, branch0x52621d..0x526c7c, expands packed fields into aligned storage; decoded packed+8a becomes typed+a0. Native import below verifies the complete typed buffer against actual file loading.",
     "rejected_inference": "External pilot colorbalance-iso-v1 passed a decrypted raw record directly to the field leaf. The leaf agreed with a native+a0read, but this skips the typed-buffer conversion. Its16145/15918results are not accepted camera ISO codes or real application input evidence."
+  },
+  "colorbalance_real_import": {
+    "implementation": "tools/colorbalance.py",
+    "probe": "tools/probe_colorbalance.c",
+    "runner": "tools/verify_colorbalance.py",
+    "evidence_kind": "native_typed_buffer_vs_live_real_nef_loader",
+    "report": "colorbalance-native-v2/report.json",
+    "sha256": "8f122523930c6ceb2b3b5a223922bccaa147ea7fec5631be5e80674516673f50",
+    "cases": 2,
+    "compared_bytes": 6672,
+    "different_bytes": 0,
+    "source_sha256": [
+      "c13a8675294456b9c979e6c1e556951654f35377b2870af2874bfb556f21ce40",
+      "0f44ec054c311c4a6c4c162ba6b956495d690dca7a237400c3ae54773393bdbb"
+    ],
+    "vendor_iso_codes": [104, 231],
+    "firmware_versions": ["1.00", "3.01"],
+    "source_scope": "Ordinary lossless Z8 photographs, Standard and Auto Picture Controls respectively; neither is pixel shift or Flexible Color.",
+    "native_path": "Read bounded TIFF/MakerNote structure; decrypt0x0097 using installed open-source ExifTool13.59 via stdin-only metadata values; import decoded166-byte0803record to aligned3336-byte buffer.",
+    "vendor_path": "Unmodified Asteroid11 factories create file stream, tag control and loader. Stream path setter+70; loader+0 initializes read-only stream, loader+18 reads metadata with two explicit null optional consumers. TagControl+28 reads0x80097/type109/size0xd08; +d0 reads property0x100016b. All objects released after success.",
+    "guards": "Typed output prefix/suffix and property result guards survived; typed input unchanged by property reader. All source files, probe/source code and pinned library/module paths hash-stable after execution.",
+    "limit": "Decryption still uses ExifTool. This verifies two real metadata imports and the internal ISO field, not its derivation from standard ISO, full application state or image rendering."
   },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
