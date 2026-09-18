@@ -93,6 +93,7 @@
     "table_generator": "Rome0x29f0b0(state,unused,output), with a0x34370-byte output; Flexible Color branch state+0x151c equals12; coefficients from Moon GetCoefTable(0x1002,camera).",
     "scalar_evaluator": "Rome0x2aee40(unused,r_index_pointer,g_index_pointer,b_index_pointer,context)",
     "evaluator_context": "Grid size+8,output channel pointers+0x18/+0x20/+0x28,generated table pointer+0x38.",
+    "generator_output": "Neutral live probe accepts a 0x17f8-byte writable state and writes a 0x34370-byte output buffer; state and output guards survived. Rome2 RVA0x29f0b0; see the bounded oracle below.",
     "grading": "Builds three65-node channel curves and expands to4096-entry LUTs. Evaluator reads these before its first color matrix.",
     "blender": "Combines eight parameter regions into32-sector tables; separate positive/negative camera weights, coefficient-backed hue quadrant folding, and chroma baseline1024 with zero clamp.",
     "limits": [
@@ -114,6 +115,23 @@
     "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/color-coefficients-v1/report.json",
     "report_sha256": "e382d94cdee8a4c6124a44fe07bf0147c6b1cdf15a16d1a2623b2f0ac25cd7f0",
     "limit": "Proves loading the same camera coefficient bytes, not generated tables or rendered colors."
+  },
+  "table_generator_oracle": {
+    "evidence_kind": "live_unmodified_vendor_neutral_flexible_table_generation",
+    "generator_rva": "0x29f0b0",
+    "probe": "tools/probe_kaiji_tables.c",
+    "runner": "tools/verify_kaiji_tables.py",
+    "camera_id": 1071,
+    "profile_family": 12,
+    "state_bytes": 6136,
+    "output_bytes": 213872,
+    "output_sha256": "b6baa6389b252bda4aad71876b426be2383cde4326e681d10a984861b2060248",
+    "nonzero_bytes": 108755,
+    "state_guard_intact": true,
+    "output_guard_intact": true,
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/kaiji-tables-neutral-v3/report.json",
+    "report_sha256": "4e2d91f7d1f56b5007f525739490606061fa1d7235f3b2cb327163e4ab8b04e7",
+    "limit": "One neutral synthetic state; output bytes are an opaque vendor-derived artifact outside Git. This does not establish NP3 import mapping or rendered pixel parity."
   },
   "integer_leaf_oracle": {
     "evidence_kind": "live_unmodified_vendor_integer_math_synthetic_cases",
