@@ -8,6 +8,9 @@ import struct
 from flexible_math import interpolate, round_divide32
 from kaiji_grading import COEFFICIENT_HASH
 
+ADJUSTMENT_HASH = "62900093699b9c9c8461a468d70aba19e9d37ee423267bdf8d77c6f40df8aa55"
+ADJUSTMENT_BYTES = 23698
+
 
 def camera_ranges(
     coefficients: bytes,
@@ -19,10 +22,14 @@ def camera_ranges(
     strength: int = 256,
     blend_mix: int = 0,
     camera_index: int = 0,
+    exposure_adjustment: int = 0,
+    adjustment_tables: bytes | None = None,
 ) -> list[tuple[int, bytes]]:
     """Generate camera sections with explicit internal calibration controls.
 
-    State+152c/+1533/+153e are zero. Hue supports the ordinary encoded
+    State+152c/+153e are zero. Exposure adjustment is raw signed state+1533,
+    not an EV value. Negative values require external tone/chroma tables.
+    Hue supports the ordinary encoded
     range116..140, neutral sentinel255, and the historical invalid zero control.
     """
     if (
@@ -44,6 +51,16 @@ def camera_ranges(
         raise ValueError("Blend mix must be an integer in [0, 10].")
     if type(camera_index) is not int or not 0 <= camera_index <= 108:
         raise ValueError("Camera index must be an integer in [0, 108].")
+    if type(exposure_adjustment) is not int or not -36 <= exposure_adjustment <= 30:
+        raise ValueError("Encoded exposure adjustment must be in [-36, 30].")
+    if adjustment_tables is not None and (
+        type(adjustment_tables) is not bytes
+        or len(adjustment_tables) != ADJUSTMENT_BYTES
+        or hashlib.sha256(adjustment_tables).hexdigest() != ADJUSTMENT_HASH
+    ):
+        raise ValueError("Only the pinned external adjustment tables are supported.")
+    if exposure_adjustment < 0 and adjustment_tables is None:
+        raise ValueError("Negative exposure adjustment requires external tables.")
     result = [(0x48, coefficients[0x1BCDE:0x1BCE4])]
 
     def word(offset: int) -> int:
@@ -157,6 +174,13 @@ def camera_ranges(
         & 65535
         for i in range(257)
     )
+    if exposure_adjustment < 0:
+        source = []
+        for i in range(257):
+            row = struct.unpack_from("<37H", adjustment_tables, i * 74)
+            base = row[36]
+            mixed = trunc(row[0] * mix + base * (256 - mix), 256)
+            source.append((mixed + row[36 + exposure_adjustment] - base) & 65535)
     curve(0x21554, 0x21758, source, 4)
     hue_delta = 0 if hue == 255 else trunc((hue - 128) * strength, 256)
     matrix_index = 4 * hue_delta + 48
@@ -177,9 +201,14 @@ def camera_ranges(
             coefficients[0x2ABC0 + model_index * 64 : 0x2ABC0 + (model_index + 1) * 64],
         )
     )
-    source = tuple(
-        min(2047, word(0x2B040 + model_index * 130 + i * 2)) for i in range(65)
-    )
+    source = []
+    for i in range(65):
+        value = word(0x2B040 + model_index * 130 + i * 2)
+        if exposure_adjustment < 0:
+            offset = 19018 + (i * 36 + 36 + exposure_adjustment) * 2
+            factor = struct.unpack_from("<H", adjustment_tables, offset)[0]
+            value = trunc(factor * value, 1024) & 65535
+        source.append(min(2047, value))
     curve(0x237B4, 0x23836, source, 6)
 
     result.append((0x30246, coefficients[0x5DCFA:0x5DD12]))

@@ -75,10 +75,12 @@ def generate_table(
     blend_mix: int = 0,
     camera_index: int = 0,
     curve_payload: bytes | None = None,
+    exposure_adjustment: int = 0,
+    adjustment_tables: bytes | None = None,
 ) -> bytes:
     """Build all 213872 bytes without a vendor-generated baseline.
 
-    Camera state+152c/+1533/+153e stays zero; hue is128, family12,
+    Camera state+152c/+153e stays zero; hue is128, family12,
     model14, strength256, selector0, brightness6. An explicit custom curve replaces
     highlights/shadows/white/black; its activation must be resolved by the caller.
     The leading output-space matrix remains zero, suitable for scalar RGB only.
@@ -93,6 +95,8 @@ def generate_table(
             saturation_bias=round_divide32(values[5] * 6, 25) + 12,
             blend_mix=blend_mix,
             camera_index=camera_index,
+            exposure_adjustment=exposure_adjustment,
+            adjustment_tables=adjustment_tables,
         )
     )
     output, mask = bytearray(0x34370), bytearray(0x34370)

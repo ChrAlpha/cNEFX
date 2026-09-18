@@ -46,6 +46,18 @@ def configurations(camera_sweep: bool) -> list[tuple[list[int], int, int]]:
     )
 
 
+def exposure_configurations() -> list[tuple[list[int], int, int, int]]:
+    values = controls()
+    return [
+        (values[0], 0, index, adjustment)
+        for index in (0, 54, 108)
+        for adjustment in range(-36, 31)
+    ] + [
+        (row, i * 7 % 11, i * 29 % 109, -(i * 7 % 36 + 1))
+        for i, row in enumerate(values[1:], 1)
+    ]
+
+
 def range_mask(ranges: list[tuple[int, bytes]], *, complete: bool) -> bytearray:
     mask = bytearray(0x34370)
     if complete and (
@@ -73,9 +85,17 @@ def main() -> int:
         parser.add_argument(f"--{name}", type=Path, required=True)
     parser.add_argument("--native-complete", action="store_true")
     parser.add_argument("--camera-sweep", action="store_true")
+    parser.add_argument("--exposure-sweep", action="store_true")
+    parser.add_argument("--adjustment-tables", type=Path)
     args = parser.parse_args()
     if args.camera_sweep and not args.native_complete:
         parser.error("Camera sweep requires complete native table comparison.")
+    if args.exposure_sweep and (
+        not args.native_complete or args.camera_sweep or args.adjustment_tables is None
+    ):
+        parser.error(
+            "Exposure sweep requires complete mode and adjustment tables only."
+        )
     root = Path(__file__).resolve().parents[1]
     if args.output.exists() or args.output.resolve().is_relative_to(root):
         parser.error("Output must be a new directory outside the repository.")
@@ -109,6 +129,22 @@ def main() -> int:
         root / "tools/kaiji_oracle.py"
     )
     hashes.update(dependency_hashes(args.dll, args.probe))
+    adjustment_tables = None
+    if args.adjustment_tables is not None:
+        from kaiji_camera import ADJUSTMENT_BYTES, ADJUSTMENT_HASH
+
+        adjustment_tables = args.adjustment_tables.read_bytes()
+        if (
+            len(adjustment_tables) != ADJUSTMENT_BYTES
+            or hashlib.sha256(adjustment_tables).hexdigest() != ADJUSTMENT_HASH
+        ):
+            parser.error("Unexpected adjustment table snapshot.")
+        hashes[str(args.adjustment_tables.resolve())] = ADJUSTMENT_HASH
+    configs = (
+        exposure_configurations()
+        if args.exposure_sweep
+        else [(v, mix, index, 0) for v, mix, index in configurations(args.camera_sweep)]
+    )
     report = {
         "evidence_kind": (
             "complete_native_synthetic_table_vs_live_vendor"
@@ -120,11 +156,12 @@ def main() -> int:
         "passed": False,
         "seed": 20260919,
         "camera_sweep": args.camera_sweep,
+        "exposure_sweep": args.exposure_sweep,
         "limits": (
             [
                 "Model14/family12, strength256/selector0/brightness6/hue128.",
                 "Camera mix/index are explicit probe inputs, not application-derived.",
-                "State+152c/+1533/+153e stays zero.",
+                "State+152c/+153e stays zero; exposure adjustment is explicit.",
                 "External coefficients; no application import or custom curve.",
                 "Leading output-space matrix is zero, suitable for scalar RGB only.",
             ]
@@ -140,8 +177,8 @@ def main() -> int:
     args.output.mkdir(parents=True)
     baseline = None
     try:
-        for index, (values, blend_mix, camera_index) in enumerate(
-            configurations(args.camera_sweep)
+        for index, (values, blend_mix, camera_index, exposure_adjustment) in enumerate(
+            configs
         ):
             ranges = (
                 [
@@ -152,6 +189,8 @@ def main() -> int:
                             values,
                             blend_mix=blend_mix,
                             camera_index=camera_index,
+                            exposure_adjustment=exposure_adjustment,
+                            adjustment_tables=adjustment_tables,
                         ),
                     )
                 ]
@@ -179,8 +218,10 @@ def main() -> int:
             ]
             if args.native_complete:
                 config.extend((round_divide32(values[5] * 6, 25) + 12, 16, 128))
-            if args.camera_sweep:
+            if args.camera_sweep or args.exposure_sweep:
                 config.extend((blend_mix, camera_index))
+            if args.exposure_sweep:
+                config.append(exposure_adjustment)
             result = subprocess.run(
                 [
                     "/usr/lib/wine/wine64",
@@ -211,6 +252,7 @@ def main() -> int:
                 "normalized_values": values,
                 "blend_mix": blend_mix,
                 "camera_index": camera_index,
+                "exposure_adjustment": exposure_adjustment,
                 "state_sha256": hashlib.sha256(state).hexdigest(),
                 "returncode": result.returncode,
                 "events": events,
@@ -233,8 +275,10 @@ def main() -> int:
             }
             if args.native_complete:
                 expected_event.update(raw1522=config[10], raw1526=16, raw1538=128)
-            if args.camera_sweep:
+            if args.camera_sweep or args.exposure_sweep:
                 expected_event.update(raw1528=blend_mix, raw152a=camera_index)
+            if args.exposure_sweep:
+                expected_event.update(raw1533=exposure_adjustment)
             if (
                 result.returncode
                 or len(events) != 1
@@ -274,7 +318,8 @@ def main() -> int:
             digest(Path(p)) == h for p, h in hashes.items()
         )
         report["passed"] = (
-            len(report["cases"]) == (135 if args.camera_sweep else 17)
+            len(report["cases"])
+            == (217 if args.exposure_sweep else (135 if args.camera_sweep else 17))
             and report["sources_unchanged"]
             and all(c["passed"] for c in report["cases"])
         )
