@@ -8,9 +8,12 @@ import pytest
 from nx_ctudio._atomic import publication
 
 
-def test_cleanup_error_after_publish_retains_success_and_output(tmp_path: Path) -> None:
+@pytest.mark.parametrize("error", [OSError("busy"), KeyboardInterrupt()])
+def test_cleanup_error_after_publish_retains_success_and_output(
+    tmp_path: Path, error: BaseException
+) -> None:
     target = tmp_path / "final.nefx"
-    cleanup = patch("tempfile.TemporaryDirectory.cleanup", side_effect=OSError("busy"))
+    cleanup = patch("tempfile.TemporaryDirectory.cleanup", side_effect=error)
     try:
         with publication(target) as pending:
             pending.temporary.write_bytes(b"complete output")
@@ -22,6 +25,7 @@ def test_cleanup_error_after_publish_retains_success_and_output(tmp_path: Path) 
     assert target.read_bytes() == b"complete output"
     assert len(pending.warnings) == 1
     assert "Output published" in pending.warnings[0]
+    assert (str(error) or type(error).__name__) in pending.warnings[0]
 
 
 def test_racing_destination_is_preserved(tmp_path: Path) -> None:
@@ -42,3 +46,13 @@ def test_cancel_before_publish_cleans_temporary(tmp_path: Path) -> None:
             pending.temporary.write_bytes(b"partial")
             raise KeyboardInterrupt
     assert list(tmp_path.iterdir()) == []
+
+
+def test_cleanup_cancel_before_publish_propagates(tmp_path: Path) -> None:
+    target = tmp_path / "final.nefx"
+    with patch("tempfile.TemporaryDirectory.cleanup", side_effect=KeyboardInterrupt):
+        with pytest.raises(KeyboardInterrupt):
+            with publication(target) as pending:
+                pending.temporary.write_bytes(b"unpublished output")
+    assert not pending.published
+    assert not target.exists()

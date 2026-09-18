@@ -35,9 +35,11 @@ def publication(destination: Path) -> Iterator[Publication]:
     finally:
         try:
             directory.cleanup()
-        except OSError as exc:
+        except (OSError, KeyboardInterrupt) as exc:
             if not pending.published:
                 raise
+            reason = str(exc) or type(exc).__name__
             pending.warnings.append(
-                f"Output published; temporary cleanup failed at {directory.name}: {exc}"
+                "Output published; temporary cleanup failed at "
+                f"{directory.name}: {reason}"
             )
