@@ -156,6 +156,33 @@
     "interpretation": "With the recovered defaults, Blender hue/brightness and Grading hue/brightness mutate opaque generated tables. The tested chroma, blending and balance writes did not change this state/output; this is an observation, not proof those fields are ignored.",
     "limit": "Generated table hashes only; NP3-to-state mapping, output table layout, coefficient semantics and rendered pixels remain unresolved."
   },
+  "np3_state_to_generator_oracle": {
+    "evidence_kind": "live_unmodified_vendor_np3_normalized_state_to_kaiji_table_generation",
+    "probe": "tools/probe_kaiji_state.c",
+    "runner": "tools/verify_kaiji_state.py",
+    "rome2_sha256": "45c8b91ddd61a103711d755a57c45db4ce8431b9ec9ce7a1f4fac28fe25582e2",
+    "probe_sha256": "ea35b68bd7395bd83b8fe808ef29536c1d140c6c3ff8ffabbe8feaa7da5984e9",
+    "runner_sha256": "b4e798b940b97facda33c3b42f1738c7419e83ed0c4ef6d48728522fbe8e4034",
+    "mapping": "Normalized values0..5 are scalar settings,6..29 copy to state+0x1764 Blender triples,30..38 copy to state+0x17c4 Grading triples,39 maps to state+0x17e8 blending,40 maps to state+0x17ea balance.",
+    "output_bytes": 213872,
+    "guards_intact": true,
+    "cases": {
+      "public_neutral": {
+        "input_sha256": "b5276fb5dcb9c6142549d8fe167d600a76cf0cf53fcd90446dd36c58668940c5",
+        "normalized_return": 1,
+        "output_sha256": "b6baa6389b252bda4aad71876b426be2383cde4326e681d10a984861b2060248",
+        "report_sha256": "c0eeefc1a7e8e3c16cb54529255e3a8aac41f42c0f7f63503ce6df57ff9974ad"
+      },
+      "synthetic_multi_field": {
+        "input_sha256": "744110cc848e527cecc4cfa17137de79f2670363ff5e794ffdc0621b2cc78cfe",
+        "normalized_return": 136,
+        "normalized_values": [2,0,0,0,0,0,32,12,-8,32,12,-8,32,12,-8,32,12,-8,32,12,-8,32,12,-8,32,12,-8,0,25,0,0,25,0,0,25,0,50,0],
+        "output_sha256": "a1ac8b19bcfd9a2e692053ed9a07d8a6ea551b9250b17d786219a07196a7eb19",
+        "report_sha256": "1527a7d73def418e5cf8d8fd94c260fa95a15a8d4884a6365859c10c389968a1"
+      }
+    },
+    "limit": "Proves NP3 normalized-state field placement into vendor table-generator inputs for two bounded states; generated tables remain opaque and no image pixels or Lightroom behavior are validated."
+  },
   "integer_leaf_oracle": {
     "evidence_kind": "live_unmodified_vendor_integer_math_synthetic_cases",
     "native_model": "tools/flexible_math.py",
