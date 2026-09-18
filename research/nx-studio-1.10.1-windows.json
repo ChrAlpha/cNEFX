@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "project": "NX Ctudio",
+  "command": "nxc",
+  "runtime_target": "Linux first",
+  "initial_feature": "Independent Nikon Z8 pixel-shift reconstruction for a Lightroom Classic workflow",
+  "observed_on": "2026-09-18",
+  "evidence_kind": "static_binary_analysis",
+  "sources": {
+    "vendor_download_page": "https://downloadcenter.nikonimglib.com/en/download/sw/275.html",
+    "installer_url": "https://download.nikonimglib.com/archive8/kJ1us006seib07wgA0S52dlxyQ23/S-NXSTDO-011001WF-ALLIN-ALL___.exe",
+    "vendor_merge_guide": "https://onlinemanual.nikonimglib.com/technicalguide/z8/pixelshift/en/composite_pixelshift_images_using_nx_studio_10.html",
+    "sdk_information": "https://sdk.nikonimaging.com/information/en/",
+    "container_format_reference": "https://github.com/lifenjoiner/ISx",
+    "metadata_reference": "https://github.com/exiftool/exiftool/blob/master/lib/Image/ExifTool/Nikon.pm"
+  },
+  "artifacts": [
+    {
+      "filename": "S-NXSTDO-011001WF-ALLIN-ALL___.exe",
+      "size_bytes": 262628168,
+      "sha256": "ed54f89097d3277ac8966408ff1f1d20001ca3e21e3edcc7eb18d707d4fce25b",
+      "container": "InstallShield ISSetupStream type 4",
+      "overlay_file_offset": "0x1bfc00",
+      "entry_count": 258
+    },
+    {
+      "filename": "NX Studio.msi",
+      "size_bytes": 93146624,
+      "sha256": "c34d7f463abe598d0868b021444263de3496b6008059c2e568f3367ea5bbbf79",
+      "extraction_chain": [
+        "S-NXSTDO-011001WF-ALLIN-ALL___.exe",
+        "{CCF5B9BF-F16D-4FAA-8B46-E932EA008361}/setup.exe",
+        "NX Studio.msi"
+      ],
+      "wrapper_size_and_md5_match_embedded_setup_xml": true
+    },
+    {
+      "filename": "PixelShiftCombine.dll",
+      "file_version": "1.2.1.3000",
+      "product_version": "1.2.1",
+      "size_bytes": 6277544,
+      "sha256": "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c",
+      "architecture": "PE32+ x86-64",
+      "image_base": "0x180000000",
+      "exports": [{"name": "PixelShiftCombine", "ordinal": 1, "rva": "0x3490d0"}],
+      "direct_import_modules": [
+        "KERNEL32.dll",
+        "MSVCP140.dll",
+        "VCRUNTIME140_1.dll",
+        "VCRUNTIME140.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-time-l1-1-0.dll",
+        "api-ms-win-crt-filesystem-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-utility-l1-1-0.dll",
+        "WS2_32.dll",
+        "IPHLPAPI.DLL"
+      ],
+      "delay_import_modules": []
+    },
+    {
+      "filename": "Polaris.dll",
+      "sha256": "1c5638c9c370a236e52b3e4a18ff7ae746399743fb75b946a0fbfa899ba86993",
+      "combine_import_iat_rva": "0x2a8500",
+      "combine_call_rva": "0x1f516f"
+    }
+  ],
+  "observations": [
+    {
+      "status": "confirmed_static",
+      "finding": "A distinct PixelShiftCombine.dll exports a single named PixelShiftCombine entry point, imported and called by Polaris.dll."
+    },
+    {
+      "status": "confirmed_static",
+      "finding": "The first integer argument is checked against the set 4, 8, 16, 32. The third is checked against 1, 2, 4, 8, followed by pair-specific dispatch.",
+      "rvas": ["0x34912a", "0x349134", "0x349228", "0x349232"],
+      "masks": ["0x100010110", "0x116"]
+    },
+    {
+      "status": "confirmed_static",
+      "finding": "The 32-input, 4-output branch copies two blocks of four input path strings into each eight-input merge call.",
+      "rvas": ["0x34a145", "0x34a196", "0x34a1fd", "0x34a2d4"],
+      "input_array_indices_zero_based": [
+        [0, 1, 2, 3, 16, 17, 18, 19],
+        [4, 5, 6, 7, 20, 21, 22, 23],
+        [8, 9, 10, 11, 24, 25, 26, 27],
+        [12, 13, 14, 15, 28, 29, 30, 31]
+      ],
+      "limitation": "These are positions in the caller-supplied input array, not verified capture identifiers or spatial offsets."
+    },
+    {
+      "status": "confirmed_static",
+      "finding": "The direct import table contains Windows and Microsoft runtime libraries, with no named Nikon DLL dependency.",
+      "limitation": "This does not establish runtime independence. Dynamic lookup, data files, initialization, and callback contracts remain unverified."
+    },
+    {
+      "status": "hypothesis",
+      "finding": "The apparent boundary accepts input and output path arrays, a by-value MSVC string, a boolean option, and two callbacks, and returns a boolean.",
+      "limitation": "Exact parameter semantics, string ownership, encoding, callback signatures, and ABI compatibility require further analysis and a standalone invocation."
+    },
+    {
+      "status": "confirmed_static",
+      "finding": "The DLL contains a UTF-16 prm.bin filename at RVA 0x5e7ec0.",
+      "limitation": "Presence alone does not prove when or whether the file is needed."
+    }
+  ],
+  "verification_commands": [
+    "uv run tools/inspect_pe.py /path/to/PixelShiftCombine.dll",
+    "objdump -p /path/to/PixelShiftCombine.dll",
+    "objdump -d -M intel --start-address=0x1803490d0 --stop-address=0x180349410 /path/to/PixelShiftCombine.dll",
+    "objdump -d -M intel --start-address=0x180349421 --stop-address=0x180349477 /path/to/PixelShiftCombine.dll",
+    "objdump -d -M intel --start-address=0x180349dde --stop-address=0x180349f0e /path/to/PixelShiftCombine.dll",
+    "objdump -d -M intel --start-address=0x18034a145 --stop-address=0x18034a2df /path/to/PixelShiftCombine.dll",
+    "objdump -d -M intel --start-address=0x18034a37f --stop-address=0x18034a38e /path/to/PixelShiftCombine.dll",
+    "objdump -d -M intel --start-address=0x1801f5137 --stop-address=0x1801f5178 /path/to/Polaris.dll"
+  ],
+  "unverified": [
+    "Standalone invocation without the NX Studio application",
+    "The complete runtime dependency set",
+    "Authentic paired pixel-shift NEF and reference NEFX data",
+    "Capture identity and raw spatial phase mapping",
+    "RAW reconstruction, calibration, and motion rejection",
+    "Reference NEFX to Linear DNG numerical and metadata fidelity",
+    "Lightroom Classic import, color profiles, and editing behavior"
+  ],
+  "distribution": "Vendor binaries, extracted resources, photographs, and generated images are kept outside the repository."
+}
