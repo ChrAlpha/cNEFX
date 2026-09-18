@@ -4,18 +4,38 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
+import struct
 import subprocess
 import sys
 from pathlib import Path
 
 import numpy as np
 import rawpy
+import tifffile
 
 
 def digest(path: Path) -> str:
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def shutter_field(data: bytes) -> tuple[int, int]:
+    with tifffile.TiffFile(io.BytesIO(data)) as image:
+        offset = image.pages[0].tags[34665].valueoffset
+        count = struct.unpack_from("<H", data, offset)[0]
+        entries = [
+            tifffile.TiffTag.fromfile(image, offset=offset + 2 + 12 * i)
+            for i in range(count)
+        ]
+        tag = next(tag for tag in entries if tag.code == 37500)
+        base = tag.valueoffset + 10
+        with tifffile.TiffFile(io.BytesIO(data[base:])) as maker:
+            shutter = maker.pages[0].tags[0xA7]
+            if shutter.dtype != 4 or shutter.count != 1:
+                raise ValueError("Unsupported synthetic shutter-count field.")
+            return base + shutter.valueoffset, shutter.value
 
 
 def main() -> int:
@@ -44,16 +64,41 @@ def main() -> int:
     try:
         for source_report in args.pipeline_reports:
             source = json.loads(source_report.read_text())
-            if not source["passed"]:
+            if (
+                not source["passed"]
+                or source["evidence_kind"]
+                != "live_full_file_vendor_synthetic_sparse_pipeline"
+            ):
                 raise ValueError("Expected a passing saved vendor pipeline report.")
             expected_cases += len(source["cases"])
             for case in source["cases"]:
-                files = []
-                for item in case["fixtures"]:
+                files, patches = [], []
+                directory = args.output / f"inputs-{case['input_count']}-{case['iso']}"
+                directory.mkdir()
+                first_shutter = None
+                for index, item in enumerate(case["fixtures"]):
                     path = Path(item["path"])
                     if digest(path) != item["sha256"]:
                         raise ValueError("Input hash mismatch.")
-                    files.append(str(path))
+                    data = bytearray(path.read_bytes())
+                    offset, original_shutter = shutter_field(data)
+                    if first_shutter is None:
+                        first_shutter = original_shutter
+                    struct.pack_into("<I", data, offset, first_shutter + index)
+                    copied = directory / path.name
+                    with copied.open("xb") as stream:
+                        stream.write(data)
+                    files.append(str(copied))
+                    patches.append(
+                        {
+                            "source": str(path),
+                            "source_sha256": item["sha256"],
+                            "copy": str(copied),
+                            "sha256": digest(copied),
+                            "patch_offset": offset,
+                            "purpose": "Synthetic consecutive shutter counts only",
+                        }
+                    )
                 output = args.output / f"merge-{case['input_count']}-{case['iso']}.nefx"
                 command = [
                     sys.executable,
@@ -69,6 +114,7 @@ def main() -> int:
                     command, capture_output=True, text=True, timeout=180, check=False
                 )
                 observed = {
+                    "synthetic_identity_copies": patches,
                     "inputs": case["input_count"],
                     "iso": case["iso"],
                     "returncode": result.returncode,

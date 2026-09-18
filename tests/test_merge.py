@@ -12,7 +12,9 @@ from nx_ctudio.merge import CONSISTENT, merge, validate_sequence
 
 def sequence() -> list[dict]:
     first = dict.fromkeys(CONSISTENT, 1)
-    first.update(expected_count=4, shot_number=1)
+    first.update(
+        expected_count=4, shot_number=1, capture_time="2026-09-18T00:00:00.000000"
+    )
     return [dict(first, shot_number=i) for i in range(1, 5)]
 
 
@@ -57,6 +59,13 @@ def test_duplicate_file_prevents_any_decode(tmp_path: Path) -> None:
         with pytest.raises(ValueError, match="Duplicate"):
             merge([source] * 4, tmp_path / "output.nefx")
         read.assert_not_called()
+
+
+def test_capture_timestamps_cannot_move_backwards() -> None:
+    metadata = sequence()
+    metadata[1]["capture_time"] = "2026-09-17T00:00:00.000000"
+    with pytest.raises(ValueError, match="timestamps"):
+        validate_sequence(metadata)
 
 
 def test_cli_error_is_json(capsys: pytest.CaptureFixture[str]) -> None:

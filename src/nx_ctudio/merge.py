@@ -31,6 +31,12 @@ CONSISTENT = (
     "camera_gains",
     "green_gains",
     "color_matrix_xyz_to_camera",
+    "camera_identity_sha256",
+    "capture_timezone",
+    "shutter_sequence_anchor",
+    "exposure_time",
+    "f_number",
+    "exposure_bias",
 )
 LIMITATIONS = [
     "Experimental: authentic pixel-shift captures and Lightroom are not validated.",
@@ -54,6 +60,9 @@ def validate_sequence(metadata: list[dict[str, Any]]) -> None:
     numbers = [item["shot_number"] for item in metadata]
     if numbers != list(range(numbers[0], numbers[0] + len(numbers))):
         raise ValueError("Inputs must have consecutive shot numbers in capture order.")
+    times = [item["capture_time"] for item in metadata]
+    if times != sorted(times):
+        raise ValueError("Capture timestamps move backwards within the sequence.")
     for item in metadata[1:]:
         for key in CONSISTENT:
             if item[key] != first[key]:

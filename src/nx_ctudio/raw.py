@@ -6,6 +6,8 @@ import hashlib
 import io
 import stat
 import struct
+from datetime import datetime
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +43,59 @@ def _block(tags: Any, code: int, version: bytes, length: int) -> bytes:
         f"Unsupported Nikon metadata version or size for tag {code:#06x}.",
     )
     return value
+
+
+def _capture_metadata(exif: dict[str, Any], tags: Any, shot_number: int) -> dict:
+    serial = exif.get("BodySerialNumber")
+    if not isinstance(serial, str) or not serial.strip():
+        serial_tag = tags.get(0x1D)
+        serial = serial_tag.value if serial_tag is not None else None
+    _require(isinstance(serial, str) and bool(serial.strip()), "Missing camera serial.")
+    timestamp = exif.get("DateTimeOriginal")
+    _require(isinstance(timestamp, str), "Missing capture timestamp.")
+    instant = datetime.strptime(timestamp, "%Y:%m:%d %H:%M:%S")
+    subsecond = exif.get("SubsecTimeOriginal", "0")
+    _require(
+        isinstance(subsecond, str) and subsecond.isascii() and subsecond.isdigit(),
+        "Invalid capture subsecond timestamp.",
+    )
+    instant = instant.replace(microsecond=int((subsecond + "000000")[:6]))
+    shutter_tag = tags.get(0xA7)
+    _require(
+        shutter_tag is not None and shutter_tag.dtype == 4 and shutter_tag.count == 1,
+        "Missing Nikon shutter count for sequence identity.",
+    )
+    shutter = shutter_tag.value
+    _require(
+        isinstance(shutter, int) and shutter >= shot_number,
+        "Shutter count is inconsistent with the shot number.",
+    )
+    result = {
+        "camera_identity_sha256": hashlib.sha256(
+            serial.strip().encode("utf-8")
+        ).hexdigest(),
+        "capture_time": instant.isoformat(timespec="microseconds"),
+        "capture_timezone": exif.get("OffsetTimeOriginal"),
+        "shutter_sequence_anchor": shutter - shot_number,
+    }
+    for source_key, target_key in (
+        ("ExposureTime", "exposure_time"),
+        ("FNumber", "f_number"),
+        ("ExposureBiasValue", "exposure_bias"),
+    ):
+        value = exif.get(source_key)
+        _require(
+            isinstance(value, tuple)
+            and len(value) == 2
+            and all(isinstance(n, int) for n in value)
+            and value[1] > 0,
+            f"Missing or malformed exposure metadata: {source_key}.",
+        )
+        number = Fraction(*value)
+        if source_key != "ExposureBiasValue":
+            _require(number > 0, f"Invalid exposure metadata: {source_key}.")
+        result[target_key] = (number.numerator, number.denominator)
+    return result
 
 
 def _radial(tags: Any, raw: tifffile.TiffPage) -> dict[str, Any]:
@@ -165,6 +220,9 @@ def _metadata(path: Path) -> dict[str, Any]:
                 "Missing or unsupported EXIF ISO value.",
             )
             return {
+                **_capture_metadata(
+                    exif, tags, struct.unpack_from("<I", capture, 8)[0]
+                ),
                 "make": make,
                 "model": model,
                 "orientation": orientation,
