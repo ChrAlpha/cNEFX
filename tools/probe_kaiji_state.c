@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 typedef void (*GenerateTables)(void *, void *, void *);
 
@@ -17,9 +18,20 @@ static int read_state(const char *path, int32_t values[41]) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 4) {
-        fprintf(stderr, "Usage: probe_kaiji_state Rome2.dll state.bin output.bin\n");
+    if (argc != 4 && argc != 8) {
+        fprintf(stderr, "Usage: probe_kaiji_state Rome2.dll state.bin output.bin "
+                "[highlights shadows white black]\n");
         return 2;
+    }
+    int16_t tone[4] = {0};
+    if (argc == 8) for (int i = 0; i < 4; ++i) {
+        char *end = NULL;
+        errno = 0;
+        long value = strtol(argv[4 + i], &end, 10);
+        int limit = i < 2 ? 120 : 100;
+        if (errno || end == argv[4 + i] || *end || value < -limit || value > limit)
+            return 2;
+        tone[i] = (int16_t)value;
     }
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
     HMODULE module = LoadLibraryA(argv[1]);
@@ -42,6 +54,7 @@ int main(int argc, char **argv) {
     memcpy(state + 0x17c4, values + 30, 9 * sizeof(int32_t));
     *(uint16_t *)(state + 0x17e8) = (uint16_t)values[39];
     *(int16_t *)(state + 0x17ea) = (int16_t)values[40];
+    if (argc == 8) memcpy(state + 0x1758, tone, sizeof(tone));
     void *address = (uint8_t *)module + 0x29f0b0;
     GenerateTables generate;
     memcpy(&generate, &address, sizeof(generate));
@@ -60,8 +73,9 @@ int main(int argc, char **argv) {
         CloseHandle(file);
     }
     printf("{\"event\":\"kaiji_state\",\"output_bytes\":%lu,"
-           "\"guards_intact\":%s,\"success\":%s}\n",
-           written, guards ? "true" : "false", success ? "true" : "false");
+           "\"tone\":[%d,%d,%d,%d],\"guards_intact\":%s,\"success\":%s}\n",
+           written, tone[0], tone[1], tone[2], tone[3],
+           guards ? "true" : "false", success ? "true" : "false");
     free(output);
     free(state);
     FreeLibrary(module);

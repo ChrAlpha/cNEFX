@@ -1,4 +1,4 @@
-"""Compare native Grading or Blender tables with bounded live vendor generation."""
+"""Compare native Kaiji table stages with bounded live vendor generation."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from pathlib import Path
 
 from kaiji_blender import blender_tables
 from kaiji_grading import COEFFICIENT_HASH, grading_tables
+from kaiji_tone import tone_tables
 from verify_np3_header import DLL_HASH, digest, windows
 
 
@@ -89,6 +90,30 @@ def blender_cases() -> list[dict]:
     return result
 
 
+def tone_cases() -> list[dict]:
+    combinations = itertools.product(
+        (-120, 0, 120), (-120, 0, 120), (-100, 0, 100), (-100, 0, 100)
+    )
+    result = [
+        {"name": f"corner{i}", "tone": list(values)}
+        for i, values in enumerate(combinations)
+    ]
+    rng = random.Random(20260919)
+    result.extend(
+        {
+            "name": f"random{i}",
+            "tone": [
+                rng.randrange(-120, 121),
+                rng.randrange(-120, 121),
+                rng.randrange(-100, 101),
+                rng.randrange(-100, 101),
+            ],
+        }
+        for i in range(16)
+    )
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dll", type=Path, required=True)
@@ -96,7 +121,9 @@ def main() -> int:
     parser.add_argument("--coefficients", type=Path, required=True)
     parser.add_argument("--wine-prefix", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--stage", choices=("grading", "blender"), default="grading")
+    parser.add_argument(
+        "--stage", choices=("grading", "blender", "tone"), default="grading"
+    )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     if args.output.exists() or args.output.resolve().is_relative_to(root):
@@ -113,6 +140,7 @@ def main() -> int:
         Path(__file__),
         root / "tools/kaiji_grading.py",
         root / "tools/kaiji_blender.py",
+        root / "tools/kaiji_tone.py",
         root / "tools/flexible_math.py",
         root / "tools/probe_kaiji_state.c",
     ]
@@ -128,16 +156,20 @@ def main() -> int:
         "cases": [],
         "passed": False,
         "limits": [
-            "Grading: 65/4096-node LUTs. Blender: six 32-sector tables.",
+            "Grading: 65/4096-node LUTs. Blender: six sectors. Tone: 257/4096 nodes.",
             "Parameter-state group order; UI group names remain unverified.",
-            "Synthetic model-0 context omits scalar controls and custom curves.",
+            "Synthetic model-0 context; tone uses engine units, not NP3 input units.",
+            "Custom curves, complete NP3 import and rendered pixels are not compared.",
             "The vendor generator probe checks suffix guards only.",
         ],
     }
     args.output.mkdir(parents=True)
     try:
-        selected = cases() if args.stage == "grading" else blender_cases()
+        selected = {"grading": cases, "blender": blender_cases, "tone": tone_cases}[
+            args.stage
+        ]()
         for case in selected:
+            extra = []
             if args.stage == "grading":
                 sources, expanded = grading_tables(
                     coefficients, case["groups"], case["blending"], case["balance"]
@@ -145,13 +177,17 @@ def main() -> int:
                 native = sources + expanded
                 values = [0] * 30 + list(itertools.chain.from_iterable(case["groups"]))
                 values.extend((case["blending"], case["balance"]))
-            else:
+            elif args.stage == "blender":
                 native = blender_tables(coefficients, case["regions"])
                 values = (
                     [0] * 6
                     + list(itertools.chain.from_iterable(case["regions"]))
                     + [0] * 11
                 )
+            else:
+                native = tone_tables(coefficients, *case["tone"])
+                values = [0] * 41
+                extra = [str(value) for value in case["tone"]]
             state = struct.pack("<41i", *values)
             state_path = args.output / f"{case['name']}.state.bin"
             output_path = args.output / f"{case['name']}.bin"
@@ -164,6 +200,7 @@ def main() -> int:
                     windows(args.dll),
                     windows(state_path),
                     windows(output_path),
+                    *extra,
                 ],
                 cwd=args.dll.resolve().parent,
                 env=dict(
@@ -200,6 +237,8 @@ def main() -> int:
                 or state_path.read_bytes() != state
             ):
                 raise ValueError("Vendor generation status or input check failed.")
+            if args.stage == "tone" and event.get("tone") != case["tone"]:
+                raise ValueError("Probe did not apply the requested tone state.")
             data = output_path.read_bytes()
             if len(data) != 0x34370:
                 raise ValueError("Unexpected output table size.")
@@ -211,10 +250,15 @@ def main() -> int:
                     struct.unpack_from("<4096H", data, offset)
                     for offset in (0x1D4, 0x21D4, 0x41D4)
                 )
-            else:
+            elif args.stage == "blender":
                 vendor = tuple(
                     struct.unpack_from("<32h", data, 0x6228 + channel * 0x80)
                     for channel in range(6)
+                )
+            else:
+                vendor = (
+                    struct.unpack_from("<257H", data, 0x2E044),
+                    struct.unpack_from("<4096H", data, 0x2E246),
                 )
             differences = [
                 sum(a != b for a, b in zip(n, v, strict=True))
@@ -228,8 +272,10 @@ def main() -> int:
         report["sources_unchanged"] = all(
             digest(Path(p)) == h for p, h in hashes.items()
         )
-        count = 40 if args.stage == "grading" else 61
-        words = 3 * (65 + 4096) if args.stage == "grading" else 6 * 32
+        count = {"grading": 40, "blender": 61, "tone": 97}[args.stage]
+        words = {"grading": 3 * (65 + 4096), "blender": 6 * 32, "tone": 257 + 4096}[
+            args.stage
+        ]
         report["compared_words"] = len(report["cases"]) * words
         report["passed"] = (
             len(report["cases"]) == count

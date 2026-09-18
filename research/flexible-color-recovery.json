@@ -291,6 +291,30 @@
     "output_array_offsets": ["0x6228", "0x62a8", "0x6328", "0x63a8", "0x6428", "0x64a8"],
     "limit": "Six32-word Blender arrays in a pinned synthetic model0 state only. Later parameter blending, remaining camera tables, Grading interaction, complete NP3 import and rendered-image parity remain unverified."
   },
+  "native_tone_oracle": {
+    "evidence_kind": "native_tone_vs_live_vendor_table_generation",
+    "implementation": "tools/kaiji_tone.py",
+    "runner": "tools/verify_kaiji_grading.py --stage tone",
+    "probe": "tools/probe_kaiji_state.c",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/kaiji-tone-native-v1/report.json",
+    "report_sha256": "c1f6be77340f6618f7849643d3129d0523006b95bbc942dec2866008e975e29d",
+    "cases": 97,
+    "coverage": "81 combinations of highlights/shadows-120/0/120 and white/black-100/0/100, plus16 random states with seed20260919. Values are engine units.",
+    "compared_words": 422241,
+    "different_words": 0,
+    "parameter_offsets": {"highlights": "0x1758", "shadows": "0x175a", "white": "0x175c", "black": "0x175e"},
+    "output_offsets": {"257_nodes": "0x2e044", "4096_nodes": "0x2e246"},
+    "coefficient_offsets": {"base": "0x5cae8", "highlight_weights": "0x5ccea", "shadow_weights": "0x5d4f2", "white_black_scaling": "0x62364", "quadratic_transitions": "0x6236c"},
+    "limit": "Family12, synthetic model0, custom-curve flag clear. Does not test NP3-to-engine unit conversion, contrast, saturation, custom-curve replacement or image rendering."
+  },
+  "application_parameter_mapping_static": {
+    "evidence_kind": "decompilation_and_assembly_pinned_rome2",
+    "profile_mapping": "0x27dbe0(0x20,unused) returns14;0x27dde0 returns family12;0x27e000 returns resource group14. Consumer0x28a190 stores the index at R2Y+0x458, which0x29da10 copies to KaijiParam+0x1518. Earlier model0 probes are synthetic and not the imported Flexible profile.",
+    "selected_fields": "Normalized first six values enter R2Y+0x31c..0x330. White/black/saturation at+0x328/+0x32c/+0x330 become KaijiParam+0x175c/+0x175e/+0x1760. Highlights/shadows pass a signed6/5 rounding conversion into R2Y+0x49d/+0x49e, then KaijiParam+0x1758/+0x175a.",
+    "effect_strength": "KaijiParam+0x1520 comes from R2Y+0x492. Consumer uses256 for encoded255; otherwise signed truncation of((encoded-128)*256 with sign-dependent5 adjustment)/10. Zero initialization can mask saturation because generation multiplies the saturation coefficient delta by this strength.",
+    "custom_curve": "At0x29f0b0, flag KaijiParam+0x1756 with pointer+0x678 selects a curve object, samples257 entries via0x151720 with output scale4096 and replaces the highlights/shadows/white/black source curve before expansion.",
+    "limit": "Static field relationships only; complete live application import and constructor parity remain unverified."
+  },
   "np3_state_to_generator_oracle": {
     "evidence_kind": "live_unmodified_vendor_np3_normalized_state_to_kaiji_table_generation",
     "probe": "tools/probe_kaiji_state.c",
