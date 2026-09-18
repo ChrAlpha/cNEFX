@@ -88,6 +88,7 @@
   "rendering_path_static": {
     "normalization": "Rome0x131b90 produces41int32 settings; live comparisons in np3-format.json.",
     "state_access": "Rome0xe8e20 getter and0xe8ea0 setter; Picture Control current getter vtable0x4e0, original getter0x4d8; object+0x38 points to state, settings start at state+0xd0.",
+    "normalized_state_abi": "Getter/setter copy 164 bytes: 41 contiguous int32 values at state offsets0xd0..0x170, followed by a final int32 at0x170. Public buffer is20 uint64-sized slots plus one uint32. This is the direct bridge from normalize_flexible output order to application state; setter optionally emits a change event.",
     "consumer": "Rome0x28a190 copies settings into MIPU TOP parameters.",
     "parameter_initialization": "Rome0x29da10 populates Kaiji parameters: Blender triples+0x1764,Grading triples+0x17c4,blending uint16+0x17e8,balance int16+0x17ea.",
     "table_generator": "Rome0x29f0b0(state,unused,output), with a0x34370-byte output; Flexible Color branch state+0x151c equals12; coefficients from Moon GetCoefTable(0x1002,camera).",
