@@ -37,6 +37,33 @@
     "boundary_correction": "First hue-sector calculation clamps absolute chroma to4095; the second preserves4096. Regression covers(-4096,-4032), where clipping would advance the sector incorrectly.",
     "limit": "Native RGB evaluation consumes vendor-generated tables. Two model0 states exercise chromatic output; the three incomplete model14 states are achromatic. Full real-state initialization, native constant table generation and image rendering remain unresolved."
   },
+  "initialization_recovery": {
+    "report": "kaiji-initialization-v1/report.json",
+    "sha256": "a911b92254346790b73c8afe286fc1c9b6572332fed263e36d8fb4f312cbec50",
+    "cases": 12,
+    "factorial": "Eight combinations of raw1522 in [0,12], raw1526 in [0,16], and raw1538 in [0,128], plus hue sentinel255 and three mixed states.",
+    "confirmed": [
+      "For family12/strength256, zero raw1538 selects a chroma matrix diag(1024,0,0), deleting both chroma components.",
+      "Raw1538=128 restores diag(1024,1024,1024); sentinel255 produces an identical complete table.",
+      "Setting raw1522=12 changes971 bytes in the neutral table but does not correct the achromatic output alone.",
+      "Raw1526=0 versus16 makes no table change in the neutral family12 factorial.",
+      "Family12 manual saturation maps raw1522 to signed_round(saturation*6/25)+12; zero normalized saturation therefore requires12."
+    ],
+    "static_sources": [
+      "Rome2 RVA0x29da10 maps state+1538 from config+634 and state+1522/+1526 from the converted R2Y controls.",
+      "Rome2 RVA0x29f0b0 computes hue_delta=trunc((raw1538-128)*strength/256), or0 for sentinel255; coefficient index=4*hue_delta+48."
+    ],
+    "pilot_scalar": {
+      "vendor_report": "kaiji-init-scalar-pilot-v1/report.json",
+      "vendor_sha256": "bd50f0f12194c0e217907f883aa7b506879354482cee3316b8ebe43ffb7aa21c",
+      "native_report": "kaiji-init-scalar-native-pilot-v1.json",
+      "native_sha256": "7111fb65d50cdaddba5492e7fb95ba2f3e079896dde31d283d27fe75527554bb",
+      "unique_channel_words": 107811,
+      "different_channel_words": 0,
+      "limit": "Predates independent-review evidence acceptance and sentinel hardening; fresh captures will be recorded separately."
+    },
+    "limit": "These field corrections explain the synthetic grayscale failure. They do not establish complete application initialization or complete native table generation."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",
@@ -47,7 +74,7 @@
     "All five parameter-stage runs use recovered model14 and full effect strength; other state fields remain synthetic.",
     "These are tables and curve replacement, not full application import or image rendering.",
     "The composite experiment uses an external vendor-generated neutral baseline for unrecovered constant sections.",
-    "An artificial model14 state produced achromatic output in a scalar test; complete initialization remains unresolved.",
+    "Historical model14 grayscale output is explained by omitted hue state+1538; other application initialization remains incomplete.",
     "Authentic captures, HE/HE*, Lightroom acceptance and complete native rendering remain unverified."
   ]
 }

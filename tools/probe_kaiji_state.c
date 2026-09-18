@@ -18,15 +18,15 @@ static int read_state(const char *path, int32_t values[41]) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 4 && argc != 8 && argc != 12 && argc != 14) {
+    if (argc != 4 && argc != 8 && argc != 12 && argc != 14 && argc != 17) {
         fprintf(stderr, "Usage: probe_kaiji_state Rome2.dll state.bin output.bin "
                 "[highlights shadows white black [model strength saturation matrix "
-                "[contrast brightness]]]\n");
+                "[contrast brightness [raw1522 raw1526 raw1538]]]]\n");
         return 2;
     }
-    int16_t settings[10] = {0};
-    const int low[10] = {-120, -120, -100, -100, 0, 0, -50, 0, -256, 0};
-    const int high[10] = {120, 120, 100, 100, 14, 256, 50, 2, 256, 12};
+    int16_t settings[13] = {0};
+    const int low[13] = {-120, -120, -100, -100, 0, 0, -50, 0, -256, 0, 0, 0, 0};
+    const int high[13] = {120, 120, 100, 100, 14, 256, 50, 2, 256, 12, 24, 32, 255};
     for (int i = 0; i < argc - 4; ++i) {
         char *end = NULL;
         errno = 0;
@@ -64,9 +64,14 @@ int main(int argc, char **argv) {
         memcpy(state + 0x1760, settings + 6, sizeof(int16_t));
         memcpy(state + 0x1524, settings + 7, sizeof(int16_t));
     }
-    if (argc == 14) {
+    if (argc >= 14) {
         memcpy(state + 0x1548, settings + 8, sizeof(int16_t));
         state[0x154a] = (uint8_t)settings[9];
+    }
+    if (argc == 17) {
+        state[0x1522] = (uint8_t)settings[10];
+        state[0x1526] = (uint8_t)settings[11];
+        memcpy(state + 0x1538, settings + 12, sizeof(int16_t));
     }
     void *address = (uint8_t *)module + 0x29f0b0;
     GenerateTables generate;
@@ -96,10 +101,12 @@ int main(int argc, char **argv) {
     printf("{\"event\":\"kaiji_state\",\"output_bytes\":%lu,"
            "\"tone\":[%d,%d,%d,%d],\"model\":%d,\"strength\":%d,"
            "\"saturation\":%d,\"matrix\":%d,\"contrast\":%d,\"brightness\":%d,"
+           "\"raw1522\":%d,\"raw1526\":%d,\"raw1538\":%d,"
            "\"moon_path\":\"%s\",\"guards_intact\":%s,\"success\":%s}\n",
            written, settings[0], settings[1], settings[2], settings[3],
            settings[4], settings[5], settings[6], settings[7],
            settings[8], settings[9],
+           settings[10], settings[11], settings[12],
            moon_path,
            guards ? "true" : "false", success ? "true" : "false");
     free(output);
