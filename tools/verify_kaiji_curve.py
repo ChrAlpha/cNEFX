@@ -26,7 +26,7 @@ from nx_ctudio.picture_curve import generate_curve
 
 def mixed_snapshot(snapshot: bytes, values: list[int]) -> bytes:
     replacements = {
-        0x1900 + index * 256: bytes((128 + values[index], 1)) for index in range(1, 6)
+        0x1900 + index * 256: bytes((128 + values[index], 1)) for index in range(6)
     }
     replacements[0x1F00] = bytes(128 + v for v in values[6:30]) + bytes((1, 1, 1, 0))
     replacements[0x2000] = b"".join(
@@ -34,12 +34,16 @@ def mixed_snapshot(snapshot: bytes, values: list[int]) -> bytes:
         + bytes((128 + values[31 + i * 3], 128 + values[32 + i * 3]))
         for i in range(3)
     ) + bytes((1, 1, 1, 0, 128 + values[39], 1, 128 + values[40], 1))
-    return serialize(
+    changed = serialize(
         tuple(
             Record(r.identifier, replacements.get(r.identifier, r.payload))
             for r in parse(snapshot)
         )
     )
+    _, actual = normalize_flexible(parameter_blocks(parse(changed))["flexible"])
+    if actual != values:
+        raise ValueError("Mixed NP3 mutation does not preserve requested controls.")
+    return changed
 
 
 def main() -> int:
@@ -139,6 +143,7 @@ def main() -> int:
                             "name": f"mixed-{index}",
                             "source_sha256": hashlib.sha256(changed).hexdigest(),
                             "base_sha256": source["source_sha256"],
+                            "requested_values": values,
                         },
                         target,
                     )
@@ -194,6 +199,7 @@ def main() -> int:
                     "mode": mode,
                     "source_sha256": source_hash,
                     "base_sha256": source.get("base_sha256"),
+                    "requested_values": source.get("requested_values"),
                     "returncode": result.returncode,
                     "events": events,
                     "stderr": result.stderr,

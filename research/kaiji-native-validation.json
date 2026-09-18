@@ -147,13 +147,14 @@
   },
   "np3_parameters_and_custom_curves": {
     "runner": "tools/verify_kaiji_curve.py --complete-native",
-    "report": "kaiji-np3-complete-v1/report.json",
-    "sha256": "b0e2704123cd88e821744e5e97b7700d68d8fe392a7c959b4f05c050f9125f93",
+    "report": "kaiji-np3-complete-v2/report.json",
+    "sha256": "3db24fda5064db49b18b694ca1f91436419b4d0083c227ddcd7c2200c0c84ddb",
     "cases": 62,
     "compared_bytes": 13260064,
     "different_bytes": 0,
     "all_vendor_native_sha256_pairs_equal": true,
     "coverage": "Five public NP3 curves,18synthetic curve variants and8mixed nonzero color-control mutations; each tested with original and extreme tone controls.",
+    "coverage_repair": "Version1 omitted contrast record0x1900 in mixed fixtures. Version2 serializes all41controls, asserts normalized roundtrip and records requested values; contrasts62,-75,-54,-76,-3,-59,-34,67 are now exercised with custom curves.",
     "vendor_path": "Nikon NP3 parsing, Flexible Color normalization and curve import; manual assignment into initialized model14/family12 state; complete table generation.",
     "native_path": "Native NP3 parsing and normalization; explicit curve_payload into kaiji_table.generate_table.12-bit custom sampling replaces the highlights/shadows/white/black stage.",
     "limit": "Custom-curve activation is explicit. Automatic adjustment, metadata-derived calibration and full application-state import are not established. This is complete table parity, not source-image rendering parity."
