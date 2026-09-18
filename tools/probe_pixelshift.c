@@ -22,13 +22,13 @@ typedef bool (*Decision)(uint32_t);
 typedef bool (*Combine)(uint32_t, const char **, uint32_t, const char **,
                         MsvcString *, bool, Progress, Decision);
 
-static bool cancel_requested = false;
+static uint32_t cancel_at = UINT32_MAX;
 
 static bool progress(uint32_t total, uint32_t index, uint32_t percent) {
     printf("{\"event\":\"progress\",\"total\":%u,\"index\":%u,\"percent\":%u}\n",
            total, index, percent);
     fflush(stdout);
-    return cancel_requested;
+    return percent >= cancel_at;
 }
 
 static bool decision(uint32_t code) {
@@ -43,7 +43,9 @@ int main(int argc, char **argv) {
         return 2;
     }
     if (strcmp(argv[2], "normal") && strcmp(argv[2], "cancel") &&
-        strcmp(argv[2], "correct") && strcmp(argv[2], "invalid-count")) {
+        strcmp(argv[2], "cancel-80") && strcmp(argv[2], "cancel-95") &&
+        strcmp(argv[2], "cancel-100") && strcmp(argv[2], "correct") &&
+        strcmp(argv[2], "invalid-count")) {
         fprintf(stderr, "Unknown probe mode.\n");
         return 2;
     }
@@ -88,7 +90,10 @@ int main(int argc, char **argv) {
     MsvcString temporary = { .storage.inline_data = "NX Ctudio probe",
                              .length = 15, .capacity = 15 };
     uint32_t count = (uint32_t)(argc - 5);
-    cancel_requested = strcmp(argv[2], "cancel") == 0;
+    if (strcmp(argv[2], "cancel") == 0) cancel_at = 0;
+    if (strcmp(argv[2], "cancel-80") == 0) cancel_at = 80;
+    if (strcmp(argv[2], "cancel-95") == 0) cancel_at = 95;
+    if (strcmp(argv[2], "cancel-100") == 0) cancel_at = 100;
     if (strcmp(argv[2], "invalid-count") == 0) count = 3;
     bool result = combine(count, (const char **)&argv[5], (uint32_t)output_count, outputs,
                           &temporary, strcmp(argv[2], "correct") == 0,

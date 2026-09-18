@@ -95,6 +95,20 @@
     "The input parser requires a nonzero mode marker, but this probe shows it does not reject four identical marker-enabled files as an invalid physical sequence.",
     "The four-frame numerical sampling equations match this synthetic repeated-frame output exactly."
   ],
+  "late_cancellation_probe": {
+    "observed_on": "2026-09-18",
+    "input_kind": "Four distinct synthetic packed-14 files; one output.",
+    "modes": [
+      {"mode": "cancel-80", "return": false, "output_exists": false, "last_progress": 80},
+      {"mode": "cancel-95", "return": false, "output_exists": true, "last_progress": 95, "libraw_decoded_shape": [424,632,4]},
+      {"mode": "cancel-100", "return": true, "output_exists": true, "last_progress": 100, "libraw_decoded_shape": [424,632,4]}
+    ],
+    "static_correlation": "The writer closes the destination before progress95; cancellation then returns false without removing it. The helper ignores the progress100 return.",
+    "channel_note": "LibRaw stores this RGB data in its four-channel backing array; the TIFF has three samples per pixel.",
+    "native_design_implication": "A false vendor return does not imply no output. A native transactional writer needs an explicit commit point and cancellation cleanup policy.",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/cancel-edge-probes/report.json",
+    "limit": "This checks one output and callback cancellation, not process termination, partial disk writes, or multi-output rollback."
+  },
   "not_proven": [
     "A Linux-native implementation or a redistributable vendor backend",
     "Authentic Nikon pixel-shift image fidelity",
