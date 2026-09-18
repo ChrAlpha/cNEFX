@@ -434,8 +434,25 @@
     "state": "RGB16,32cubed grid,3input/output channels,mode1; actual SSE4.1 kernel245c0->272b0 through vtable32b90/slot38=1f320. MXCSR rounding bits0 before and after processing. Xform flags161..164=[1,0,0,0], identity masks[7,0].",
     "tables": "Capture prepared input/output LUTs from transformer598/620 and core grid buffer+8 with paired access/release e380/e080. Input tables exactly identity. Fourth word of each grid node is unused/uninitialized; zeroed only in the copied snapshot, never written into vendor state.",
     "arithmetic": "float32 pixel times7.750118255615234 -> nearest-even Q14 coordinate. Sort fractions descending; tetrahedral weights16384-max,max-middle,middle-min,min. Boundary increments clamp at node31. Floor weighted sum/16384, then apply planar output LUT by direct indexing.",
-    "verification": "All6live runs match152352native output words; source/input/output hashes, lifecycle and post-destruction guards pass.11focused tests, scoped Ruff/format and strict C11 compilation pass.",
+    "verification": "All6live runs match152352native output words; source/input/output hashes, lifecycle and post-destruction guards pass.11focused tests, scoped Ruff/format and strict C11 compilation pass. Independent reviewer found no defects, verified16input hashes and replayed152352words with both the native module and a separately written scalar implementation; no Wine rerun.",
     "limit": "Captured LUT/grid consumption only. Grid composition and output LUT generation from ICCs remain vendor operations. Scalar and other SIMD modes differ numerically and are rejected. No decoded-image rendering or Lightroom acceptance. Top-level equivalent=false still refers to Little CMS comparisons."
+  },
+  "cml_native_profile_luts": {
+    "implementation": "tools/cml_luts.py",
+    "runner": "tools/verify_cml.py --snapshot",
+    "report": "cml-luts-native-v3/report.json",
+    "sha256": "2189b8556b7de9cd1a6a83b1302dec29242272e7321fb8cd4cd1ee86874b2b39",
+    "cases": 6,
+    "compared_lut_words": 2359296,
+    "different_lut_words": 0,
+    "compared_pixel_words": 152352,
+    "different_pixel_words": 0,
+    "input": "Parse mft2 input curves4096nodes/channel from each proven ICC, expand to65536 with double interpolation and6755399441055744 magic-bias nearest-even rounding. All captured input tables exactly identity.",
+    "output": "Parse NKsRGB forward rTRC/gTRC/bTRC. Invert original4096node curves into65536quantized entries using reciprocal-multiply/index-add/scale, then add12582912 in double and narrow tofloat32, taking low16bits. Expand the quantized inverse over internal8192..57343 using double interpolation/bias rounding; clamp endpoints outside. Direct unquantized inverse is not equivalent.",
+    "output_lut_sha256": "8aea099ac93aa65bb9e20ce24f9b98493679378a46e4e3e2bd36f1351e0da63c",
+    "static_path": "CML2a700 parses output matrix/TRC profile,19320 dispatches channels to18020 inverse curve. Assembly18471..184ac confirms arithmetic order. Input2390 and output3160 construct final LUTs.",
+    "verification": "Full pytest587passed in4.56s;25focused tests,scoped Ruff/format,ASCII/JSON/diff checks pass. Six live CML runs compare both native LUTs before pixel replay; all source hashes and guards stable. Failed v1 retained: hashing a non-contiguous NumPy array raised ValueError; corrected by explicit canonical tobytes before hashing.",
+    "limit": "Strictly increasing sampled full-domain output TRCs, recovered grid33 RGB/Lab mft2 input and no extra user LUTs. Plateaus, decreasing/parametric curves and other flags are rejected. Only composed grid generation still uses CML in this profile-consumer experiment; full image rendering remains unverified."
   },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
