@@ -374,6 +374,23 @@
     "verification": "Full pytest554passed in4.55s;133focused tests, scoped Ruff/format, strict C11 compilation, ASCII and diff checks pass.103input hashes stable. Live SDK lifecycle, buffer guards and post-destruction guards pass for all6cases.",
     "limit": "Selector0 Lab lattice only. Engine failure cleanup is not exercised. ICC serialization, CML interpolation/consumer behavior, decoded-pixel transfer/WB/matrix order, full image rendering and Lightroom acceptance remain unverified."
   },
+  "native_icc_serialization": {
+    "implementation": "tools/kaiji_profile.py",
+    "probe": "tools/image_kaiji.h serialize_kaiji",
+    "runner": "tools/verify_image_sdk.py --kaiji --blend-calibration PATH --prepare-grid",
+    "report": "sdk-kaiji-icc-native-v1/report.json",
+    "sha256": "669babbc25c26604a426be86cdc44113612c6c50545e4c58340726c74945f8f7",
+    "cases": 6,
+    "compared_profile_bytes": 1445220,
+    "different_profile_bytes": 0,
+    "bytes_per_profile": 240870,
+    "path": "After actual engine preparation, match CCMSUtilities allocation formula and write size to engine+e20. Call Rome0x28d510(engine,guarded_zeroed_buffer,size). Grid33 Lab planes, not manually assigned parameter state.",
+    "format": "ICC v2.2 input RGB/Lab profile with desc,cprt,wtpt,A2B0,B2A0 in that order. Tags are4-byte aligned. A2B0 is mft2 with3channels/grid33; copy template prefix0x6034, interleave three planes as big-endian16, append template output curves18bytes. Header, white point and reverse tag come from the pinned NKDBase_NEF.icm.",
+    "text": "Description/copyright are captured vendor parameter strings; native generation of those names is not claimed. Nikon uses a variable-length legacy ScriptCode string in desc and allocates4zero bytes after the final B2A0 tag.",
+    "template_sha256": "044663073ae0ab74be677766cd1f402a1640b0c3f796cca48115498a20afceb2",
+    "verification": "562pytest tests passed in4.58s; scoped Ruff/format,strict C11,ASCII/diff checks pass.104input hashes stable. All6prepared-grid comparisons still pass before ICC comparison. Serialization output guards and SDK cleanup pass.",
+    "limit": "Pinned external Nikon template and captured profile text. No claim of independent template authoring, CML-equivalent interpolation, original-image pixel parity or Lightroom acceptance."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",

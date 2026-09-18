@@ -17,6 +17,7 @@ from kaiji_grading import COEFFICIENT_HASH
 from kaiji_index import MODE_TABLE_HASH
 from kaiji_mix import CALIBRATION_HASH
 from kaiji_oracle import MOON_HASH, dependency_hashes
+from kaiji_profile import build_profile
 from np3_parameters import normalize_flexible, parameter_blocks
 from verify_colorbalance import ASTEROID_HASH, STRATO_HASH
 from verify_np3_header import DLL_HASH, digest, windows
@@ -139,6 +140,15 @@ def validate_events(
                 "grid": 33,
                 "selector": 0,
                 "output_flags": 0,
+                "saved": True,
+            },
+        )
+        expected.insert(
+            -2,
+            {
+                "event": "kaiji_profile",
+                "error": False,
+                "guards_intact": True,
                 "saved": True,
             },
         )
@@ -405,6 +415,34 @@ def main() -> int:
                     case["plane_sha256"] = [
                         hashlib.sha256(p).hexdigest() for p in planes
                     ]
+                    profile = prefix.with_suffix(".profile.bin").read_bytes()
+                    event = next(e for e in events if e.get("event") == "kaiji_profile")
+                    description = bytes.fromhex(event["description_hex"]).decode(
+                        "ascii"
+                    )
+                    copyright = bytes.fromhex(event["copyright_hex"]).decode("ascii")
+                    native = build_profile(
+                        (profiles / "NKDBase_NEF.icm").read_bytes(),
+                        planes,
+                        description=description,
+                        copyright=copyright,
+                    )
+                    if (
+                        type(event.get("bytes")) is not int
+                        or event["bytes"] != len(profile)
+                        or profile != native
+                    ):
+                        raise ValueError(
+                            "Native ICC serialization disagrees with vendor."
+                        )
+                    case["profile"] = {
+                        "compared_bytes": len(native),
+                        "different_bytes": 0,
+                        "sha256": hashlib.sha256(native).hexdigest(),
+                        "description": description,
+                        "copyright": copyright,
+                        "text_source": "Captured profile text; verified native planes",
+                    }
             case["passed"] = True
         report["sources_unchanged"] = all(
             digest(Path(p)) == h for p, h in hashes.items()

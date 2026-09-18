@@ -12,6 +12,57 @@ static int kaiji_guards(uint8_t *const buffers[5], const size_t sizes[5]) {
     return intact;
 }
 
+static int serialize_kaiji(HMODULE dll, uint8_t *engine, const char *prefix) {
+    typedef void *(*Serialize)(void *, void *, uint64_t);
+    Serialize serialize;
+    void *address = (uint8_t *)dll + 0x28d510;
+    memcpy(&serialize, &address, sizeof(serialize));
+    uint8_t *parameter;
+    memcpy(&parameter, engine + 0xde0, sizeof(parameter));
+    if (!parameter) return 0;
+    uint64_t lengths[2], capacities[2];
+    const uint8_t *text[2];
+    for (unsigned i = 0; i < 2; ++i) {
+        const uint8_t *string = parameter + 0xdf8 + i * 32;
+        memcpy(&lengths[i], string + 16, 8);
+        memcpy(&capacities[i], string + 24, 8);
+        text[i] = string;
+        if (capacities[i] > 15) memcpy(&text[i], string, sizeof(text[i]));
+        if (!text[i] || lengths[i] > 254 || lengths[i] > capacities[i]) return 0;
+    }
+    uint64_t size = UINT64_C(33) * 33 * 33 * 6 + 0x6218
+                  + ((lengths[1] + 12) & ~UINT64_C(3))
+                  + ((lengths[0] * 2 + 28) & ~UINT64_C(3));
+    uint8_t *allocation = malloc((size_t)size + 64);
+    if (!allocation) return 0;
+    memset(allocation, 0xa5, (size_t)size + 64);
+    memset(allocation + 32, 0, (size_t)size);
+    /* CCMSUtilities computes and stores this size before invoking the serializer. */
+    memcpy(engine + 0xe20, &size, sizeof(size));
+    void *error = serialize(engine, allocation + 32, size);
+    int guards = 1;
+    for (unsigned i = 0; i < 32; ++i)
+        guards &= allocation[i] == 0xa5 && allocation[32 + size + i] == 0xa5;
+    int success = !error && guards && save(prefix, "profile", allocation + 32, (DWORD)size);
+    printf("{\"event\":\"kaiji_profile\",\"error\":%s,\"guards_intact\":%s,"
+           "\"saved\":%s,\"bytes\":%llu,\"description_hex\":\"",
+           error ? "true" : "false", guards ? "true" : "false",
+           success ? "true" : "false", (unsigned long long)size);
+    print_hex(text[0], (size_t)lengths[0]);
+    printf("\",\"copyright_hex\":\"");
+    print_hex(text[1], (size_t)lengths[1]);
+    puts("\"}");
+    fflush(stdout);
+    if (error) {
+        typedef void (*DestroyError)(void *);
+        DestroyError destroy;
+        address = slot(error, 0); memcpy(&destroy, &address, sizeof(destroy));
+        destroy(error);
+    }
+    free(allocation);
+    return success;
+}
+
 static int prepare_kaiji(HMODULE dll, uint8_t *engine, const char *prefix) {
     typedef void *(*Prepare)(void *, void *);
     Prepare prepare;
@@ -44,7 +95,7 @@ static int prepare_kaiji(HMODULE dll, uint8_t *engine, const char *prefix) {
         address = slot(error, 0); memcpy(&destroy, &address, sizeof(destroy));
         destroy(error);
     }
-    return !error && saved;
+    return !error && saved && serialize_kaiji(dll, engine, prefix);
 }
 
 static int collect_kaiji(HMODULE dll, void *image, void *services, const char *prefix,
