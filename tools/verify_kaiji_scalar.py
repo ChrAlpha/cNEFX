@@ -22,6 +22,7 @@ def main() -> int:
     parser.add_argument("--probe", type=Path, required=True)
     parser.add_argument("--wine-prefix", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--rgb-only", action="store_true")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     if args.output.exists() or args.output.resolve().is_relative_to(root):
@@ -41,7 +42,12 @@ def main() -> int:
     before = {str(path.resolve()): digest(path) for path in sources}
     args.output.mkdir(parents=True)
     report = {
-        "evidence_kind": "live_vendor_scalar_matrix_initialization_controls",
+        "evidence_kind": (
+            "live_vendor_scalar_rgb_capture"
+            if args.rgb_only
+            else "live_vendor_scalar_matrix_initialization_controls"
+        ),
+        "output_scope": "rgb" if args.rgb_only else "rgb_and_lab",
         "input_hashes": before,
         "grid": 33,
         "selector": 0,
@@ -57,7 +63,10 @@ def main() -> int:
     }
     planes = {}
     try:
-        for processing, flags, matrix in itertools.product((0, 2), (0, 1), (0, 1)):
+        flags_to_test = (1,) if args.rgb_only else (0, 1)
+        for processing, flags, matrix in itertools.product(
+            (0, 2), flags_to_test, (0, 1)
+        ):
             output = args.output / f"p{processing}-f{flags}-m{matrix}.bin"
             result = subprocess.run(
                 [
@@ -135,20 +144,25 @@ def main() -> int:
             checks[f"p{processing}_rgb_in_range"] = bool(
                 np.all(planes[processing, 1, 1] <= 0xFF00)
             )
-            checks[f"p{processing}_zero_matrix_lab"] = bool(
-                np.all(planes[processing, 0, 0] == np.array([0, 32768, 32768])[:, None])
-            )
-            checks[f"p{processing}_initialized_lab_varies"] = bool(
-                np.all(np.ptp(planes[processing, 0, 1], axis=1) > 0)
-            )
+            if not args.rgb_only:
+                checks[f"p{processing}_zero_matrix_lab"] = bool(
+                    np.all(
+                        planes[processing, 0, 0] == np.array([0, 32768, 32768])[:, None]
+                    )
+                )
+                checks[f"p{processing}_initialized_lab_varies"] = bool(
+                    np.all(np.ptp(planes[processing, 0, 1], axis=1) > 0)
+                )
         checks["processing_modes_equal"] = all(
             np.array_equal(planes[0, flags, matrix], planes[2, flags, matrix])
-            for flags, matrix in itertools.product((0, 1), repeat=2)
+            for flags, matrix in itertools.product(flags_to_test, (0, 1))
         )
         checks["sources_unchanged"] = all(
             digest(Path(path)) == value for path, value in before.items()
         )
-        report["passed"] = len(report["cases"]) == 8 and all(checks.values())
+        report["passed"] = len(report["cases"]) == 4 * len(flags_to_test) and all(
+            checks.values()
+        )
     except (Exception, KeyboardInterrupt) as exc:
         report["error"] = {"type": type(exc).__name__, "message": str(exc)}
     with (args.output / "report.json").open("x") as stream:

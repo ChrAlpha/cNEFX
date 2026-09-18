@@ -19,6 +19,24 @@
     {"stage": "custom_curve", "report": "kaiji-pinned-curve-v1/report.json", "sha256": "28ff7a434c3a1880b59bf6e85527b3e485745d0f253454b3e7f63bbe18167f49", "cases": 46, "words": 200238, "different_words": 0},
     {"stage": "composition", "report": "kaiji-pinned-composition-v1/report.json", "sha256": "f5234a3a49637d05b707708ab6ad0fdd1a4f02c986a4922555a716caaa835f43", "cases": 17, "native_range_bytes": 69670, "known_range_different_bytes": 0, "unexplained_change_bytes": 0}
   ],
+  "native_scalar_rgb": {
+    "implementation": "tools/kaiji_scalar.py",
+    "runner": "tools/verify_kaiji_scalar_native.py",
+    "grid": 33,
+    "states": 5,
+    "unique_channel_words": 539055,
+    "mode_matrix_comparisons_per_state": 4,
+    "different_channel_words": 0,
+    "reports": [
+      {"report": "kaiji-native-scalar-neutral-v2.json", "sha256": "100ecf43f340f194f0ec62c27731f319a6c0e764d24ef81626a121a554aadb80"},
+      {"report": "kaiji-native-scalar-model0-mixed-v2.json", "sha256": "b28f070a14d553d6816f654b0cd153625be0b1cba2ea2b5294322be39d4167a2"},
+      {"report": "kaiji-native-scalar-profile14-v2.json", "sha256": "e3e4cc16211f51058998d2bb46e12a1949f800754901e125ab43ee87391a9c81"},
+      {"report": "kaiji-native-scalar-mixed-v2.json", "sha256": "e1d63cc65fdb6bfbe0db114e2bb30186495b66f750ae5691b310e8bda6f1fdfe"},
+      {"report": "kaiji-native-scalar-custom-v2.json", "sha256": "38a4af41c34e762bae378bd1a3bd4bcb965863c1363707201e41c00d1dfe60c8"}
+    ],
+    "boundary_correction": "First hue-sector calculation clamps absolute chroma to4095; the second preserves4096. Regression covers(-4096,-4032), where clipping would advance the sector incorrectly.",
+    "limit": "Native RGB evaluation consumes vendor-generated tables. Two model0 states exercise chromatic output; the three incomplete model14 states are achromatic. Full real-state initialization, native constant table generation and image rendering remain unresolved."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",

@@ -1,0 +1,58 @@
+"""Integer boundaries in the native Kaiji scalar lattice evaluator."""
+
+import importlib.util
+from pathlib import Path
+
+import pytest
+
+PATH = Path(__file__).resolve().parents[1] / "tools/kaiji_scalar.py"
+SPEC = importlib.util.spec_from_file_location("nxc_kaiji_scalar", PATH)
+assert SPEC and SPEC.loader
+scalar = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(scalar)
+
+
+def test_second_sector_keeps_signed_domain_endpoint() -> None:
+    assert scalar._sector(-4096, -4032, 128) == (3, 4, 15)
+    assert scalar._sector(-4095, -4032, 128) == (4, 5, 0)
+
+
+def test_first_sector_clips_absolute_chroma() -> None:
+    assert scalar._sector(-4096, -4032, 512) == scalar._sector(-4095, -4032, 512)
+
+
+def test_sector_quadrant_wraps_and_zero_vector() -> None:
+    assert scalar._sector(0, 0, 512) == (0, 1, 0)
+    assert scalar._sector(0, -4096, 512) == (7, 16, 63)
+    assert scalar._sector(0, 4095, 512) == (31, 24, 63)
+
+
+def test_truncation_and_rounding_are_distinct_for_negative_halves() -> None:
+    assert scalar._trunc(-31, 6) == 0
+    assert scalar._round(-31, 6) == 0
+    assert scalar._trunc(-32, 6) == 0
+    assert scalar._round(-32, 6) == -1
+    assert scalar._round(32, 6) == 1
+
+
+@pytest.mark.parametrize(
+    "data", [b"", bytes(0x3436F), bytes(0x34371), bytearray(0x34370)]
+)
+def test_reject_wrong_table_shape(data) -> None:
+    with pytest.raises(ValueError):
+        scalar.ScalarTable(data)
+
+
+@pytest.mark.parametrize(
+    "point,grid",
+    [
+        ((0, 0), 33),
+        ((0, -1, 0), 33),
+        ((33, 0, 0), 33),
+        ((True, 0, 0), 33),
+        ((0, 0, 0), 32),
+    ],
+)
+def test_reject_invalid_lattice_inputs(point, grid) -> None:
+    with pytest.raises(ValueError):
+        scalar.ScalarTable(bytes(0x34370)).evaluate(point, grid)
