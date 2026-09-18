@@ -95,6 +95,7 @@
     "scalar_evaluator": "Rome0x2aee40(unused,r_index_pointer,g_index_pointer,b_index_pointer,context)",
     "evaluator_context": "Grid size+8,output channel pointers+0x18/+0x20/+0x28,generated table pointer+0x38.",
     "generator_output": "Neutral live probe accepts a 0x17f8-byte writable state and writes a 0x34370-byte output buffer; state and output guards survived. Rome2 RVA0x29f0b0; see the bounded oracle below.",
+    "output_layout": "Observed neutral output stores three 65-entry uint16 source LUTs at offsets0x4e,0xd0,0x152 and three 4096-entry uint16 LUTs at0x1d4,0x21d4,0x41d4. Additional camera/matrix and region tables begin around0x61d4 and extend through0x3236c; their semantic fields remain unresolved.",
     "grading": "Builds three65-node channel curves and expands to4096-entry LUTs. Evaluator reads these before its first color matrix.",
     "blender": "Combines eight parameter regions into32-sector tables; separate positive/negative camera weights, coefficient-backed hue quadrant folding, and chroma baseline1024 with zero clamp.",
     "limits": [
