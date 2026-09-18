@@ -307,6 +307,16 @@
     "coefficient_offsets": {"base": "0x5cae8", "highlight_weights": "0x5ccea", "shadow_weights": "0x5d4f2", "white_black_scaling": "0x62364", "quadratic_transitions": "0x6236c"},
     "limit": "Family12, synthetic model0, custom-curve flag clear. Does not test NP3-to-engine unit conversion, contrast, saturation, custom-curve replacement or image rendering."
   },
+  "profile_consumer_domain_static": {
+    "evidence_kind": "decompilation_assembly_and_constants_no_live_renderer",
+    "consumer": "image_render cms0 is labeled Converts Camera RGB to Working RGB-16. Setup0x246da0 calls0x2492f0, then CCMSUtilities slot+0xf0 at Rome2 RVA0x1a10f0. Profile generation uses slot+a0/RVA0x1a08a0 or slot+a8/RVA0x19f9b0; both reach configuration builder0x19b7d0 and the Kaiji factory.",
+    "pixel_format": "CML wrappers image_render RVA0x4898c0 and0x48dfa0 process interleaved RGB16 with format0x10060201, six bytes per pixel and a separate stride. The wrappers contain no white-balance or matrix operation.",
+    "output_matrix": "Config+0x9b8 becomes engine+0x9c0. Builder sets it from param5!=1; zero param5 is resolved by Rome2 RVA0x1ab6b0 using tags0x8001e/0x8008d.",
+    "output_encoding": "Config+0x9bc becomes engine+0x9c4 bit0, selecting RGB versus Lab output. In the Kaiji branch it equals request+0x1e0==1. image_render RVA0x48fa20 fills that request field through INikonImageAdjustment_DynamicRange slot+c8 with argument0, reached through0x2429f0.",
+    "conditional_transfer": "RAW LUT stage image_render RVA0x2776e0 requests GetStdLut(0,0,16,16), the sRGB encoder at utilities RVA0x4bb0. Degamma RAW LUT stage0x277ce0 requests GetStdLut(0,1,16,16), the sRGB decoder at0x4e90. They use65536-entry shared-channel LUTs with float32 arithmetic and truncation. Z8 camera1071/generation9 qualifies, but activation also depends on0x277f20 and a graph filter or NoiseReduction slot+0x168.",
+    "next_probe": "Capture cms0 input RGB triples and format, its generated input ICC, NKCMSetInputLUT/NKCMMergeInputLUT calls and samples around both RAW transfer stages.",
+    "limit": "The identity ICC template and presence of conditional sRGB stages do not establish the active Z8 input transfer. White-balance and matrix ordering remain unresolved."
+  },
   "application_parameter_mapping_static": {
     "evidence_kind": "decompilation_and_assembly_pinned_rome2",
     "profile_mapping": "0x27dbe0(0x20,unused) returns14;0x27dde0 returns family12;0x27e000 returns resource group14. Consumer0x28a190 stores the index at R2Y+0x458, which0x29da10 copies to KaijiParam+0x1518. Earlier model0 probes are synthetic and not the imported Flexible profile.",
