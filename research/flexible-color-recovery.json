@@ -33,7 +33,7 @@
       ]
     }
   ],
-  "binary_scope": "NX Studio 1.10.1 Windows x86-64; NP3 metadata/normalization live oracles in np3-format.json; rendering entry points remain static recovery",
+  "binary_scope": "NX Studio 1.10.1 Windows x86-64; NP3 metadata/normalization live oracles in np3-format.json; guarded table/scalar probes and native output-stage replay below; full rendering remains incomplete",
   "modules": [
     {
       "filename": "Services/picture_control.n5m",
@@ -238,6 +238,21 @@
     "max_interval_width": [2, 5, 2],
     "critical_constants": "L multiplier652.8000000000001 (binary64 0x4084666666666667); a/b bias32768.5. Preserve separate multiplication/addition order and recovered Lab constants rather than substituting exact CIE rationals.",
     "limit": "The direct RGB output has half-code quantization uncertainty. Propagated intervals include a1e-9 Lab-unit binary64 margin. This is output-stage consistency evidence, not bit-exact upstream rendering or complete Picture Control support."
+  },
+  "native_output_directed_bounds_replay": {
+    "evidence_kind": "native_scalar_tail_quantization_interval_replay",
+    "implementation": "tools/kaiji_output.py",
+    "runner": "tools/verify_kaiji_output.py",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/kaiji-output-replay-v2/report.json",
+    "report_sha256": "c6dc4cddceeafee5a81bac20e45562066f48ec9d0b02992853b54ee2609e3746",
+    "points_per_processing_mode": 35937,
+    "processing_modes": [0, 2],
+    "interval_violations": [0, 0, 0],
+    "midpoint_max_absolute_code_difference": [1, 1, 1],
+    "maximum_interval_width": [2, 5, 2],
+    "numerical_model": "Outward nextafter at each binary64 basic operation; MPFR53-bit directed power bounds; no heuristic code tolerance. Assumes faithful vendor pow, which is not independently proven.",
+    "relationship": "This independently vectorized output implementation agrees exactly with the scalar kaiji_color.py reference on2048 seeded RGB triplets. Its verifier replaces the earlier heuristic floating-point margin for interval evidence.",
+    "limit": "Conditional interval inclusion for quantized synthetic lattice data, not exact unquantized RGB parity or complete rendering."
   },
   "np3_state_to_generator_oracle": {
     "evidence_kind": "live_unmodified_vendor_np3_normalized_state_to_kaiji_table_generation",

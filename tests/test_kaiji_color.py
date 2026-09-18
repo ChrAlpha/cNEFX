@@ -4,6 +4,7 @@ import importlib.util
 import math
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 PATH = Path(__file__).resolve().parents[1] / "tools/kaiji_color.py"
@@ -11,6 +12,13 @@ SPEC = importlib.util.spec_from_file_location("nxc_kaiji_color", PATH)
 assert SPEC and SPEC.loader
 color = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(color)
+
+OUTPUT_SPEC = importlib.util.spec_from_file_location(
+    "nxc_kaiji_output", PATH.with_name("kaiji_output.py")
+)
+assert OUTPUT_SPEC and OUTPUT_SPEC.loader
+output = importlib.util.module_from_spec(OUTPUT_SPEC)
+OUTPUT_SPEC.loader.exec_module(output)
 
 
 def test_encoding_endpoints_and_neutral() -> None:
@@ -43,3 +51,28 @@ def test_reject_nonfinite_or_wrong_shape(rgb) -> None:
 def test_reject_invalid_codes(rgb) -> None:
     with pytest.raises(ValueError):
         color.quantized_rgb_lab_bounds(rgb)
+
+
+def test_vectorized_conversion_matches_scalar_reference() -> None:
+    values = np.random.default_rng(20260919).uniform(0, 1, (2048, 3))
+    expected = np.array([color.rgb_to_lab(row) for row in values], dtype=np.uint16)
+    assert np.array_equal(output.rgb_to_icc_lab(values), expected)
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        [],
+        [0, 1],
+        [[0, 1]],
+        [0, 0, float("nan")],
+        [0, 0, float("inf")],
+        [0, 0, -1],
+        [0, 0, 2],
+        [True, False, True],
+        ["0", "0", "0"],
+    ],
+)
+def test_vectorized_conversion_rejects_invalid_input(values) -> None:
+    with pytest.raises(ValueError):
+        output.rgb_to_icc_lab(values)
