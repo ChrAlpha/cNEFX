@@ -318,6 +318,18 @@
     "top_generator": "Constructor0x28ce20 creates0x438-byte IRegisterGeneratorParamBase<4098,TOPParam> with actual image and camera1071. Initialize0x289130 writes0x4d0-byte TOPParam; apply0x28a190 takes scale1.0. Embedded collector begins at generator+18. Destructor vtable+0 with flag0 preserves caller-owned buffer.",
     "limit": "Vendor SDK is a research oracle only. Selected native metadata/control parity is recorded in kaiji-native-validation.json; full application-state import, NP3 activation and rendering remain incomplete."
   },
+  "renderer_service_pilot": {
+    "evidence_kind": "external_small_rgb16_render_pilot_and_process_local_iat_instrumentation",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/render-cml-tap-v1/report.json",
+    "report_sha256": "c53f5954d1e4230ae7bb0a2d6f7f5f329a57102d7c1f10c0ae7a25fbacecde37",
+    "sources": "External probe_render_pilot.c includes tracked probe_image_sdk.c; render_cml_tap.h and run_render_tap.py remain pilot code, not hardened acceptance tooling.",
+    "service_abi": "Request renderer8d59ea0a-a39e-4cf4-841e-1b4ae4d71634 and composer39509d70-85cc-11dd-ad8b-0800200c9a66. Composer+28(image,descriptor,outfilter,0), descriptor055fa4fa-8fd8-4f0e-9e0f-a2bba32433c9 plus8zero bytes. Renderer+50(image,filter,0,2),+80(target),+68(scale double),+e8(bits),+a0(outwidth,outheight),+88(),+b8(). All returns0 in this pilot.",
+    "callback": "Target slots0=receive,8=release,10=deleting_destructor. RenderData48bytes: tilex/y at0/4,width/height8/c,format10 (0RGB8,1RGB16),borrowed pixels18,row stride20. Renderer release invokes target release once in the pilot. General ownership/failure paths remain untested.",
+    "result": "One ordinary public lossless Z8 NEF with vanilla,mixed-curve,mixed-no-curve NP3; scale1/32,RGB16. All3runs produce258x172 in2tiles,complete coverage,caller buffer guards intact andSDK closed. Vanilla output266256bytes SHA256852b46b43196019828412543165fc61d63a9711ce4d6f2b32d8879657e19568a matches the preceding uninstrumented run. Mixed controls alter132897/132971channel words respectively.",
+    "observed_difference_from_formal_scope": "Actual renderer supplies a1672998byte RGB/Lab ICC with65cubed A2B0 grid, plus294byte Lab/Lab and59852byte Lch/Lch profiles. Current formal native composition validates33cubed input ICCs. Initial IAT tap captured early Lab-stage pixels, which the native RGB input validator correctly rejects. No pixel parity conclusion follows from these pilot comparisons.",
+    "next_probe": "Harden callback concurrency/provenance/cleanup and capture actual cms0 processing, including extra LUTs and input/output formats. Determine how the65grid profile is consumed, then trace WB/matrix/transfer and subsequent Lab/Lch stages.",
+    "limit": "Pilot service/ABI evidence only. No complete native source-image parity; instrumentation patches only the loaded image_render IAT, with no vendor file edits. Input hashes, failure cleanup and multi-thread callback accounting are not yet acceptance-grade."
+  },
   "profile_consumer_domain_static": {
     "evidence_kind": "decompilation_assembly_and_constants_no_live_renderer",
     "consumer": "image_render cms0 is labeled Converts Camera RGB to Working RGB-16. Setup0x246da0 calls0x2492f0, then CCMSUtilities slot+0xf0 at Rome2 RVA0x1a10f0. Profile generation uses slot+a0/RVA0x1a08a0 or slot+a8/RVA0x19f9b0; both reach configuration builder0x19b7d0 and the Kaiji factory.",
