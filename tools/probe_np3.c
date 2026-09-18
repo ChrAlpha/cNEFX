@@ -9,10 +9,17 @@
 #include <string.h>
 
 typedef uint64_t (*ReadHeader)(const void *, uint64_t, uint32_t *, uint32_t *, void *);
+typedef void *(*ReadParameters)(const void *, uint64_t, void *, void *, void *, void *, void *);
+
+static void hex_field(const char *key, const uint8_t *data, size_t size) {
+    printf(",\"%s\":\"", key);
+    for (size_t i = 0; i < size; ++i) printf("%02x", data[i]);
+    printf("\"");
+}
 
 int main(int argc, char **argv) {
-    if (argc != 3) {
-        fprintf(stderr, "Usage: probe_np3 Rome2.dll input.NP3\n");
+    if (argc != 3 && !(argc == 4 && !strcmp(argv[3], "parameters"))) {
+        fprintf(stderr, "Usage: probe_np3 Rome2.dll input.NP3 [parameters]\n");
         return 2;
     }
     FILE *stream = fopen(argv[2], "rb");
@@ -45,6 +52,33 @@ int main(int argc, char **argv) {
            (unsigned long long)status, version, profile);
     for (size_t i = 0; i < sizeof(name); ++i) printf("%02x", name[i]);
     printf("\"}\n");
+    if (argc == 4 && status == 0 && version == 64) {
+        uint8_t base[108 + 16] = {0}, curve[578 + 16] = {0}, flexible[88 + 16] = {0};
+        uint8_t comment[2000 + 16] = {0}, extra[256 + 16] = {0};
+        uint8_t *buffers[] = {base, curve, flexible, comment, extra};
+        const size_t sizes[] = {108, 578, 88, 2000, 256};
+        for (size_t i = 0; i < 5; ++i) memset(buffers[i] + sizes[i], 0xa5, 16);
+        address = (uint8_t *)module + 0x137080;
+        ReadParameters read_parameters;
+        memcpy(&read_parameters, &address, sizeof(read_parameters));
+        void *error = read_parameters(data, (uint64_t)size, base, curve, flexible,
+                                      comment, extra);
+        int guards = 1;
+        for (size_t i = 0; i < 5; ++i)
+            for (size_t j = 0; j < 16; ++j)
+                if (buffers[i][sizes[i] + j] != 0xa5) guards = 0;
+        printf("{\"event\":\"parameters\",\"success\":%s,\"guards_intact\":%s",
+               error ? "false" : "true", guards ? "true" : "false");
+        hex_field("base_hex", base, 108);
+        hex_field("curve_hex", curve, 578);
+        hex_field("flexible_hex", flexible, 88);
+        hex_field("comment_hex", comment, 2000);
+        hex_field("extra_hex", extra, 256);
+        printf("}\n");
+        if (error || !guards) status = 1;
+    } else if (argc == 4) {
+        status = 1;
+    }
     FreeLibrary(module);
     free(data);
     return status == 0 ? 0 : 5;

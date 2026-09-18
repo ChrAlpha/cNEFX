@@ -85,5 +85,30 @@
     "report_sha256": "ce4a21cb349a31e9b47f233be65b36e1ca1b941b154a59ae45bd7b6efcecb4ee",
     "runner_after_report": "Only a Python string-literal line wrap was changed for lint.",
     "limit": "Header acceptance is not complete import, NX Studio rendering or camera acceptance."
+  },
+  "parameter_oracle": {
+    "evidence_kind": "live_unmodified_vendor_parameter_parser_public_and_synthetic_samples",
+    "parser_rva": "0x137080",
+    "abi": "error_pointer(data_pointer,uint64_size,base108_out,curve578_out,flexible88_out,comment2000_out,extra256_out)",
+    "success": "Null error pointer",
+    "probe": "tools/probe_np3.c with parameters argument",
+    "runner": "tools/verify_np3_parameters.py",
+    "native_mapping": "tools/np3_parameters.py",
+    "cases": 43,
+    "public_samples": 13,
+    "synthetic_cases": 30,
+    "synthetic_scope": "Single-record changes across base fields, Flexible scalar fields, all eight Color Blender triples, all three Color Grading groups, shared blending/balance and comment. Mutating ignored record0x500 is also exercised.",
+    "bytes_compared": 130290,
+    "different_bytes": 0,
+    "output_buffer_guards_intact": true,
+    "base_buffer": "108bytes, matching the PictureControl MakerNote family: duplicated version at0/4,name20 at8,LE16 profile at48,observed parameter pairs at normalized offsets in np3_parameters.py",
+    "flexible_buffer": "88bytes, version0100; six scalar pairs at12..23,Color Blender28bytes at24..51,Color Grading20bytes at52..71. Three hue words are byte-swapped to little endian.",
+    "curve_buffer": "578bytes; the first64bytes remain as stored, while257 sample words become little endian",
+    "comment_buffer": "Record0x10100 copied into a zero-initialized2000-byte buffer",
+    "extra_buffer": "Record0x10200 copied into a zero-initialized256-byte buffer; no original public sample contains this record",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/np3-parameters-v1/report.json",
+    "report_sha256": "dc19770117d88699257652ab5a02e77a91babbe3bfbe00b7a2e116475157bd37",
+    "runner_after_report": "Only a Python string-literal line wrap was changed for lint.",
+    "limit": "Proves parameter deserialization for tested0310 records, not application-state mutation, camera import, curve interpolation or color rendering."
   }
 }
