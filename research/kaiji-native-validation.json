@@ -50,7 +50,7 @@
       "Family12 manual saturation maps raw1522 to signed_round(saturation*6/25)+12; zero normalized saturation therefore requires12."
     ],
     "static_sources": [
-      "Rome2 RVA0x29da10 maps state+1538 from config+634 and state+1522/+1526 from the converted R2Y controls.",
+      "Rome2 RVA0x29da10 maps state+1538 from state+634, which corresponds to original config+62c because RVA0x29c720 copies configuration into state+8. It maps state+1522/+1526 from the converted R2Y controls.",
       "Rome2 RVA0x29f0b0 computes hue_delta=trunc((raw1538-128)*strength/256), or0 for sentinel255; coefficient index=4*hue_delta+48."
     ],
     "pilot_scalar": {
@@ -62,7 +62,8 @@
       "different_channel_words": 0,
       "limit": "Predates independent-review evidence acceptance and sentinel hardening; fresh captures will be recorded separately."
     },
-    "limit": "These field corrections explain the synthetic grayscale failure. They do not establish complete application initialization or complete native table generation."
+    "upstream_hue": "The configuration builder at RVA0x19f51c computes128-trunc(control*-4). The source control at application state+60 has range[-3,3],step0.25 for the newer path, giving encoded116..140. Flexible default-table entry47/key0x8100e gives0.0, hence encoded128.",
+    "limit": "These field corrections explain the synthetic grayscale failure. State+152a and state+1528 also depend on application/camera input, so their zero values are still synthetic. Complete initialization and native table generation remain unresolved."
   },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
