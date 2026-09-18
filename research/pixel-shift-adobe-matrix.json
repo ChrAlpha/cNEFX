@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-18",
+  "evidence_kind": "live_vendor_dll_synthetic_adobe_default_matrix",
+  "runner": "tools/verify_adobe_matrix.py",
+  "predictor": "tools/adobe_defaults.py",
+  "equations": "research/pixel-shift-adobe-defaults.json",
+  "artifact_pins": {
+    "PixelShiftCombine.dll_sha256": "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c",
+    "prm.bin_sha256": "8d6f1bf219561f3c7c11c61b9b9e3317a369c9b5be5089ddffd82db96ca7f707",
+    "resource_type": "0x1002",
+    "resource_id": 1071,
+    "decoded_resource_sha256": "d44561f16bf877a264ecfbb947f5b6635d6b0e9151fa70ca601d9b131804822f",
+    "probe_sha256": "815bcab1399de3175c0f4af3ca553b1fa0d141ee40ceb2b6cf447a9d641e262c",
+    "predictor_sha256": "badd54faf79fedfafa9a94099236f5dbe42b005b2eb3ff78051020ae57c1ed6a",
+    "matrix_runner_sha256": "f402b75264ab49a1b2c38821927918499fd3d6d403b7f82187e63b5bcf4be27a",
+    "final_runner_sha256": "484acc45f8030d98bec2b88d1d792675ce3bf897ec70897d846e292d2838bb67",
+    "fixture_manifest_sha256": "ba6f1febee3e27337a492df5f74004894fc29339b6132701f8298a7413497720"
+  },
+  "method": {
+    "source_manifest": "/workspaces/LumaForge/nxc-data/scratch/packed14-distinct-v2/manifest.json",
+    "input_kind": "Eight synthetic packed-14 pixel planes with inherited ordinary Z8 metadata, copied and modified for each case.",
+    "metadata_edits": [
+      "MakerNote 0x0023 Picture Control ID and parameter bytes, with version 0311 in one case.",
+      "MakerNote 0x005c Flexible parameters, with version 0101 in one case.",
+      "MakerNote 0x00b1 High ISO noise reduction values 0, 2, 4 and 6.",
+      "MakerNote 0x0062 byte 4 set to 2 in one sharpening case."
+    ],
+    "metadata_consistency_limit": "Picture Control textual name and base remain inherited AUTO while ID and relevant parameter bytes change. These are synthetic parser variants, not camera-authored Picture Control records.",
+    "vendor_execution": "Pinned Windows PixelShiftCombine.dll called by probe_pixelshift.exe under Linux Wine; eight inputs produce one output with radial correction disabled.",
+    "comparison": "Parse the output XMP as XML, collect camera-raw-defaults properties from both attributes and child elements, and compare all ten predictions numerically using Decimal.",
+    "namespace": "http://ns.adobe.com/camera-raw-defaults/1.0/",
+    "observed_xml_form": {"crd_attributes": 0, "crd_child_elements": 27},
+    "retained_external_evidence": "Each report records every modified input hash, source hash, byte patch, prediction, intermediate value, output hash, vendor return code, stdout, stderr and elapsed time.",
+    "input_integrity": "All eight original fixture hashes were checked before each run and after every completed run; originals remained unchanged.",
+    "runner_changes_after_matrix": "Formatting/import ordering, minimum Python version declaration and completion-report safety changed after the 26-case run. Prediction and metadata mutation logic did not change. The final runner was verified with a fresh six-case vendor pilot."
+  },
+  "runs": [
+    {
+      "name": "initial-pilot",
+      "report": "/workspaces/LumaForge/nxc-data/scratch/adobe-nonauto-pilot/report.json",
+      "report_sha256": "fecaec73fe655a412a34af650a92c2dac5ae1b2e9d498de9df57359a09488193",
+      "cases": 6,
+      "properties_compared": 60,
+      "differences": 0,
+      "passed": true
+    },
+    {
+      "name": "extended-matrix",
+      "report": "/workspaces/LumaForge/nxc-data/scratch/adobe-nonauto-matrix/report.json",
+      "report_sha256": "e7438dbae73b70d06df140ce0749e1dd309d92fa9b665163a16008b3d9e31eb8",
+      "cases": 26,
+      "distinct_profile_ids": 21,
+      "properties_compared": 260,
+      "differences": 0,
+      "passed": true
+    },
+    {
+      "name": "final-runner-pilot",
+      "report": "/workspaces/LumaForge/nxc-data/scratch/adobe-nonauto-final-pilot/report.json",
+      "report_sha256": "b35678edfa74e5a3531e2ac623a54e59dc306fe33acb9ae383d9bcc40eff80c2",
+      "cases": 6,
+      "properties_compared": 60,
+      "differences": 0,
+      "completed": true,
+      "passed": true
+    }
+  ],
+  "coverage": {
+    "picture_control_versions": ["0310", "0311"],
+    "flexible_versions": ["0100", "0101"],
+    "profile_ids": ["0x0001", "0x0020", "0x00c3", "0x028e", "0x03c2", "0x0486", "0x0493", "0x04c7", "0x064d", "0x0654", "0x0655", "0x0801", "0x0805", "0x0809", "0x080d", "0x0814", "0x1001", "0x100d", "0x100e", "0x8001", "0x8002"],
+    "standard": "Manual parameters and default-parameter paths; version 0311 plus the alternate sharpening selector.",
+    "creative": "Five representative Creative families; intensity byte values 128, 178, 228 and 255.",
+    "flexible": "Neutral, positive and negative values in the fallback contrast/saturation fields.",
+    "high_iso_noise_reduction": [0, 2, 4, 6],
+    "static_table_bytes_verified": {"sharpening": 1024, "noise": 456},
+    "observed_property_values": {
+      "LuminanceSmoothing": [5, 35, 50, 65],
+      "LuminanceNoiseReductionDetail": [75],
+      "LuminanceNoiseReductionContrast": [0],
+      "ColorNoiseReduction": [7, 25],
+      "ColorNoiseReductionDetail": [50],
+      "ColorNoiseReductionSmoothness": [50],
+      "Sharpness": [16, 32, 40, 48, 64, 102],
+      "SharpenRadius": [2.0],
+      "SharpenDetail": [19, 24, 25],
+      "SharpenEdgeMasking": [0]
+    }
+  },
+  "extended_matrix_outputs": [
+    {"name":"standard-manual","profile_id":"0x0001","sha256":"3c5da6b3e7aee925128e54f90df3004c45f377cd321e867661d55aeea95df1fb"},
+    {"name":"standard-default","profile_id":"0x0001","sha256":"22f238ce115c21bfa52eb2bce67583ef3d9a94063d39ef8967db48e3cddb9f89"},
+    {"name":"profile-03c2-manual","profile_id":"0x03c2","sha256":"893c8e1ef5643be20872049986593cc03f1ed5c5d7417bb649dc3dd40d23e14e"},
+    {"name":"creative-0801-half","profile_id":"0x0801","sha256":"9df1fbcc549ef428c57c7d43f858419bd0dd35932ec7b7af674684d58fd3c006"},
+    {"name":"flexible-0020-neutral","profile_id":"0x0020","sha256":"0a812fbdd6447203380d8ce67fd46c47e861dc7afe422a0ff99bc897fabf4ee4"},
+    {"name":"flexible-0020-adjusted","profile_id":"0x0020","sha256":"972fd0114a3eeadebb772cc6d44c1e546bc0d81b22a4beaebf0bfdeab9cfe388"},
+    {"name":"profile-8001-default","profile_id":"0x8001","sha256":"26b2c263b50e3272d51a0a676f89a0ac1748299d97c1cfbbf3551c0c99938220"},
+    {"name":"profile-8002-default","profile_id":"0x8002","sha256":"ea43a9d01a9b2871c35aa5e4372e270cfb9e5c057620f30f6b3d4e3394786af8"},
+    {"name":"profile-00c3-default","profile_id":"0x00c3","sha256":"dfdad26f45bbd570bc35a3a9707395342d8caddf3e2e749433e86b89c0efb97e"},
+    {"name":"profile-0486-default","profile_id":"0x0486","sha256":"6440140a722dd7b78279802efaefb08689f308a4d958aebb78d63ece75ddf517"},
+    {"name":"profile-04c7-default","profile_id":"0x04c7","sha256":"48fd31e21baa79b8dc04c3657854f53ba2f67c699fbba7b90fa12d8fad0e46c0"},
+    {"name":"profile-028e-default","profile_id":"0x028e","sha256":"c4768a754a12c61ff5b616bd42904764ae85f987b51820750e9b77602e10f1a1"},
+    {"name":"profile-064d-default","profile_id":"0x064d","sha256":"60cda6a0d3ab482491d68e01b0c481263010311f034b090c88d3edca1f489908"},
+    {"name":"profile-0493-default","profile_id":"0x0493","sha256":"d95b1c2535a489644c02e7b5b749d82cb78d4a7c4f8402949a1d7ac012a73de4"},
+    {"name":"profile-0654-default","profile_id":"0x0654","sha256":"02e7b851cb704dbf323444556ec75584ac02a0a7f090ce745e68c68cc6958e04"},
+    {"name":"profile-0655-default","profile_id":"0x0655","sha256":"aee1203c71e81e9241ec1f1fe635ff73dde37dc6f0a968e77e2a63d664e5a94c"},
+    {"name":"profile-1001-default","profile_id":"0x1001","sha256":"b84657902576616842a2f864c710f5029a826ed33ece0236caf114e18fa7c508"},
+    {"name":"profile-100d-default","profile_id":"0x100d","sha256":"51925781ad0cd9c4f7e4fa102946442d9ce3fefc238681a069baefd2c9f80070"},
+    {"name":"profile-100e-default","profile_id":"0x100e","sha256":"9a24469e93ebda24a63cbfdc3d2eb794262ac6e7c372f8c36be4cbcb63b59642"},
+    {"name":"creative-0801-128","profile_id":"0x0801","sha256":"3db8282415509b1b2a1502944bdc925354e811ebbb2f50a2a31f620e2e2e9f52"},
+    {"name":"creative-0805-228","profile_id":"0x0805","sha256":"4878dff2c8936c9583bd84d6ebe72016a6bfd2a458be8c119d5b8fc4c9ba5c1e"},
+    {"name":"creative-0809-255","profile_id":"0x0809","sha256":"95cdbaa77461e73bd0eb352d1c6241980df18f57463f655e8ad44f3b059371f4"},
+    {"name":"creative-080d-178","profile_id":"0x080d","sha256":"d949013376ca16ff9e1c1638f72aad1384f72f8120974fe49290aced1b06e141"},
+    {"name":"creative-0814-178","profile_id":"0x0814","sha256":"1ddc7adc265ded11eb323a56dc908201ba736c914c3e22797eeafc91e3061260"},
+    {"name":"standard-0311-sharpen-flag2","profile_id":"0x0001","sha256":"2372be561a445df94b6524af843e98cf8ee6730dbc409521e93b5650ce36ac62"},
+    {"name":"flexible-0101-negative","profile_id":"0x0020","sha256":"8399bd7516f244f3cfcdbd26e2abb5388e24277e89531e5d4b0d315dfabdc07d"}
+  ],
+  "independent_review": {
+    "scope": "Read-only review of the runner, predictor, probe interface and saved runtime evidence; the reviewer did not independently repeat all vendor executions.",
+    "finding": "An interim report could advertise passed=true before the full matrix and final source-integrity check had completed.",
+    "resolution": "Reports now begin with completed=false and passed=false, record the planned case count, and use atomic replacement. Passed becomes true only after all planned cases succeed and original inputs are rechecked.",
+    "predictor_defects_found": 0
+  },
+  "interruption_check": {
+    "evidence_kind": "runner_only_interruption_simulation",
+    "script": "/workspaces/LumaForge/nxc-data/scratch/check_adobe_checkpoint.py",
+    "script_sha256": "66a0269eba6ee282646eb01977f064dcc4f7f14bbaf2938d492d2f59c22f8345",
+    "report": "/workspaces/LumaForge/nxc-data/scratch/adobe-checkpoint-interruption/report.json",
+    "report_sha256": "0c0985effbc16006c4b42b2d4b642b02305341e3c58f692493a6a93dcf42177a",
+    "method": "Substitute one saved vendor output for the first subprocess result, then raise KeyboardInterrupt during the second case. No new vendor execution occurs in this check.",
+    "assertions": [
+      "The report records six planned cases and two attempted cases.",
+      "The first case succeeds, but completed and passed remain false.",
+      "The final original-input integrity result is absent.",
+      "No temporary report file remains."
+    ],
+    "passed": true
+  },
+  "diagnostics": [
+    "tifffile emits missing data offset and ByteCounts diagnostics while traversing metadata-only MakerNote TIFF structures. Image extraction and comparisons still complete.",
+    "Vendor process stderr includes an XDG_RUNTIME_DIR diagnostic under Wine; all recorded successful vendor process exit codes are zero."
+  ],
+  "reproduction": {
+    "command": "uv run tools/verify_adobe_matrix.py --manifest /path/to/packed14-distinct-v2/manifest.json --dll /path/to/PixelShiftCombine.dll --prm /path/to/prm.bin --probe /path/to/probe_pixelshift.exe --wine-prefix /path/to/wine-prefix --output /path/to/new-external-directory --extended",
+    "requirements": "Python >=3.12, pinned script dependencies, Linux Wine, pinned fixtures and vendor artifacts. The pinned prm.bin must also exist beside the probe executable.",
+    "output_policy": "The output directory must be new and outside the repository. Proprietary payloads and image data remain external."
+  },
+  "limitations": [
+    "Only the pinned Z8 resource, DLL and inherited source metadata were exercised.",
+    "This matrix uses eight-to-one synthesis with radial correction disabled; it does not independently validate 32-frame defaults or 4/16-frame bypass paths.",
+    "Creative profiles and parameter ranges are representative rather than exhaustive; inherited ISO, white balance and encrypted ColorBalance metadata remain fixed.",
+    "Matching synthetic metadata predictions does not validate authentic pixel-shift captures, visual quality, complete Picture Control fidelity or Lightroom Classic interpretation.",
+    "The predictor reads pinned vendor tables at runtime. These results do not establish a vendor-independent implementation."
+  ]
+}

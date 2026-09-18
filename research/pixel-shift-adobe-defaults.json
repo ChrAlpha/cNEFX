@@ -135,7 +135,7 @@
   },
   "limitations": [
     "Only little-endian Nikon Z8 sources and the pinned DLL/prm/resource versions are accepted.",
-    "AUTO metadata is reproduced end to end; other supported Picture Control branches are statically recovered and lack a vendor output sweep.",
+    "AUTO metadata and26 synthetic non-AUTO cases match recorded vendor defaults; see pixel-shift-adobe-matrix.json. Broader ISO, WB, profile and parameter ranges remain unverified.",
     "Unknown Picture Control identifiers, unsupported versions, malformed blocks, and out-of-domain interpolation are rejected rather than reproducing undefined vendor memory reads.",
     "The CLI deliberately prints only derived values, hashes, and verification counts; proprietary resource payloads and DLL tables remain external.",
     "Authentic pixel-shift metadata and Lightroom Classic interpretation remain unverified."
