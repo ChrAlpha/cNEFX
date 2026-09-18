@@ -131,6 +131,20 @@
     ],
     "limit": "Camera controls are explicit probe inputs. Their derivation from actual metadata/application state, negative state+1533 behavior and source-image rendering remain unresolved."
   },
+  "camera_selector_derivation": {
+    "implementation": "tools/kaiji_index.py",
+    "runner": "tools/verify_kaiji_index.py",
+    "rvas": ["0x27e230", "0x27e140"],
+    "report": "kaiji-index-native-v3/report.json",
+    "sha256": "99be5b60ad60b1681fe9258fcf4fffed54a6acf18fc13ebeb36ab82a50f969e2",
+    "cases": 3870,
+    "differences": 0,
+    "mode_correction_table_sha256": "61a0dff3e76374ff454b9d3adef021de4828975ddc27d1b7903453d8bd8a7888",
+    "resource_policy": "The76-byte mode correction table is extracted from the pinned external DLL; coefficient values are not embedded in Git.",
+    "algorithm": "Threshold-scan the maximum of two u16 inputs; select a profile/brightness column and trunc(contrast*3/64+12.5) row; add auxiliary/saturation terms and offset; optionally interpolate mode correction; wrap to8bits, then clamp at108.",
+    "coverage": "Threshold neighbors in both inputs;20rows times13brightness values; all513contrast values at five table columns; all25saturation and41auxiliary values; four modes times109offsets;512seeded mixed inputs.",
+    "limit": "Raw scalar inputs and the selector leaf are verified. Mapping real NEF/application fields into every argument remains incomplete; this is not a source-image rendering comparison."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",
