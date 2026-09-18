@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import os
-import tempfile
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import rawpy
 
+from ._atomic import publication
 from .nefx import write_nefx
 from .pixel_shift import reconstruct
 from .raw import read_frame
@@ -91,9 +91,9 @@ def merge(paths: list[Path], output: Path) -> dict[str, Any]:
     source = resolved[0].read_bytes()
     if hashlib.sha256(source).hexdigest() != first["source_sha256"]:
         raise ValueError("First input changed before metadata copying.")
-    with tempfile.TemporaryDirectory(prefix=".nxc-", dir=output.parent) as temporary:
-        candidate = Path(temporary) / "output.nefx"
-        write_nefx(candidate, source, pixels, len(paths))
+    with publication(output) as pending:
+        candidate = pending.temporary
+        warnings = write_nefx(candidate, source, pixels, len(paths))
         with rawpy.imread(str(candidate)) as image:
             actual = image.raw_image[..., :3]
             if actual.shape != pixels.shape or not np.array_equal(actual, pixels):
@@ -102,11 +102,7 @@ def merge(paths: list[Path], output: Path) -> dict[str, Any]:
             if digest(path) != information["source_sha256"]:
                 raise ValueError("Input changed during synthesis.")
         output_hash = digest(candidate)
-        with candidate.open("rb") as stream:
-            os.fsync(stream.fileno())
-        # Linking a same-filesystem temporary file publishes atomically and
-        # refuses a destination created by another process during synthesis.
-        os.link(candidate, output)
+        pending.publish()
     return {
         "status": "ok",
         "backend": "native",
@@ -125,4 +121,5 @@ def merge(paths: list[Path], output: Path) -> dict[str, Any]:
             for path, info in zip(resolved, metadata, strict=True)
         ],
         "limitations": LIMITATIONS,
+        "warnings": warnings + pending.warnings,
     }

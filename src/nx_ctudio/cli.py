@@ -96,6 +96,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  Samples verified: {report['samples_verified']}")
             for limitation in report["limitations"]:
                 print(f"  {limitation}")
+            for warning in report["warnings"]:
+                print(f"nxc: {warning}", file=sys.stderr)
         return exit_code
     report: dict[str, Any] = {
         "schema_version": 1,

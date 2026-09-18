@@ -60,7 +60,7 @@ def test_parser_rejects_repeated_payload_amplification() -> None:
 def test_failed_write_never_leaves_a_final_file(tmp_path: Path) -> None:
     output = tmp_path / "output.nefx"
     with patch("nx_ctudio.nefx.encode", return_value=b"content"):
-        with patch("nx_ctudio.nefx.os.fsync", side_effect=OSError("Disk full")):
+        with patch("nx_ctudio._atomic.os.fsync", side_effect=OSError("Disk full")):
             with pytest.raises(OSError, match="Disk full"):
                 write_nefx(output, b"", np.zeros((1, 4, 3), np.uint16), 4)
     assert list(tmp_path.iterdir()) == []

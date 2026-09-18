@@ -5,7 +5,6 @@ from __future__ import annotations
 import binascii
 import os
 import struct
-import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -13,6 +12,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from . import __version__
+from ._atomic import publication
 from ._tiff import Directory, read, serialize
 
 
@@ -163,16 +163,12 @@ def encode(source: bytes, samples: NDArray[np.uint16], count: int) -> bytes:
 
 def write_nefx(
     path: Path, source: bytes, samples: NDArray[np.uint16], count: int
-) -> None:
+) -> list[str]:
     if os.path.lexists(path):
         raise FileExistsError("Output already exists.")
     data = encode(source, samples, count)
-    with tempfile.TemporaryDirectory(
-        prefix=".nxc-write-", dir=path.parent
-    ) as directory:
-        temporary = Path(directory) / "output.nefx"
-        with temporary.open("xb") as stream:
+    with publication(path) as pending:
+        with pending.temporary.open("xb") as stream:
             stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.link(temporary, path)
+        pending.publish()
+    return pending.warnings
