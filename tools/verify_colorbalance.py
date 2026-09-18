@@ -11,7 +11,7 @@ import subprocess
 from pathlib import Path
 
 from color_inputs import rational_gains, source_white_balance, white_balance_levels
-from colorbalance import import_decoded, iso_code
+from colorbalance import DECRYPT_TABLE_HASH, decrypt_source, import_decoded, iso_code
 from verify_np3_header import DLL_HASH, digest, windows
 
 from nx_ctudio import _tiff
@@ -122,6 +122,9 @@ def main() -> int:
         parser.error("Unexpected Rome2.dll.")
     if args.wb_mutations and not args.rome:
         parser.error("White-balance mutations require --rome.")
+    decoding_table = args.dll.read_bytes()[0x875960:0x875B60]
+    if hashlib.sha256(decoding_table).hexdigest() != DECRYPT_TABLE_HASH:
+        parser.error("Unexpected Asteroid11 Nikon decoding table.")
     perl = json.loads(
         subprocess.run(
             [
@@ -160,10 +163,13 @@ def main() -> int:
         "exiftool_version": perl["version"],
         "source_white_balance_validation": args.rome is not None,
         "white_balance_mutations": args.wb_mutations,
+        "native_decryption": True,
+        "decoding_table_sha256": DECRYPT_TABLE_HASH,
         "cases": [],
         "passed": False,
         "limits": [
-            "Decryption uses installed open-source ExifTool, not native Python.",
+            "Native decryption uses pinned external lookup bytes; "
+            "ExifTool is an oracle.",
             "Only 166-byte little-endian ColorBalance0803 is supported.",
             "No full application initialization or rendered-image parity.",
             "WB scope: Z8, unity fine WB, inactive 0103 adjustment, no overrides.",
@@ -171,6 +177,8 @@ def main() -> int:
         ],
     }
     args.output.mkdir(parents=True)
+    with (args.output / "decoding-table.bin").open("xb") as stream:
+        stream.write(decoding_table)
     try:
         cases = [(path, "original", None) for path in args.files]
         if args.wb_mutations:
@@ -207,7 +215,8 @@ def main() -> int:
             raw = maker.tags[0x97].payload
             if len(raw) != 166 or raw[:4] != b"0803":
                 raise ValueError("Unsupported source ColorBalance record.")
-            decoded = subprocess.run(
+            decoded = decrypt_source(tree, decoding_table)
+            reference = subprocess.run(
                 ["perl", "-e", DECODER],
                 input=json.dumps(
                     {
@@ -220,6 +229,8 @@ def main() -> int:
                 check=True,
                 timeout=30,
             ).stdout
+            if decoded != reference:
+                raise ValueError("Native decryption differs from ExifTool.")
             native = import_decoded(decoded)
             output = args.output / f"case{index}.vendor.bin"
             result = subprocess.run(
@@ -253,6 +264,8 @@ def main() -> int:
                 "parent_source_sha256": parent_hash,
                 "raw_block_sha256": hashlib.sha256(raw).hexdigest(),
                 "decoded_block_sha256": hashlib.sha256(decoded).hexdigest(),
+                "decryption_bytes_compared": len(decoded),
+                "decryption_differences": 0,
                 "returncode": result.returncode,
                 "events": events,
                 "stderr": result.stderr,
