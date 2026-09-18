@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-18",
+  "evidence_kind": "public_sample_analysis_cross_checked_with_static_vendor_serialization",
+  "public_reference": {
+    "repository": "https://github.com/ssssota/nikon-flexible-color-picture-control",
+    "commit": "ed0397fbf1e4d4f2bc11ab3070522c613667d359",
+    "license": "MIT, copyright2025 TOMIKAWA Sotaro",
+    "files_consulted": ["src/offset.ts", "src/deserialize.ts", "src/serialize.ts", "test/samples.test.ts"],
+    "role": "Parameter-name/scale cross-reference and13 public NP3 samples. Files remain outside the repository.",
+    "provenance_limit": "These are public community samples, not files exported by a Nikon application during this session."
+  },
+  "container": {
+    "signature_hex": "4e435000",
+    "record_header": "big-endian uint32 identifier followed by big-endian uint32 payload length",
+    "termination": "uint32 zero identifier with no length field; no trailing bytes in observed files",
+    "unknown_records": "Retain identifier, ordering and payload exactly; do not infer semantics.",
+    "version": {"record": "0x0100", "bytes": 4, "observed": "0310", "position": "First record, payload at file offset12"},
+    "name": {"record": "0x0200", "bytes": 20, "encoding": "Observed ASCII, NUL-terminated and zero-padded"},
+    "profile": {"record": "0x0300", "bytes": 2, "encoding": "big-endian uint16", "Flexible_Color": 32},
+    "comment": {"record": "0x10100", "encoding": "UTF-8, NUL-terminated, padded to even byte length; other variants remain possible"},
+    "tone_curve": {
+      "record": "0x0002", "bytes": 578, "signature": "I0",
+      "control_point_count_offset": 8,
+      "control_point_pairs_offset": 9,
+      "maximum_serialized_pairs": 20,
+      "sample_table_offset": 64,
+      "sample_table": "257 big-endian uint16 values",
+      "limit": "Full header semantics, interpolation and rendering precision remain unresolved."
+    }
+  },
+  "flexible_records": {
+    "scalar_record_layout": "Two bytes: encoded value and scale byte; unknown/sentinel states remain distinct from ordinary numeric values.",
+    "quarter_step_records": {"sharpening": "0x0600", "clarity": "0x0700", "mid_range_sharpening": "0x1600"},
+    "quarter_step_rule": "Observed ordinary value=(encoded-128)/4",
+    "unit_step_records": {"contrast": "0x1900", "highlights": "0x1a00", "shadows": "0x1b00", "white_level": "0x1c00", "black_level": "0x1d00", "saturation": "0x1e00"},
+    "unit_step_rule": "Observed ordinary value=encoded-128; first five values encode1 in custom-tone-curve samples.",
+    "color_blender": {"record": "0x1f00", "bytes": 28, "prefix": "Eight hue/chroma/brightness byte triples in red,orange,yellow,green,cyan,blue,purple,magenta order; subtract128", "suffix": "Four retained bytes; semantics not established"},
+    "color_grading": {"record": "0x2000", "bytes": 20, "prefix": "Highlights,mid-tone,shadows: four bytes each, hue=((byte0&15)<<8)|byte1,chroma=byte2-128,brightness=byte3-128", "blending_offset": 16, "balance_offset": 18, "suffix": "Scale/flag bytes retained and not interpreted beyond observed values"}
+  },
+  "static_vendor_cross_check": {
+    "PCEngine_sha256": "c6d0cdbb9f830090505ea530db24777cba886857e8021cd3ee0e4a74f4970347",
+    "Rome2_sha256": "45c8b91ddd61a103711d755a57c45db4ce8431b9ec9ce7a1f4fac28fe25582e2",
+    "PCEngine_parameter_file_reader_rva": "0x7930",
+    "version_dispatch": "ASCII major/minor at offsets12/14: major1->interface1,major2->4,major3->8,major3/minor10->0x40",
+    "adapter_vtable_rva": "0x30650",
+    "adapter_import": "slot0x1f0 -> RVA0x1e6e0 -> underlying Picture Control slot0x240",
+    "adapter_export": "slot0x1f8 -> RVA0x1e760 -> underlying Picture Control slot0x250",
+    "Rome2_vtable_rva": "0x79b1d8",
+    "Rome2_import_rva": "0xe7340; validates compatibility via0x141990, then0xe7480 ->0x138900",
+    "Rome2_export_rva": "0xe75a0 ->0x13a900",
+    "writer_confirmed": [
+      "Writer0x13a900 emits NCP-NUL, the first version record with length4, and BE-style record headers.",
+      "Flexible Color Blender record0x1f00 is28bytes and Grading record0x2000 is20bytes.",
+      "Optional tone curve record2 is0x242bytes with I0 marker,20 coordinate pairs and257 byte-swapped uint16 samples.",
+      "Writer terminates with a four-byte zero record identifier."
+    ],
+    "limit": "Static recovery only. Parser and renderer ABI/oracle validation is not yet complete."
+  },
+  "verification": {
+    "tool": "tools/inspect_np3.py",
+    "samples": 13,
+    "total_bytes": 9732,
+    "exact_record_roundtrips": 13,
+    "cross_reference_scalar_comparisons": 1831,
+    "cross_reference_differences": 0,
+    "tests": "uv run pytest tests/test_np3.py -q:12passed",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/np3-public-report.json",
+    "report_sha256": "c45e74f127ef19714ea6adfef0b7a5a059d68e2633ea77da49cb1b703a5cc86b",
+    "limit": "Roundtrips prove byte preservation on these samples, not camera acceptance or Nikon-equivalent colors."
+  }
+}
