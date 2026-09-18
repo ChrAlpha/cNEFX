@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-18",
+  "evidence_kind": "live_internal_vendor_oracle_synthetic_sparse_repair",
+  "dll_sha256": "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c",
+  "entry_rva": "0x34ba60",
+  "probe": "tools/probe_sparse.c",
+  "reference": "tools/sparse_reference.py",
+  "verifier": "tools/verify_sparse.py",
+  "scope": "Four-frame preprocessing only; direct internal calls with bounded synthetic uint16 planes. This does not establish authentic sensor metadata or full NEF-to-NEFX fidelity.",
+  "abi": {
+    "calling_convention": "Microsoft x64",
+    "return": "uint64, 1 on success",
+    "argument": "Pointer to a 64-byte descriptor: int32 width and height at offsets 0 and 4, four pointers to MSVC uint16 vector objects at offsets 8, 16, 24, 32, then 24 selector bytes at offset 40.",
+    "vector": "24 bytes: begin, end, capacity pointers. The probe provides sufficient capacity and checks that the callee preserves all three pointers."
+  },
+  "arithmetic": {
+    "inputs": "Four original planes A0..A3; mutable work planes initially copy all input samples.",
+    "per_frame_mapping": {
+      "columns": ["dy", "dx", "diagonal_frame", "ratio_frame", "displaced_frame", "horizontal_mean_frame", "vertical_mean_frame"],
+      "rows": [[-1,-1,2,1,3,1,3],[-1,1,3,0,2,0,2],[1,1,0,3,1,3,1],[1,-1,1,2,0,2,0]]
+    },
+    "definitions": [
+      "At selected (y,x), current=Aframe[y,x], diagonal=Adiagonal_frame[y+dy,x+dx].",
+      "mean=(Ahorizontal_mean_frame[y,x+dx]+Avertical_mean_frame[y+dy,x])/2.",
+      "far_mean=(Adiagonal_frame[y+2*dy,x+dx]+Aframe[y+dy,x])/2.",
+      "r=Aratio_frame[y+dy,x+dx]/diagonal; s=far_mean/mean; t=Adisplaced_frame[y+2*dy,x]/current.",
+      "estimate=work_displaced_frame[y+2*dy,x]/float32(work_ratio_frame[y+dy,x+dx]/work_diagonal_frame[y+dy,x+dx]).",
+      "Each frame uses two ordered selection stages; the second may overwrite the first. The complete executable branch equations are in repair_value()."
+    ],
+    "precision": "Input uint16-to-float conversion and two-sample means are exact over the tested 14-bit range. Decision ratios use float64. The estimate denominator rounds once to float32 before the outer float64 division.",
+    "zero_denominators": "0/0 is NaN; positive/0 is positive infinity. COMISD/JBE includes unordered comparisons. Preserve zero-weight terms because infinity*0 and NaN*0 remain NaN.",
+    "conversion": "MINSD with 16383 as the first operand and candidate as the second retains candidate NaN; CVTTSD2SI converts NaN to INT_MIN, whose low 16 bits are zero. Finite positive candidates truncate after an upper cap at 16383. Positive infinity caps to 16383.",
+    "work_buffer_order": "Decision statistics always read originals. Estimate neighborhoods read mutable work planes, so earlier selected rows can influence later estimates. Each coordinate processes frames 0,1,2,3.",
+    "asymmetry": "The low-ratio intensity guard for frame 0 reads A3[y,x]; the other three frames read their own original current sample."
+  },
+  "selection": {
+    "reference": "Selection.coordinates() and the independent C bounds check",
+    "row_order": "Row starts at first_row-trunc((reference_height-height)/2). Outer, middle, and inner increments are cumulative; nested iterations do not reset to an origin row.",
+    "column_order": "Half-grid index runs 1..width/2-2. Start a sample column at 1. Increment it by 2 only for accepted half-grid indices other than index 1. Filtering early half-grid indices therefore does not imply column=2*index-1.",
+    "probe_bounds": "The 16x12 probe rejects selected neighborhoods outside rows 2..9, columns 1..14 and rejects more than 1000 selector iterations. The vendor routine does not establish these safety checks."
+  },
+  "verification": {
+    "cases": 10012,
+    "samples": 7689216,
+    "selected_sample_visits": 390528,
+    "samples_changed_by_vendor": 100061,
+    "different_samples": 0,
+    "input_sha256": "8f575b1e4f486a27ee0d673dbd47397c98faf14971de198ac34310711ff56524",
+    "output_sha256": "757148035ea43006337e755617fe8a8c8ecbbb23c831590b1cb2c45a7187b7d1",
+    "cases_description": "12 constant planes and 10000 fixed-seed cases: full 14-bit random values, boundary-value palettes, low-contrast values, and zero-heavy values. Twelve selector configurations include cumulative rows, repeated rows, first/last safe row, reference dimension changes, horizontal filtering, and no selections.",
+    "coverage_limit": "All 13 recorded write/keep action categories ran in every frame. These counters instrument the reference, not vendor machine-code edge coverage. Random and boundary-value fixtures do not prove all representable inputs."
+  },
+  "remaining": [
+    "Exact threshold-focused neighborhoods and independent branch review",
+    "Full-file preprocessing dispatch with nonzero metadata and both ISO sides",
+    "Two-frame sparse overrides used in eight- and thirty-two-frame modes",
+    "Authentic Z8 sequence metadata, firmware/compression variants, and Lightroom Classic acceptance"
+  ]
+}

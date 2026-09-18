@@ -14,7 +14,7 @@
   "function_map": [
     {"va": "0x180350290", "role": "Initialize merge context and place eight-input paths into internal slots 0..3 and 16..19."},
     {"va": "0x180350590", "role": "Read, decode, preprocess, reconstruct, optionally correct, crop, encode, and write one output."},
-    {"va": "0x18034ba60", "role": "Four-frame metadata-selected sample correction for ISO at most 3200; complete branch equations remain to be normalized."},
+    {"va": "0x18034ba60", "role": "Four-frame metadata-selected sample correction for ISO at most 3200; normalized equations and synthetic oracle evidence are in pixel-shift-sparse-probe.json."},
     {"va": "0x18034df80", "role": "Two-frame vertical-offset averaging plus metadata-selected source replacement, ISO at most 3200."},
     {"va": "0x18034e420", "role": "Two-frame vertical-offset averaging, ISO above 3200."},
     {"va": "0x18034aca0", "role": "Optional radial correction of red and blue planes using separate coefficient triples."},
@@ -211,7 +211,7 @@
     "important_distinction": "The intermediate one-pixel crop is not the final exported image size. Final visible dimensions come from CropArea."
   },
   "low_iso_four_frame_correction": {
-    "status": "partially_recovered_static",
+    "status": "normalized_and_synthetic_oracle_verified",
     "function_va": "0x18034ba60",
     "verified_properties": [
       "Copies all four input planes and modifies only metadata-selected samples in the copies.",
@@ -220,7 +220,8 @@
       "Contains intensity thresholds 300, 500, and 2000 and caps corrected samples at 16383.",
       "Copies corrected planes back to all four source vectors after processing."
     ],
-    "remaining": "Normalize all ratio-selection branches and zero-denominator/NaN behavior into an independently reviewable specification; verify with a vendor routine oracle and authentic sensor metadata.",
+    "reference": "tools/sparse_reference.py; see pixel-shift-sparse-probe.json for direct vendor-oracle results, NaN semantics, and limits.",
+    "remaining": "Threshold-focused neighborhoods, complete-file dispatch with nonzero selector metadata, and authentic sensor metadata validation remain open.",
     "semantic_limit": "The metadata-selected sparse-row behavior suggests sensor sample repair, but an exact Nikon feature name is not established."
   },
   "verification_commands": [
@@ -232,9 +233,9 @@
     "objdump -s --start-address=0x1805ede90 --stop-address=0x1805edf60 /path/to/PixelShiftCombine.dll"
   ],
   "unverified": [
-    "All formulas against actual vendor execution, especially floating-point and metadata edge cases.",
+    "Uncovered floating-point and malformed-metadata edge cases; later mode-matrix, radial-probe, and sparse-probe records contain scoped live vendor comparisons.",
     "Capture sequence identity and ordering in authentic pixel-shift files.",
-    "Complete low-ISO four-frame correction branch specification.",
+    "Complete-file low-ISO correction with nonzero selection metadata.",
     "RAW decoder calibration and camera-specific normalization.",
     "Numerical equality to authentic NX Studio NEFX output.",
     "Lightroom Classic color and editing fidelity."
