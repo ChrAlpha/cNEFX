@@ -17,9 +17,13 @@ from nx_ctudio.picture_curve import generate_curve
 
 
 def parameter_ranges(
-    coefficients: bytes, values: Sequence[int], *, curve_payload: bytes | None = None
+    coefficients: bytes,
+    values: Sequence[int],
+    *,
+    curve_payload: bytes | None = None,
+    output_selector: int = 0,
 ) -> list[tuple[int, bytes]]:
-    """Generate model14/strength256/selector0/brightness6 parameter sections."""
+    """Generate model14/strength256/matrix0/brightness6 parameter sections."""
     if len(values) != 41 or any(type(value) is not int for value in values):
         raise ValueError("Expected 41 normalized integer controls.")
     if any(not -100 <= v <= 100 for v in values[:5]):
@@ -44,7 +48,9 @@ def parameter_ranges(
         words(0x6268 + channel * 128, row, "h")
         words(0x213C6 + channel * 64, [max(-512, min(511, v)) for v in row], "h")
     contrast = round_divide32(values[0] * 64, 25)
-    sources, expanded = contrast_tables(coefficients, contrast, 6, model_index=14)
+    sources, expanded = contrast_tables(
+        coefficients, contrast, 6, model_index=14, output_selector=output_selector
+    )
     words(0x25836, [256 - abs(contrast), abs(contrast)])
     for offset, row in zip((0x2583A, 0x25A3C, 0x25C3E, 0x25E40), sources, strict=True):
         words(offset, row)
@@ -77,16 +83,23 @@ def generate_table(
     curve_payload: bytes | None = None,
     exposure_adjustment: int = 0,
     adjustment_tables: bytes | None = None,
+    output_selector: int = 0,
 ) -> bytes:
     """Build all 213872 bytes without a vendor-generated baseline.
 
     Camera state+152c/+153e stays zero; hue is128, family12,
-    model14, strength256, selector0, brightness6. An explicit custom curve replaces
+    model14, strength256, matrix0, brightness6 and output selector0/1.
+    An explicit custom curve replaces
     highlights/shadows/white/black; its activation must be resolved by the caller.
     The leading output-space matrix remains zero, suitable for scalar RGB only.
     """
     values = tuple(values)
-    ranges = parameter_ranges(coefficients, values, curve_payload=curve_payload)
+    ranges = parameter_ranges(
+        coefficients,
+        values,
+        curve_payload=curve_payload,
+        output_selector=output_selector,
+    )
     ranges.extend(
         camera_ranges(
             coefficients,

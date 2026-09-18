@@ -63,5 +63,21 @@
     "different_icc_bytes": 0,
     "verification": "226focused tests pass,including64output/scalar/profile tests. Scoped Ruff/format and diff checks pass. Fresh vendor generation confirms configuration/serialization; native numerical comparisons replay those outputs.",
     "limit": "Mode3 generator tables still come from vendor in this stage. Native source table generation and complete rendered-image parity remain separate."
+  },
+  "native_mode3_profile_pipeline": {
+    "implementation": "tools/kaiji_contrast.py output_selector1 and tools/kaiji_table.py",
+    "report": "mode3-native-pipeline-v1.json",
+    "sha256": "cfcccf7a14c3a769aa47f8e8e15b766dfab84fb889547a1e0cd7394d7d1be8b1",
+    "evidence_kind": "native_pipeline_saved_vendor_replay",
+    "resampling": "Generator parameter+0xe3c==1 remaps four contrast source curves through257uint16 coordinates at coefficients+0x5b8d6. Split each coordinate into index/fraction by16,interpolate signed full ordinates,round halves away fromzero,before uint16 narrowing and ordinary4096table expansion. Rounding the delta instead gives incorrect descending half cases.",
+    "pipeline": "NP3 controls/curve plus prior verified native source scalar inputs -> native camera index/blend -> complete Mode3 table -> native65grid -> selector1 Lab -> native ICC -> normalized renderer LUT -> captured RGB16 blocks. Vendor-generated tables and grids are comparison targets only.",
+    "cases": 3,
+    "compared_table_bytes": 641616,
+    "compared_lab_words": 2471625,
+    "compared_icc_bytes": 5018994,
+    "compared_pixel_words": 1178136,
+    "differences": 0,
+    "verification": "All290input hashes unchanged. Full pytest790passed4.90s;23focused table/contrast tests,scoped Ruff/format,ASCII and diff checks pass. A separate static-recovery agent independently reproduced all12remapped source curves (3084words) from prior captured tables.",
+    "limit": "One ordinary source and three NP3s. This is a saved-evidence replay,not fresh provider execution. Native source scalar inputs reuse the prior accepted report; external coefficient/calibration/template files and captured ICC text remain required. No decoded-image preprocessing,downstream Lab/Lch or full-render/Lightroom parity."
   }
 }

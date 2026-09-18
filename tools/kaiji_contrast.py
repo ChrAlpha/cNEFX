@@ -10,11 +10,16 @@ from kaiji_grading import COEFFICIENT_HASH
 
 
 def contrast_tables(
-    coefficients: bytes, contrast: int, brightness: int, *, model_index: int = 0
+    coefficients: bytes,
+    contrast: int,
+    brightness: int,
+    *,
+    model_index: int = 0,
+    output_selector: int = 0,
 ) -> tuple[tuple[tuple[int, ...], ...], tuple[tuple[int, ...], ...]]:
     """Return four 257-node uint16 curves and two 4096-node int32 tables.
 
-    Supports the regular family-12 path with flags +0x174f and +0xe3c clear.
+    Supports the regular family-12 path with +0x174f clear and +0xe3c in0..1.
     Contrast is in engine units; brightness is the engine's biased byte value.
     """
     if (
@@ -28,6 +33,8 @@ def contrast_tables(
         raise ValueError("Contrast must be an integer in [-256, 256].")
     if type(brightness) is not int or not 0 <= brightness <= 12:
         raise ValueError("Brightness must be an integer in [0, 12].")
+    if type(output_selector) is not int or output_selector not in (0, 1):
+        raise ValueError("Only output selectors 0 and 1 are supported.")
 
     def word(offset: int) -> int:
         return struct.unpack_from("<H", coefficients, offset)[0]
@@ -51,10 +58,20 @@ def contrast_tables(
                 * brightness_amount,
                 6,
             )
-            row.append(
-                (word(base + i * 6 + (side if alternate else 0)) + delta) & 65535
-            )
-        sources.append(tuple(row))
+            row.append(word(base + i * 6 + (side if alternate else 0)) + delta)
+        if output_selector == 1:
+            remapped = []
+            for i in range(257):
+                position, fraction = divmod(word(0x5B8D6 + i * 2), 16)
+                remapped.append(
+                    round_divide32(
+                        row[position] * 16
+                        + (row[position + 1] - row[position]) * fraction,
+                        16,
+                    )
+                )
+            row = remapped
+        sources.append(tuple(value & 65535 for value in row))
     expanded = []
     for bank in range(2):
         base, alternate = sources[2 * bank : 2 * bank + 2]
