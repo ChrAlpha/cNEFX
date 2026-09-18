@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "artifact_directory": "/workspaces/LumaForge/nxc-data/scratch",
+  "scope": "Bounded native stages of the actual NX Studio RGB16 renderer; not complete source-image parity.",
+  "runtime": {
+    "image_render_sha256": "b9572f5b176861f69fe1407e7e1e18734a9983cd73421411efd999f4409bccd8",
+    "path": "NX Studio1.10.1 Windows image_render.n5m; Wine is a research oracle only."
+  },
+  "rgb_lab_dispatch": {
+    "evidence_kind": "static_recovery_and_instrumented_render_pilot",
+    "selection": "image_render0x48bf50 creates a CML XForm before0x48b010 chooses its processing mode. An accepted RGB/Lab A2B0 with Lab destination selects mode2, clears CML transformer state+0x600 and installs internal LUTRGBLab at+0x730.",
+    "abi": "Filter vtable0xb2a478 setup slot+0x330->0x4e6d10; process slot+0x338->0x4e6ee0. Process returns a pointer-shaped error, null on success, and takes self,format,width,height,input,input-row/input-pixel/input-channel strides,output,output-row/output-pixel/output-channel strides.",
+    "consumer": "Parser0x4e5290->0x4e5700->0x4e5860 consumes mft2 directly. Observed format0x10060201, pixel stride6, channel stride2; row0x4f2690->0x528460.",
+    "limit": "Other selector modes can combine internal LUT, matrix and CML stages. Previous CML profile-consumer equivalence does not establish equivalence for this path."
+  },
+  "native_rgb_lab": {
+    "implementation": "tools/renderer_lut.py",
+    "interface": "normalized_grid(profile), transform(pixels,grid,width), convert(profile,pixels,width); pixels are packed(height*width,3) little-endian uint16.",
+    "profile_scope": "v2.2 D50 scanner RGB/Lab ICC, A2B0mft2,grid65,identity matrix,4096input/3output curve entries. Each curve must differ by at most2 from floor(i*65535/(count-1)); unsupported profiles fail closed.",
+    "normalization": "CLUT L becomes(min(L,65280)*65535+32640)//65280; a/b remain unchanged. The six near-identity curves are bypassed.",
+    "arithmetic": "float32 scale64*float32(16384/65535), nearest-even Q14 coordinates, tetrahedral weights. Each row's groups of4 floor the weighted sum/16384; remaining1..3pixels add8192 before shifting14. Row boundaries must be preserved.",
+    "saved_capture_reports": [
+      {"report": "render-cml-tap-v5/report.json", "sha256": "3df3d7a730d6cd470a9c07d4439ce845cf925ef479109b70251bd3beaf3c549a", "blocks": 12, "pixel_words": 1178136},
+      {"report": "render-cml-tap-v6/report.json", "sha256": "c09fe49fd9625ffb13e977d95a213b95506ca2b168322ba1b46b15235b62c7e1", "blocks": 12, "pixel_words": 1178136, "normalized_grid_words": 9886500}
+    ],
+    "different_words": 0,
+    "verification": "Builder and root independently replayed saved captures; all recorded artifact hashes checked.95focused tests pass, including74new renderer tests; scoped Ruff/format and diff checks pass.",
+    "limit": "Saved captures originate from experimental instrumentation. Standalone fresh kernel validation is separate. Profile generation, source WB/matrix/transfer order, later Lab/Lch transforms and full-image determinism remain unresolved."
+  }
+}
