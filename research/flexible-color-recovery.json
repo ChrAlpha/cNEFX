@@ -224,6 +224,21 @@
     "interpretation": "Missing preparation-stage matrix initialization caused the black Lab result. The uint16 channel interpretation and configured33-node grid are confirmed by controlled scalar evaluation.",
     "limit": "This establishes matrix/mode controls for a supplied vendor table. Native rendering, complete factory configuration, image conversion and Lightroom acceptance remain unresolved."
   },
+  "native_output_conversion_replay": {
+    "evidence_kind": "native_selector0_lab_quantization_interval_replay",
+    "implementation": "tools/kaiji_color.py",
+    "runner": "tools/verify_kaiji_color.py",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/kaiji-native-lab-v1/report.json",
+    "report_sha256": "1127795206d0515f404bb8cd7c0594cc5deae8863d06ba27c7ad034d55f69c20",
+    "points": 35937,
+    "channel_words": 107811,
+    "out_of_quantization_interval_words": 0,
+    "center_different_words": 10053,
+    "center_max_absolute_error": [1, 1, 1],
+    "max_interval_width": [2, 5, 2],
+    "critical_constants": "L multiplier652.8000000000001 (binary64 0x4084666666666667); a/b bias32768.5. Preserve separate multiplication/addition order and recovered Lab constants rather than substituting exact CIE rationals.",
+    "limit": "The direct RGB output has half-code quantization uncertainty. Propagated intervals include a1e-9 Lab-unit binary64 margin. This is output-stage consistency evidence, not bit-exact upstream rendering or complete Picture Control support."
+  },
   "np3_state_to_generator_oracle": {
     "evidence_kind": "live_unmodified_vendor_np3_normalized_state_to_kaiji_table_generation",
     "probe": "tools/probe_kaiji_state.c",
