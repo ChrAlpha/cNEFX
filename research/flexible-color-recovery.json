@@ -373,6 +373,17 @@
     "curve_bridge": "NP3 parser0x137080, curve loader0x132770, public curve object internal pointer+0x20 (confirmed by wrapper0x126d90); KaijiParam+0x678 points to a list view with pointer array+8 and count+0x18. KaijiParam+0x1756 enables replacement;0x151720 samples with scale4096 and flags60.",
     "limit": "This exercises genuine NP3 curve import and the Kaiji replacement branch with a reconstructed list view. Full application construction, contrast suppression upstream and image rendering remain unverified."
   },
+  "combined_controls_oracle": {
+    "evidence_kind": "combined_native_controls_vs_vendor_table_ranges",
+    "runner": "tools/verify_kaiji_composition.py",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/kaiji-composition-v1/report.json",
+    "report_sha256": "f247ac94aacf1d5df5e7d8b9b5cac62ebd7c006a3ced3594dddacea56df940fa",
+    "cases": 17,
+    "coverage": "Neutral plus16 seeded random states changing all41 normalized controls together. Manual mapping to engine units, model14, strength256, matrix0, brightness6.",
+    "known_range_different_bytes": 0,
+    "unexplained_change_bytes": 0,
+    "limit": "A vendor-generated neutral table supplies unrecovered constant sections. Delta coverage does not establish a full native generator, NP3 import parity or rendered colors. Runtime prm.bin/Moon2 provenance was not pinned in this historical run."
+  },
   "np3_state_to_generator_oracle": {
     "evidence_kind": "live_unmodified_vendor_np3_normalized_state_to_kaiji_table_generation",
     "probe": "tools/probe_kaiji_state.c",
