@@ -47,7 +47,23 @@
       "type": "UNDEFINED",
       "layout": "16-byte header: ASCII0100; LE32 payload offset16; LE16 width640; LE16 height424; bytes12..15=[3,14,14,14]. Followed by640*424*3 little-endian uint16 preview samples.",
       "observed_total_bytes": 1628176,
-      "limit": "Header and payload size verified; preview numerical values and other embedded JPEG previews were not verified in this pass."
+      "preview_function_rva": "0x34e700",
+      "preview_equations": [
+        "Input is the final cropped RGB uint16 image of width W and height H.",
+        "For preview pixel(x,y), x0=trunc(x/(640/W)),x1=min(trunc((x+1)/(640/W)),W-1),y0=trunc(y/(424/H)),y1=min(trunc((y+1)/(424/H)),H-1). Ratios and quotients are binary64.",
+        "For each channel sum input pixels over [x0,x1) by [y0,y1), modulo2^32; count=(x1-x0)*(y1-y0). Output is floor(sum/count), or0 for an empty area.",
+        "The clamped upper coordinate remains exclusive; the final source row and column are omitted. Empty intervals during upsampling remain zero."
+      ],
+      "numerical_verification": {
+        "tool": "tools/verify_nefx_preview.py",
+        "outputs": 4,
+        "samples": 3256320,
+        "different_samples": 0,
+        "input_dimensions": [[632,424],[1264,848],[1264,848],[8256,5504]],
+        "source_kinds": ["four-frame sparse fixture", "thirty-two-frame sparse fixture", "sixteen-frame sparse fixture with radial stress", "full-size four-frame repeated source"],
+        "zero_preview_pixels": [4447,0,0,0]
+      },
+      "limit": "Other embedded JPEG previews were not numerically verified. The small-image zero intervals are vendor behavior, not a claimed desirable native preview policy."
     }
   },
   "nikon_nef_info_0xc7d5": {
@@ -68,7 +84,7 @@
     "scope": "Reopened saved outputs from the synthetic sparse pipeline at both ISO sides and both correction settings. No new vendor execution was needed."
   },
   "remaining": [
-    "Next-IFD chains, Nikon preview IFD, JPEG generation, private preview numerical values, and serializer padding/alignment",
+    "Next-IFD chains, Nikon preview IFD, JPEG generation, and serializer padding/alignment",
     "Missing/short optional tags, malformed metadata, per-output source-mode divergence, and alternate metadata versions",
     "Cancellation, path encoding and heap-string ownership edge cases",
     "Authentic image metadata preservation and downstream Lightroom Classic interpretation"
