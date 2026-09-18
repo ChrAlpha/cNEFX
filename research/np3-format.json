@@ -57,7 +57,7 @@
     ],
     "header_parser_rva": "0x132ca0",
     "header_parser_abi": "uint64(data_pointer,uint64_size,uint32_version_out,uint32_profile_out,name20_out)",
-    "limit": "Header parser has live evidence below. Full parameter import and rendering remain unverified."
+    "limit": "Header and parameter parsers have live evidence below. Full application-state import and rendering remain unverified."
   },
   "verification": {
     "tool": "tools/inspect_np3.py",
@@ -110,5 +110,32 @@
     "report_sha256": "dc19770117d88699257652ab5a02e77a91babbe3bfbe00b7a2e116475157bd37",
     "runner_after_report": "Only a Python string-literal line wrap was changed for lint.",
     "limit": "Proves parameter deserialization for tested0310 records, not application-state mutation, camera import, curve interpolation or color rendering."
+  },
+  "normalization_oracle": {
+    "evidence_kind": "live_unmodified_vendor_normalization_public_and_synthetic_samples",
+    "rva": "0x131b90",
+    "abi": "uint64(flexible88_input,int32_values41_output)",
+    "return_value": "Encoded contrast byte, not a success code; unsupported block versions return0xffffffff",
+    "block_versions": ["0100", "0101"],
+    "version_limit": "Live NP3 parser emits0100;0101 is covered by static branch recovery and native tests only.",
+    "scalar_rule": "For ordinary byte values2..254,truncate((encoded-128)/scale) toward zero; values0,1,255 use defaults.",
+    "hue_rule": "For little-endian hue words,truncate((encoded-32768)/shared_scale) toward zero;0xffff uses the default.",
+    "defaults": "Blending defaults to50; all other normalized fields default to0. Sentinel handling precedes division.",
+    "scale_locations": "Scalar pair suffixes; Color Blender offsets48,49,50; Color Grading offsets64,65,66; blending69; balance71.",
+    "output_order": "Six scalar settings, eight hue/chroma/brightness Color Blender triples, three hue/chroma/brightness Color Grading triples, blending, balance.",
+    "native_limit": "Ordinary values with zero scales are rejected; vendor division-by-zero behavior is not claimed as supported.",
+    "cases": 75,
+    "public_samples": 13,
+    "synthetic_cases": 62,
+    "scale_sentinel_cases": 32,
+    "tested_nonzero_scales": [1, 3, 4, 255],
+    "parameter_bytes_compared": 227250,
+    "normalized_values_compared": 3075,
+    "differences": 0,
+    "output_buffer_guards_intact": true,
+    "tests": "uv run pytest tests/test_np3_parameters.py tests/test_np3.py -q:30passed",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/np3-normalized-v2/report.json",
+    "report_sha256": "4f091ffed9a4482560f606745a85a45052444aed3a7493a4164d984598b563a5",
+    "limit": "Parameter normalization only; no rendered pixels, camera import, tone-curve interpolation or Lightroom validation."
   }
 }

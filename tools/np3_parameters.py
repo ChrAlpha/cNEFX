@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import struct
 
 from inspect_np3 import Record, describe
@@ -26,6 +27,32 @@ BASE_PAIRS = {
     0x1800: 77,
 }
 BASE_SINGLE = {0x400: 52, 0xC00: 71, 0xD00: 72}
+
+
+def normalize_flexible(data: bytes) -> tuple[int, list[int]]:
+    """Map the 88-byte block to 41 integer settings at Rome2 RVA 0x131b90."""
+    if len(data) != 88 or data[:4] not in (b"0100", b"0101"):
+        raise ValueError("Unsupported Flexible Color block.")
+
+    def scalar(value: int, divisor: int, default: int = 0, word: bool = False) -> int:
+        if (word and value == 65535) or (not word and value in (0, 1, 255)):
+            return default
+        if divisor == 0:
+            raise ValueError("Zero parameter scale is unsupported.")
+        return math.trunc((value - (32768 if word else 128)) / divisor)
+
+    values = [scalar(data[o], data[o + 1]) for o in range(12, 24, 2)]
+    values.extend(scalar(data[o], data[48 + (o - 24) % 3]) for o in range(24, 48))
+    for offset in (52, 56, 60):
+        values.extend(
+            (
+                scalar(struct.unpack_from("<H", data, offset)[0], data[64], word=True),
+                scalar(data[offset + 2], data[65]),
+                scalar(data[offset + 3], data[66]),
+            )
+        )
+    values.extend((scalar(data[68], data[69], 50), scalar(data[70], data[71])))
+    return data[12], values
 
 
 def parameter_blocks(records: tuple[Record, ...]) -> dict[str, bytes]:

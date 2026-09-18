@@ -1,5 +1,5 @@
-/* Research-only metadata oracle for pinned Rome2.dll RVA 0x132ca0.
- * This reads format version, profile ID and name; it does not import or render.
+/* Research-only NP3 metadata and normalized parameter oracle for Rome2.dll.
+ * This reads file records and normalized settings; it does not render images.
  * The runner must verify the module hash and provide structurally checked input.
  */
 #include <windows.h>
@@ -10,6 +10,7 @@
 
 typedef uint64_t (*ReadHeader)(const void *, uint64_t, uint32_t *, uint32_t *, void *);
 typedef void *(*ReadParameters)(const void *, uint64_t, void *, void *, void *, void *, void *);
+typedef uint64_t (*NormalizeFlexible)(const void *, int32_t *);
 
 static void hex_field(const char *key, const uint8_t *data, size_t size) {
     printf(",\"%s\":\"", key);
@@ -74,6 +75,24 @@ int main(int argc, char **argv) {
         hex_field("flexible_hex", flexible, 88);
         hex_field("comment_hex", comment, 2000);
         hex_field("extra_hex", extra, 256);
+        if (!error && guards) {
+            struct { int32_t values[41]; uint8_t guard[16]; } normalized = {0};
+            memset(normalized.guard, 0xa5, sizeof(normalized.guard));
+            address = (uint8_t *)module + 0x131b90;
+            NormalizeFlexible normalize;
+            memcpy(&normalize, &address, sizeof(normalize));
+            uint64_t normalized_status = normalize(flexible, normalized.values);
+            int normalized_guard = 1;
+            for (size_t i = 0; i < sizeof(normalized.guard); ++i)
+                if (normalized.guard[i] != 0xa5) normalized_guard = 0;
+            printf(",\"normalized_return\":%llu,\"normalized_guard_intact\":%s,"
+                   "\"normalized_values\":[", (unsigned long long)normalized_status,
+                   normalized_guard ? "true" : "false");
+            for (size_t i = 0; i < 41; ++i)
+                printf("%s%d", i ? "," : "", normalized.values[i]);
+            printf("]");
+            if (!normalized_guard) status = 1;
+        }
         printf("}\n");
         if (error || !guards) status = 1;
     } else if (argc == 4) {

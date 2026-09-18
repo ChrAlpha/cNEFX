@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 
 from inspect_np3 import Record, parse, serialize
-from np3_parameters import BASE_PAIRS, BASE_SINGLE, parameter_blocks
+from np3_parameters import BASE_PAIRS, BASE_SINGLE, normalize_flexible, parameter_blocks
 from verify_np3_header import DLL_HASH, digest, windows
 
 
@@ -49,6 +49,30 @@ def variants(records: tuple[Record, ...]) -> list[tuple[str, bytes]]:
     return output
 
 
+def normalization_variants(records: tuple[Record, ...]) -> list[tuple[str, bytes]]:
+    output = []
+    values = (0, 1, 255, 2, 254, 127, 129, 128)
+    hues = (0, 1, 65535, 32767, 32769, 65534, 32768, 36000)
+    for scale in (1, 3, 4, 255):
+        for value, hue in zip(values, hues, strict=True):
+            replacements = {
+                identifier: bytes((value, scale))
+                for identifier in range(0x1900, 0x1F00, 0x100)
+            }
+            replacements[0x1F00] = bytes([value] * 24 + [scale] * 3 + [0])
+            replacements[0x2000] = (
+                hue.to_bytes(2, "big") + bytes((value, value))
+            ) * 3 + bytes([scale] * 3 + [0] + [value, scale] * 2)
+            changed = tuple(
+                Record(r.identifier, replacements.get(r.identifier, r.payload))
+                for r in records
+            )
+            output.append(
+                (f"normalized-{value:03d}-scale-{scale:03d}", serialize(changed))
+            )
+    return output
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--samples", type=Path, required=True)
@@ -68,6 +92,12 @@ def main() -> int:
         (name, data, "synthetic single-record mutation of vanilla.NP3")
         for name, data in variants(parse((args.samples / "vanilla.NP3").read_bytes()))
     ]
+    inputs += [
+        (name, data, "synthetic scale/sentinel mutation of vanilla.NP3")
+        for name, data in normalization_variants(
+            parse((args.samples / "vanilla.NP3").read_bytes())
+        )
+    ]
     report = {
         "evidence_kind": "live_vendor_np3_parameter_parser_comparison",
         "passed": False,
@@ -77,6 +107,7 @@ def main() -> int:
         "probe_sha256": digest(args.probe),
         "runner_sha256": digest(Path(__file__)),
         "model_sha256": digest(Path(__file__).with_name("np3_parameters.py")),
+        "normalization_rva": "0x131b90",
         "limits": (
             "Decoded parameter buffers only; no image rendering or camera import."
         ),
@@ -137,11 +168,20 @@ def main() -> int:
                 differences[key] = sum(
                     a != b for a, b in zip(decoded, predicted, strict=True)
                 )
+            returned, values = normalize_flexible(expected["flexible"])
+            normalized = (
+                actual["normalized_return"] == returned
+                and actual["normalized_values"] == values
+                and actual["normalized_guard_intact"]
+            )
             case.update(
+                normalized_values_equal=normalized,
+                normalized_values_compared=len(values),
                 differences=differences,
                 bytes_compared=sum(map(len, expected.values())),
                 passed=actual["success"]
                 and actual["guards_intact"]
+                and normalized
                 and not any(differences.values()),
             )
         report["passed"] = len(report["cases"]) == len(inputs) and all(
