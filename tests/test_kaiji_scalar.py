@@ -65,6 +65,20 @@ def test_reject_invalid_lattice_inputs(point, grid) -> None:
         scalar.ScalarTable(bytes(0x34370)).evaluate_rgb(point, grid)
 
 
+@pytest.mark.parametrize(
+    "node,code", [(0, 0), (1, 64), (32, 2048), (33, 2111), (64, 4095)]
+)
+def test_grid65_uses_rounded_12bit_lookup_coordinates(node, code):
+    class Trace(scalar.ScalarTable):
+        def u(self, offset):
+            reads.append(offset)
+            return super().u(offset)
+
+    reads = []
+    Trace(bytes(0x34370)).evaluate_rgb((node, node, node), grid=65)
+    assert reads[:3] == [offset + code * 2 for offset in (0x1D4, 0x21D4, 0x41D4)]
+
+
 def test_prepared_grid_rejects_wrong_matrix_and_table_tail():
     table = bytes(0x34370)
     with pytest.raises(ValueError, match="matrix"):

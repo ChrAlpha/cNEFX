@@ -34,9 +34,14 @@ def _text(value: str) -> bytes:
 
 
 def build_profile(
-    template: bytes, planes: Sequence[bytes], *, description: str, copyright: str
+    template: bytes,
+    planes: Sequence[bytes],
+    *,
+    description: str,
+    copyright: str,
+    grid: int = 33,
 ) -> bytes:
-    """Reproduce Rome0x28d510 with grid33, selector0 and zeroed output padding.
+    """Reproduce Rome0x28d510 with grid33/65 and zeroed output padding.
 
     The pinned template supplies header, identity curves/matrix, white point and
     reverse tag. Supplied planes contain little-endian uint16 ICC-Lab codes.
@@ -47,10 +52,12 @@ def build_profile(
         or hashlib.sha256(template).hexdigest() != TEMPLATE_HASH
     ):
         raise ValueError("Only the pinned Nikon NEF profile template is supported.")
+    if type(grid) is not int or grid not in (33, 65):
+        raise ValueError("Only grid33 and grid65 profile serialization is supported.")
     if len(planes) != 3 or any(
-        type(p) is not bytes or len(p) != 33**3 * 2 for p in planes
+        type(p) is not bytes or len(p) != grid**3 * 2 for p in planes
     ):
-        raise ValueError("Expected three complete 33-node little-endian planes.")
+        raise ValueError("Expected three complete little-endian grid planes.")
     tags = _tags(template)
     name, owner = _text(description), _text(copyright)
     encoded = name + b"\0"
@@ -60,7 +67,7 @@ def build_profile(
     copyright_tag = b"text" + bytes(4) + owner + b"\0"
     clut = np.stack([np.frombuffer(p, dtype="<u2") for p in planes], axis=-1)
     forward = bytearray(tags[b"A2B0"][:0x6034])
-    forward[10] = 33
+    forward[10] = grid
     forward += clut.astype(">u2").tobytes()
     forward += tags[b"A2B0"][0x36034:0x36046]
     payloads = [desc, copyright_tag, tags[b"wtpt"], bytes(forward), tags[b"B2A0"]]

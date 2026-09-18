@@ -47,6 +47,21 @@
     "path": "image_render0x2492f0 obtains CMS+0xb0 output-space selection(default2),CMS+0x90grid request(default32),promotes grid request to64 for engine selector>4,then CMS utilities+0xf0->Rome0x1a10f0->0x1a08a0->BuildConfig0x19b7d0.",
     "configuration": "Explicit builder selection2 gives config+8=3,config+0x9b8=1 and engine+0x9c0=1. Manual selection0 resolves source metadata selection1,Mode2,selector0. This changes generator tables and final transfer/matrix; changing only the prepared engine selector would be inconsistent.",
     "next_probe": "Rebuild with BuildConfig fifth argument2 and factory grid request64. Optional preparation tap: Rome vtable0x7b7280->0x2ae7b0(engine,unused); record config,Kaiji parameters,prepared table and65cubed planes before claiming numerical equivalence.",
-    "limit": "Matching manual65generation and complete profile bytes remain unverified."
+    "limit": "Static findings were subsequently validated by the Mode3 bridge below."
+  },
+  "mode3_grid65_preparation": {
+    "vendor_report": "sdk-kaiji-mode3-grid65-pilot-v1/run/report.json",
+    "vendor_sha256": "5ee3a88dcb77ac0c5b97628bdd6a225083eece840340a15b6e53b889eee918fc",
+    "native_report": "mode3-grid65-native-replay-v1.json",
+    "native_sha256": "5dd230350b555d154beb92a1c405c728a6b00fa8f1f61bb24f3052dc53153bd3",
+    "implementation": "tools/kaiji_scalar.py grid65, tools/kaiji_output.py selector1, tools/kaiji_profile.py grid65",
+    "coverage": "One ordinary NEF times vanilla,mixed custom-curve,mixed no-curve NP3. Manual BuildConfig selection2 and grid request64 produce profiles byte-identical to actual renderer captures. All3live bridge lifecycles/guards/providers pass;96input hashes stable.",
+    "native_path": "Captured generator table -> native65cubed unquantized RGB -> selector1 inverse transfer max(pow(rgb,2.19921875),rgb*0.03125) -> recovered selector1 RGB-to-XYZ matrix -> ICC Lab -> native ICC serialization using pinned template/captured text.",
+    "compared_lab_words": 2471625,
+    "different_lab_words": 0,
+    "compared_icc_bytes": 5018994,
+    "different_icc_bytes": 0,
+    "verification": "226focused tests pass,including64output/scalar/profile tests. Scoped Ruff/format and diff checks pass. Fresh vendor generation confirms configuration/serialization; native numerical comparisons replay those outputs.",
+    "limit": "Mode3 generator tables still come from vendor in this stage. Native source table generation and complete rendered-image parity remain separate."
   }
 }

@@ -29,20 +29,21 @@ def template(monkeypatch):
 
 
 @pytest.mark.parametrize("name,owner", [("NX Ctudio", "Test"), ("X" * 254, "")])
-def test_tag_alignment_and_plane_interleaving(monkeypatch, name, owner):
+@pytest.mark.parametrize("grid", [33, 65])
+def test_tag_alignment_and_plane_interleaving(monkeypatch, name, owner, grid):
     base = template(monkeypatch)
-    planes = [struct.pack("<H", v) * 33**3 for v in (1, 257, 65280)]
+    planes = [struct.pack("<H", v) * grid**3 for v in (1, 257, 65280)]
     result = kaiji_profile.build_profile(
-        base, planes, description=name, copyright=owner
+        base, planes, description=name, copyright=owner, grid=grid
     )
     assert struct.unpack_from(">I", result)[0] == len(result)
     assert result[16:24] == b"RGB Lab "
     entries = list(struct.iter_unpack(">4sII", result[132:192]))
     assert all(offset % 4 == 0 for _, offset, _ in entries)
     tags = kaiji_profile._tags(result)
-    assert tags[b"A2B0"][10] == 33
+    assert tags[b"A2B0"][10] == grid
     assert struct.unpack_from(">3H", tags[b"A2B0"], 0x6034) == (1, 257, 65280)
-    assert struct.unpack_from(">3H", tags[b"A2B0"], 0x6034 + (33**3 - 1) * 6) == (
+    assert struct.unpack_from(">3H", tags[b"A2B0"], 0x6034 + (grid**3 - 1) * 6) == (
         1,
         257,
         65280,
@@ -77,4 +78,12 @@ def test_planes_require_complete_little_endian_bytes(monkeypatch):
             [bytes(33**3 * 2 - 1)] * 3,
             description="NX Ctudio",
             copyright="",
+        )
+
+
+@pytest.mark.parametrize("grid", [0, 32, 64, 129, 65.0, True])
+def test_profile_rejects_unsupported_grid(monkeypatch, grid):
+    with pytest.raises(ValueError, match="grid"):
+        kaiji_profile.build_profile(
+            template(monkeypatch), [], description="NX Ctudio", copyright="", grid=grid
         )

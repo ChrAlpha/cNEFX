@@ -68,8 +68,8 @@ class ScalarTable:
         self, indices: Sequence[int], grid: int = 33
     ) -> tuple[float, float, float]:
         """Return clipped RGB before output quantization or the Lab tail."""
-        if type(grid) is not int or grid != 33:
-            raise ValueError("Only the validated 33-node grid is supported.")
+        if type(grid) is not int or grid not in (33, 65):
+            raise ValueError("Only 33-node and 65-node grids are supported.")
         if len(indices) != 3 or any(
             type(v) is not int or not 0 <= v < grid for v in indices
         ):

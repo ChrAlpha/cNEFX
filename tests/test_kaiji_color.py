@@ -59,6 +59,18 @@ def test_vectorized_conversion_matches_scalar_reference() -> None:
     assert np.array_equal(output.rgb_to_icc_lab(values), expected)
 
 
+@pytest.mark.parametrize("selector", [-1, 2, 3, True, 1.0, None])
+def test_output_selector_rejects_unrecovered_paths(selector):
+    with pytest.raises(ValueError, match="selector"):
+        output.rgb_to_icc_lab([[0, 0, 0]], selector=selector)
+
+
+def test_selector1_neutral_and_linear_floor():
+    values = np.array([[0, 0, 0], [1, 1, 1], [0.01, 0.01, 0.01]])
+    expected = np.array([[0, 32768, 32768], [65280, 32768, 32768], [184, 32768, 32768]])
+    np.testing.assert_array_equal(output.rgb_to_icc_lab(values, selector=1), expected)
+
+
 @pytest.mark.parametrize(
     "values",
     [
