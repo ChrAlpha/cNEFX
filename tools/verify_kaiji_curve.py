@@ -12,6 +12,7 @@ from pathlib import Path
 
 from flexible_math import interpolate
 from inspect_np3 import parse
+from kaiji_oracle import dependency_hashes, loaded_provider_matches
 from verify_np3_header import DLL_HASH, digest, windows
 from verify_picture_curve import MATRIX_SHA256, ORACLE_SHA256, read_report
 
@@ -46,11 +47,13 @@ def main() -> int:
         args.probe,
         Path(__file__),
         root / "tools/probe_kaiji_curve.c",
-        root / "src/nx_ctudio/picture_curve.py",
+        Path(generate_curve.__code__.co_filename),
         root / "tools/flexible_math.py",
         root / "tools/inspect_np3.py",
+        root / "tools/kaiji_oracle.py",
     ]
     hashes = {str(path.resolve()): digest(path) for path in paths}
+    hashes.update(dependency_hashes(args.dll, args.probe))
     report = {
         "evidence_kind": "native_custom_curve_vs_vendor_kaiji_replacement",
         "input_hashes": hashes,
@@ -126,6 +129,7 @@ def main() -> int:
                     or event.get("guards_intact") is not True
                     or event.get("success") is not True
                     or event.get("output_bytes") != 0x34370
+                    or not loaded_provider_matches(event, args.dll)
                 ):
                     raise ValueError("Custom-curve oracle status or guard failure.")
                 data = output.read_bytes()

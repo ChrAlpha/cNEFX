@@ -84,6 +84,14 @@ int main(int argc, char **argv) {
     address = (uint8_t *)module + 0x29f0b0;
     memcpy(&generate, &address, sizeof(generate));
     generate(state, NULL, table);
+    char moon_path[MAX_PATH];
+    HMODULE moon = GetModuleHandleA("Moon2.dll");
+    DWORD moon_length = moon ? GetModuleFileNameA(moon, moon_path, MAX_PATH) : 0;
+    if (!moon_length || moon_length >= MAX_PATH) return 7;
+    for (DWORD i = 0; i < moon_length; ++i) {
+        if (moon_path[i] == '\\') moon_path[i] = '/';
+        if (moon_path[i] == '"' || (unsigned char)moon_path[i] < 32) return 7;
+    }
     int guards = intact(input, (size_t)size) && intact(base, 108) && intact(curve, 578)
         && intact(flex, 88) && intact(comment, 2000) && intact(extra, 256)
         && intact(owner, 0x1000) && intact(state, STATE_BYTES) && intact(table, TABLE_BYTES)
@@ -97,8 +105,8 @@ int main(int argc, char **argv) {
         if (!CloseHandle(file)) success = 0;
     }
     printf("{\"event\":\"kaiji_custom_curve\",\"mode\":\"%s\",\"status\":%llu,"
-           "\"guards_intact\":%s,\"output_bytes\":%lu,\"success\":%s}\n",
-           argv[4], (unsigned long long)status, guards ? "true" : "false", written,
+           "\"moon_path\":\"%s\",\"guards_intact\":%s,\"output_bytes\":%lu,\"success\":%s}\n",
+           argv[4], (unsigned long long)status, moon_path, guards ? "true" : "false", written,
            success ? "true" : "false");
     DestroyGroup destroy;
     memcpy(&destroy, &vtable[0x118 / 8], sizeof(destroy));

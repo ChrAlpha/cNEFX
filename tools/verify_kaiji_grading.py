@@ -16,6 +16,7 @@ from kaiji_blender import blender_tables
 from kaiji_contrast import contrast_tables
 from kaiji_grading import COEFFICIENT_HASH, grading_tables
 from kaiji_input import input_matrix
+from kaiji_oracle import dependency_hashes, loaded_provider_matches
 from kaiji_tone import tone_tables
 from verify_np3_header import DLL_HASH, digest, windows
 
@@ -190,8 +191,10 @@ def main() -> int:
         root / "tools/kaiji_input.py",
         root / "tools/flexible_math.py",
         root / "tools/probe_kaiji_state.c",
+        root / "tools/kaiji_oracle.py",
     ]
     hashes = {str(path.resolve()): digest(path) for path in paths}
+    hashes.update(dependency_hashes(args.dll, args.probe))
     report = {
         "evidence_kind": f"native_{args.stage}_vs_live_vendor_table_generation",
         "stage": args.stage,
@@ -316,6 +319,7 @@ def main() -> int:
                 or event.get("success") is not True
                 or event.get("guards_intact") is not True
                 or event.get("output_bytes") != 0x34370
+                or not loaded_provider_matches(event, args.dll)
                 or state_path.read_bytes() != state
             ):
                 raise ValueError("Vendor generation status or input check failed.")

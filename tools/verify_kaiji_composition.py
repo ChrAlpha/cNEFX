@@ -16,6 +16,7 @@ from kaiji_blender import blender_tables
 from kaiji_contrast import contrast_tables
 from kaiji_grading import COEFFICIENT_HASH, grading_tables
 from kaiji_input import input_matrix
+from kaiji_oracle import dependency_hashes, loaded_provider_matches
 from kaiji_tone import tone_tables
 from verify_np3_header import DLL_HASH, digest, windows
 
@@ -107,6 +108,10 @@ def main() -> int:
         ),
     ]
     hashes = {str(p.resolve()): digest(p) for p in paths}
+    hashes[str((root / "tools/kaiji_oracle.py").resolve())] = digest(
+        root / "tools/kaiji_oracle.py"
+    )
+    hashes.update(dependency_hashes(args.dll, args.probe))
     report = {
         "evidence_kind": "combined_native_controls_vs_vendor_table_ranges",
         "input_hashes": hashes,
@@ -201,6 +206,7 @@ def main() -> int:
                 result.returncode
                 or len(events) != 1
                 or any(events[0].get(k) != v for k, v in expected_event.items())
+                or not loaded_provider_matches(events[0], args.dll)
             ):
                 raise ValueError("Unexpected oracle status or configuration.")
             actual = table_path.read_bytes()

@@ -72,6 +72,14 @@ int main(int argc, char **argv) {
     GenerateTables generate;
     memcpy(&generate, &address, sizeof(generate));
     generate(state, NULL, output);
+    char moon_path[MAX_PATH];
+    HMODULE moon = GetModuleHandleA("Moon2.dll");
+    DWORD moon_length = moon ? GetModuleFileNameA(moon, moon_path, MAX_PATH) : 0;
+    if (!moon_length || moon_length >= MAX_PATH) return 7;
+    for (DWORD i = 0; i < moon_length; ++i) {
+        if (moon_path[i] == '\\') moon_path[i] = '/';
+        if (moon_path[i] == '"' || (unsigned char)moon_path[i] < 32) return 7;
+    }
     int guards = 1;
     for (size_t i = 0; i < 16; ++i) {
         if (state[0x17f8 + i] != 0xa5 || output[0x34370 + i] != 0xa5) guards = 0;
@@ -88,10 +96,11 @@ int main(int argc, char **argv) {
     printf("{\"event\":\"kaiji_state\",\"output_bytes\":%lu,"
            "\"tone\":[%d,%d,%d,%d],\"model\":%d,\"strength\":%d,"
            "\"saturation\":%d,\"matrix\":%d,\"contrast\":%d,\"brightness\":%d,"
-           "\"guards_intact\":%s,\"success\":%s}\n",
+           "\"moon_path\":\"%s\",\"guards_intact\":%s,\"success\":%s}\n",
            written, settings[0], settings[1], settings[2], settings[3],
            settings[4], settings[5], settings[6], settings[7],
            settings[8], settings[9],
+           moon_path,
            guards ? "true" : "false", success ? "true" : "false");
     free(output);
     free(state);
