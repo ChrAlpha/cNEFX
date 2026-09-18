@@ -5,7 +5,7 @@ from __future__ import annotations
 import struct
 from collections.abc import Sequence
 
-from flexible_math import round_divide32
+from flexible_math import interpolate, round_divide32
 from kaiji_blender import blender_tables
 from kaiji_camera import camera_ranges
 from kaiji_contrast import contrast_tables
@@ -13,9 +13,11 @@ from kaiji_grading import grading_tables
 from kaiji_input import input_matrix
 from kaiji_tone import tone_tables
 
+from nx_ctudio.picture_curve import generate_curve
+
 
 def parameter_ranges(
-    coefficients: bytes, values: Sequence[int]
+    coefficients: bytes, values: Sequence[int], *, curve_payload: bytes | None = None
 ) -> list[tuple[int, bytes]]:
     """Generate model14/strength256/selector0/brightness6 parameter sections."""
     if len(values) != 41 or any(type(value) is not int for value in values):
@@ -48,13 +50,19 @@ def parameter_ranges(
         words(offset, row)
     for offset, row in zip((0x26044, 0x2A044), expanded, strict=True):
         words(offset, row, "i")
-    source, expanded_tone = tone_tables(
-        coefficients,
-        round_divide32(values[1] * 6, 5),
-        round_divide32(values[2] * 6, 5),
-        values[3],
-        values[4],
-    )
+    if curve_payload is None:
+        source, expanded_tone = tone_tables(
+            coefficients,
+            round_divide32(values[1] * 6, 5),
+            round_divide32(values[2] * 6, 5),
+            values[3],
+            values[4],
+        )
+    else:
+        source = generate_curve(curve_payload, sample_max=4095)
+        expanded_tone = tuple(
+            interpolate(source, i, interval_shift=4) for i in range(4096)
+        )
     words(0x2E044, source)
     words(0x2E246, expanded_tone)
     return result
@@ -66,15 +74,17 @@ def generate_table(
     *,
     blend_mix: int = 0,
     camera_index: int = 0,
+    curve_payload: bytes | None = None,
 ) -> bytes:
     """Build all 213872 bytes without a vendor-generated baseline.
 
     Camera state+152c/+1533/+153e stays zero; hue is128, family12,
-    model14, strength256, selector0, brightness6, and no custom tone curve.
+    model14, strength256, selector0, brightness6. An explicit custom curve replaces
+    highlights/shadows/white/black; its activation must be resolved by the caller.
     The leading output-space matrix remains zero, suitable for scalar RGB only.
     """
     values = tuple(values)
-    ranges = parameter_ranges(coefficients, values)
+    ranges = parameter_ranges(coefficients, values, curve_payload=curve_payload)
     ranges.extend(
         camera_ranges(
             coefficients,

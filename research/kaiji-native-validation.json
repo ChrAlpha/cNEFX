@@ -145,6 +145,19 @@
     "coverage": "Threshold neighbors in both inputs;20rows times13brightness values; all513contrast values at five table columns; all25saturation and41auxiliary values; four modes times109offsets;512seeded mixed inputs.",
     "limit": "Raw scalar inputs and the selector leaf are verified. Mapping real NEF/application fields into every argument remains incomplete; this is not a source-image rendering comparison."
   },
+  "np3_parameters_and_custom_curves": {
+    "runner": "tools/verify_kaiji_curve.py --complete-native",
+    "report": "kaiji-np3-complete-v1/report.json",
+    "sha256": "b0e2704123cd88e821744e5e97b7700d68d8fe392a7c959b4f05c050f9125f93",
+    "cases": 62,
+    "compared_bytes": 13260064,
+    "different_bytes": 0,
+    "all_vendor_native_sha256_pairs_equal": true,
+    "coverage": "Five public NP3 curves,18synthetic curve variants and8mixed nonzero color-control mutations; each tested with original and extreme tone controls.",
+    "vendor_path": "Nikon NP3 parsing, Flexible Color normalization and curve import; manual assignment into initialized model14/family12 state; complete table generation.",
+    "native_path": "Native NP3 parsing and normalization; explicit curve_payload into kaiji_table.generate_table.12-bit custom sampling replaces the highlights/shadows/white/black stage.",
+    "limit": "Custom-curve activation is explicit. Automatic adjustment, metadata-derived calibration and full application-state import are not established. This is complete table parity, not source-image rendering parity."
+  },
   "independent_review": {
     "scope": "Grading, Blender, tone, input matrix, contrast, curve import and evidence runners",
     "saved_replay": "276 cases and883536 values independently replayed; zero mismatches and50 invalid inputs rejected. Saved outputs, not fresh vendor execution.",

@@ -1,5 +1,6 @@
 """Require complete, nonoverlapping native composition without vendor fixtures."""
 
+import struct
 import sys
 from pathlib import Path
 
@@ -22,7 +23,7 @@ def sections():
 
 
 def setup_sections(monkeypatch, ranges):
-    monkeypatch.setattr(kaiji_table, "parameter_ranges", lambda *_: list(ranges))
+    monkeypatch.setattr(kaiji_table, "parameter_ranges", lambda *_, **__: list(ranges))
     monkeypatch.setattr(kaiji_table, "camera_ranges", lambda *_, **__: [])
 
 
@@ -55,3 +56,31 @@ def test_invalid_composition_is_rejected(monkeypatch, fault):
     setup_sections(monkeypatch, ranges)
     with pytest.raises(ValueError):
         kaiji_table.generate_table(b"", [0] * 39 + [50, 0])
+
+
+def test_explicit_curve_bypasses_four_tone_controls(monkeypatch):
+    monkeypatch.setattr(
+        kaiji_table, "grading_tables", lambda *_: (((0,) * 65,) * 3, ((0,) * 4096,) * 3)
+    )
+    monkeypatch.setattr(kaiji_table, "input_matrix", lambda *_: (0,) * 9)
+    monkeypatch.setattr(
+        kaiji_table, "blender_tables", lambda *_, **__: ((0,) * 32,) * 6
+    )
+    monkeypatch.setattr(
+        kaiji_table,
+        "contrast_tables",
+        lambda *_, **__: (((0,) * 257,) * 4, ((0,) * 4096,) * 2),
+    )
+
+    def reject_tone(*_):
+        raise AssertionError("Explicit curve must bypass tone generation.")
+
+    monkeypatch.setattr(kaiji_table, "tone_tables", reject_tone)
+    payload = bytearray(578)
+    payload[:13] = b"I0" + bytes((0, 255, 0, 255, 1, 0, 2, 0, 64, 255, 64))
+    values = [0, 100, -100, 100, -100] + [0] * 34 + [50, 0]
+    ranges = dict(
+        kaiji_table.parameter_ranges(b"", values, curve_payload=bytes(payload))
+    )
+    assert struct.unpack("<257H", ranges[0x2E044]) == (1028,) * 257
+    assert struct.unpack("<4096H", ranges[0x2E246]) == (1028,) * 4096

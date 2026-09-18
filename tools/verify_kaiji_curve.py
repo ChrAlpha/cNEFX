@@ -8,15 +8,38 @@ import json
 import os
 import struct
 import subprocess
+import sys
 from pathlib import Path
 
 from flexible_math import interpolate
-from inspect_np3 import parse
+from inspect_np3 import Record, parse, serialize
+from kaiji_grading import COEFFICIENT_HASH
 from kaiji_oracle import dependency_hashes, loaded_provider_matches
+from kaiji_table import generate_table
+from np3_parameters import normalize_flexible, parameter_blocks
+from verify_kaiji_composition import controls
 from verify_np3_header import DLL_HASH, digest, windows
 from verify_picture_curve import MATRIX_SHA256, ORACLE_SHA256, read_report
 
 from nx_ctudio.picture_curve import generate_curve
+
+
+def mixed_snapshot(snapshot: bytes, values: list[int]) -> bytes:
+    replacements = {
+        0x1900 + index * 256: bytes((128 + values[index], 1)) for index in range(1, 6)
+    }
+    replacements[0x1F00] = bytes(128 + v for v in values[6:30]) + bytes((1, 1, 1, 0))
+    replacements[0x2000] = b"".join(
+        (32768 + values[30 + i * 3]).to_bytes(2, "big")
+        + bytes((128 + values[31 + i * 3], 128 + values[32 + i * 3]))
+        for i in range(3)
+    ) + bytes((1, 1, 1, 0, 128 + values[39], 1, 128 + values[40], 1))
+    return serialize(
+        tuple(
+            Record(r.identifier, replacements.get(r.identifier, r.payload))
+            for r in parse(snapshot)
+        )
+    )
 
 
 def main() -> int:
@@ -32,7 +55,11 @@ def main() -> int:
         "output",
     ):
         parser.add_argument(f"--{name}", type=Path, required=True)
+    parser.add_argument("--complete-native", action="store_true")
+    parser.add_argument("--coefficients", type=Path)
     args = parser.parse_args()
+    if args.complete_native and args.coefficients is None:
+        parser.error("Complete native comparison requires external coefficients.")
     root = Path(__file__).resolve().parents[1]
     if args.output.exists() or args.output.resolve().is_relative_to(root):
         parser.error("Output must be a new directory outside the repository.")
@@ -48,14 +75,39 @@ def main() -> int:
         Path(__file__),
         root / "tools/probe_kaiji_curve.c",
         Path(generate_curve.__code__.co_filename),
+        Path(read_report.__code__.co_filename),
         root / "tools/flexible_math.py",
         root / "tools/inspect_np3.py",
         root / "tools/kaiji_oracle.py",
     ]
     hashes = {str(path.resolve()): digest(path) for path in paths}
     hashes.update(dependency_hashes(args.dll, args.probe))
+    coefficients = None
+    if args.complete_native:
+        coefficients = args.coefficients.read_bytes()
+        coefficient_hash = hashlib.sha256(coefficients).hexdigest()
+        if coefficient_hash != COEFFICIENT_HASH:
+            parser.error("Unexpected coefficient resource hash.")
+        hashes[str(args.coefficients.resolve())] = coefficient_hash
+        for name in (
+            "kaiji_table",
+            "kaiji_camera",
+            "kaiji_blender",
+            "kaiji_contrast",
+            "kaiji_grading",
+            "kaiji_input",
+            "kaiji_tone",
+            "np3_parameters",
+            "verify_kaiji_composition",
+        ):
+            path = Path(sys.modules[name].__file__).resolve()
+            hashes[str(path)] = digest(path)
     report = {
-        "evidence_kind": "native_custom_curve_vs_vendor_kaiji_replacement",
+        "evidence_kind": (
+            "native_np3_parameters_and_curve_vs_vendor_tables"
+            if args.complete_native
+            else "native_custom_curve_vs_vendor_kaiji_replacement"
+        ),
         "input_hashes": hashes,
         "oracle_sha256": ORACLE_SHA256,
         "matrix_sha256": MATRIX_SHA256,
@@ -65,17 +117,44 @@ def main() -> int:
             "Public NP3 curve import and recovered internal curve-list view.",
             "Complete application state and rendered images are not compared.",
             "Extreme-control comparison covers four tone controls only.",
+            "Normalized parameter assignment bypasses full application initialization.",
+            "Camera calibration fields stay zero; no source-image rendering.",
         ],
     }
     args.output.mkdir(parents=True)
     try:
+        if args.complete_native:
+            source, path = inputs[0]
+            snapshot = path.read_bytes()
+            if hashlib.sha256(snapshot).hexdigest() != source["source_sha256"]:
+                raise ValueError("Unexpected base NP3 snapshot.")
+            for index, values in enumerate(controls()[1:9]):
+                changed = mixed_snapshot(snapshot, values)
+                target = args.output / f"mixed-{index}.NP3"
+                with target.open("xb") as stream:
+                    stream.write(changed)
+                inputs.append(
+                    (
+                        {
+                            "name": f"mixed-{index}",
+                            "source_sha256": hashlib.sha256(changed).hexdigest(),
+                            "base_sha256": source["source_sha256"],
+                        },
+                        target,
+                    )
+                )
         for source, path in inputs:
             snapshot = path.read_bytes()
             source_hash = hashlib.sha256(snapshot).hexdigest()
             if source_hash != source["source_sha256"]:
                 raise ValueError("NP3 source differs from the pinned input.")
-            payload = next(
-                record.payload for record in parse(snapshot) if record.identifier == 2
+            records = parse(snapshot)
+            payloads = [record.payload for record in records if record.identifier == 2]
+            if len(payloads) != 1:
+                raise ValueError("Expected exactly one NP3 curve record.")
+            payload = payloads[0]
+            normalized_return, normalized_values = normalize_flexible(
+                parameter_blocks(records)["flexible"]
             )
             nodes = generate_curve(payload, sample_max=4095)
             expanded = tuple(
@@ -92,6 +171,7 @@ def main() -> int:
                         windows(path),
                         windows(output),
                         mode,
+                        *(["normalized"] if args.complete_native else []),
                     ],
                     cwd=args.dll.resolve().parent,
                     env=dict(
@@ -113,6 +193,7 @@ def main() -> int:
                     "name": source["name"],
                     "mode": mode,
                     "source_sha256": source_hash,
+                    "base_sha256": source.get("base_sha256"),
                     "returncode": result.returncode,
                     "events": events,
                     "stderr": result.stderr,
@@ -132,6 +213,12 @@ def main() -> int:
                     or not loaded_provider_matches(event, args.dll)
                 ):
                     raise ValueError("Custom-curve oracle status or guard failure.")
+                if args.complete_native and (
+                    event.get("normalized") is not True
+                    or event.get("normalization_return") != normalized_return
+                    or event.get("normalized_values") != normalized_values
+                ):
+                    raise ValueError("Unexpected vendor NP3 normalization.")
                 data = output.read_bytes()
                 if len(data) != 0x34370 or path.read_bytes() != snapshot:
                     raise ValueError("Output size or source stability failure.")
@@ -151,12 +238,32 @@ def main() -> int:
                     tone_controls_bypassed=actual == baseline,
                     passed=not any(differences) and actual == baseline,
                 )
+                if args.complete_native:
+                    values = normalized_values.copy()
+                    if mode == "extreme":
+                        values[1:5] = [100, -100, 100, -100]
+                    native = generate_table(coefficients, values, curve_payload=payload)
+                    if type(native) is not bytes or len(native) != 0x34370:
+                        raise ValueError("Incomplete native NP3 table.")
+                    different_bytes = sum(
+                        a != b for a, b in zip(native, data, strict=True)
+                    )
+                    with (args.output / f"{source['name']}-{mode}.native.bin").open(
+                        "xb"
+                    ) as stream:
+                        stream.write(native)
+                    case.update(
+                        native_sha256=hashlib.sha256(native).hexdigest(),
+                        different_bytes=different_bytes,
+                        compared_bytes=len(native),
+                        passed=case["passed"] and different_bytes == 0,
+                    )
         report["sources_unchanged"] = all(
             digest(Path(p)) == h for p, h in hashes.items()
         )
         report["compared_words"] = len(report["cases"]) * (257 + 4096)
         report["passed"] = (
-            len(report["cases"]) == 46
+            len(report["cases"]) == (62 if args.complete_native else 46)
             and report["sources_unchanged"]
             and all(case["passed"] for case in report["cases"])
         )
