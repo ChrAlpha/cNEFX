@@ -95,6 +95,20 @@
     "scalar_evaluator": "Rome0x2aee40(unused,r_index_pointer,g_index_pointer,b_index_pointer,context)",
     "evaluator_context": "KaijiEngine stores the scalar context at engine+0xe30: flag byte+0x00, processing flags+0x04, grid size+0x08, output-mode flags+0x0c, transfer mode+0x10, output channel pointers+0x18/+0x20/+0x28, generated table pointer+0x38 (engine+0xe68). The engine initializes these from fields+0xdd0,+0xdd4,+0x9c4,+0x9c0,+0xde8/+0xdf8/+0xe08 and generated table+0xe70. Scalar output is written as signed int16 channel planes at the 3D-grid index.",
     "engine_lifecycle": "CProfGen_KaijiEngine allocation is0x351e0 bytes. Constructor RVA0x28d200 sets the base vtable and default grid field+0xdd4 to32. Configuration RVA0x28d3d0 copies a0xdc8-byte engine configuration and derives the grid, then the preparation method RVA0x2ae7b0 allocates three signed16 channel planes of2*grid^3 bytes, creates the0x34370-byte generated table at+0xe70 and populates evaluator context. Calling RVA0x2aee40 without this lifecycle is not a valid renderer invocation.",
+    "scalar_mode_oracle": {
+      "evidence_kind": "live_unmodified_vendor_scalar_output_mode_probe",
+      "probe": "tools/probe_kaiji_scalar_mode.c",
+      "evaluator_rva": "0x2aee40",
+      "input": "Neutral family12 state, camera1071, grid32, generated table from0x29f0b0, input indices16/16/16.",
+      "flags": {
+        "0": {"values": [0, -32768, -32768], "guards_intact": true},
+        "1": {"values": [-31844, -31844, -31844], "guards_intact": true},
+        "2": {"values": [0, -32768, -32768], "guards_intact": true},
+        "3": {"values": [-31844, -31844, -31844], "guards_intact": true}
+      },
+      "interpretation": "context+0x0c bit0 selects the direct 16-bit output path; bit0 clear enters the transfer/matrix path. The signed values depend on incomplete object-level initialization and are not rendered-color validation.",
+      "limit": "Direct function probe only; complete engine configuration, image conversion and Lightroom acceptance remain unresolved."
+    },
     "generator_output": "Neutral live probe accepts a 0x17f8-byte writable state and writes a 0x34370-byte output buffer; state and output guards survived. Rome2 RVA0x29f0b0; see the bounded oracle below.",
     "output_layout": "Observed neutral output stores three 65-entry uint16 source LUTs at offsets0x4e,0xd0,0x152 and three 4096-entry uint16 LUTs at0x1d4,0x21d4,0x41d4. Additional camera/matrix and region tables begin around0x61d4 and extend through0x3236c; their semantic fields remain unresolved.",
     "grading": "Builds three65-node channel curves and expands to4096-entry LUTs. Evaluator reads these before its first color matrix.",
