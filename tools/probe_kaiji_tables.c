@@ -8,8 +8,8 @@
 typedef void (*GenerateTables)(void *, void *, void *);
 
 int main(int argc, char **argv) {
-    if (argc != 3) {
-        fprintf(stderr, "Usage: probe_kaiji_tables Rome2.dll output.bin\n");
+    if (argc != 3 && argc != 4) {
+        fprintf(stderr, "Usage: probe_kaiji_tables Rome2.dll output.bin [mode]\n");
         return 2;
     }
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
@@ -22,9 +22,24 @@ int main(int argc, char **argv) {
     memset(output + 0x34370, 0xa5, 16);
     *(uint32_t *)(state + 0x0c) = 1071;
     *(uint32_t *)(state + 0x151c) = 12;
-    *(uint16_t *)(state + 0x17ec) = 0;
+    *(uint32_t *)(state + 0x17ec) = 0x10000;
     *(uint16_t *)(state + 0x17ee) = 0;
-    *(uint16_t *)(state + 0x17f0) = 0;
+    *(uint16_t *)(state + 0x17f0) = 2;
+    const char *mode = argc == 4 ? argv[3] : "neutral";
+    if (!strcmp(mode, "blender-red-hue")) *(int32_t *)(state + 0x1764) = 64;
+    else if (!strcmp(mode, "blender-red-chroma")) *(int32_t *)(state + 0x1768) = 64;
+    else if (!strcmp(mode, "blender-red-brightness")) *(int32_t *)(state + 0x176c) = 64;
+    else if (!strcmp(mode, "grading-highlights-hue")) *(int32_t *)(state + 0x17c4) = 64;
+    else if (!strcmp(mode, "grading-highlights-chroma")) *(int32_t *)(state + 0x17c8) = 64;
+    else if (!strcmp(mode, "grading-highlights-brightness")) *(int32_t *)(state + 0x17cc) = 64;
+    else if (!strcmp(mode, "blending")) *(uint16_t *)(state + 0x17e8) = 64;
+    else if (!strcmp(mode, "balance")) *(int16_t *)(state + 0x17ea) = 64;
+    else if (strcmp(mode, "neutral")) {
+        free(output);
+        free(state);
+        FreeLibrary(module);
+        return 4;
+    }
     void *address = (uint8_t *)module + 0x29f0b0;
     GenerateTables generate;
     memcpy(&generate, &address, sizeof(generate));
@@ -42,9 +57,9 @@ int main(int argc, char **argv) {
             && written == 0x34370;
         CloseHandle(file);
     }
-    printf("{\"event\":\"kaiji_tables\",\"output_bytes\":%lu,"
+    printf("{\"event\":\"kaiji_tables\",\"mode\":\"%s\",\"output_bytes\":%lu,"
            "\"guards_intact\":%s,\"success\":%s}\n",
-           written, guards ? "true" : "false", success ? "true" : "false");
+           mode, written, guards ? "true" : "false", success ? "true" : "false");
     free(output);
     free(state);
     FreeLibrary(module);

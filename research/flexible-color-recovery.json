@@ -133,6 +133,28 @@
     "report_sha256": "4e2d91f7d1f56b5007f525739490606061fa1d7235f3b2cb327163e4ab8b04e7",
     "limit": "One neutral synthetic state; output bytes are an opaque vendor-derived artifact outside Git. This does not establish NP3 import mapping or rendered pixel parity."
   },
+  "single_knob_table_oracle": {
+    "evidence_kind": "live_unmodified_vendor_single_field_table_mutations",
+    "probe_sha256": "64ffb15202fbc27811e80e3b7a3d75d85063dc6923aeefa9577c4db06418714f",
+    "runner_sha256": "a40f3cc0b40ac985f999e1b770a86f879147f2e9e39e68d3e79f7dc5fea74afe",
+    "state_defaults": {"camera_id": 1071, "profile_family": 12, "grading_index_a": 65536, "grading_index_c": 2},
+    "mutation_value": 64,
+    "output_bytes": 213872,
+    "guards_intact": true,
+    "modes": {
+      "neutral": {"sha256": "b6baa6389b252bda4aad71876b426be2383cde4326e681d10a984861b2060248", "nonzero_bytes": 108755},
+      "blender_red_hue": {"offset": "0x1764", "sha256": "de7ad3e63cd7c234cb83e4dd2b8d178bc9ad94f489b7e1f9f129415243790d5f", "nonzero_bytes": 108767},
+      "blender_red_chroma": {"offset": "0x1768", "sha256": "b6baa6389b252bda4aad71876b426be2383cde4326e681d10a984861b2060248", "nonzero_bytes": 108755},
+      "blender_red_brightness": {"offset": "0x176c", "sha256": "3ca290f70dc9583cb78484ffd59a7796a783b5064c79335ce8cd7559f82456dc", "nonzero_bytes": 108746},
+      "grading_highlights_hue": {"offset": "0x17c4", "sha256": "dd33e55f07a272648d75de76d9a6c606a2b37893f5a58cb9ea68d992c79160a2", "nonzero_bytes": 108798},
+      "grading_highlights_chroma": {"offset": "0x17c8", "sha256": "b6baa6389b252bda4aad71876b426be2383cde4326e681d10a984861b2060248", "nonzero_bytes": 108755},
+      "grading_highlights_brightness": {"offset": "0x17cc", "sha256": "5ae27e67048641bf5dd8a5723a4320c51b820ca219c41d9fb9e84c7667964baf", "nonzero_bytes": 109277},
+      "blending": {"offset": "0x17e8", "sha256": "b6baa6389b252bda4aad71876b426be2383cde4326e681d10a984861b2060248", "nonzero_bytes": 108755},
+      "balance": {"offset": "0x17ea", "sha256": "b6baa6389b252bda4aad71876b426be2383cde4326e681d10a984861b2060248", "nonzero_bytes": 108755}
+    },
+    "interpretation": "With the recovered defaults, Blender hue/brightness and Grading hue/brightness mutate opaque generated tables. The tested chroma, blending and balance writes did not change this state/output; this is an observation, not proof those fields are ignored.",
+    "limit": "Generated table hashes only; NP3-to-state mapping, output table layout, coefficient semantics and rendered pixels remain unresolved."
+  },
   "integer_leaf_oracle": {
     "evidence_kind": "live_unmodified_vendor_integer_math_synthetic_cases",
     "native_model": "tools/flexible_math.py",

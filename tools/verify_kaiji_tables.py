@@ -21,6 +21,8 @@ def main() -> int:
     parser.add_argument("--probe", type=Path, required=True)
     parser.add_argument("--wine-prefix", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--mode", default="neutral")
+    parser.add_argument("--expected-sha256")
     args = parser.parse_args()
     if digest(args.dll) != ROME_HASH:
         parser.error("Unexpected Rome2.dll hash.")
@@ -35,6 +37,7 @@ def main() -> int:
             str(args.probe.resolve()),
             windows(args.dll),
             windows(args.output),
+            args.mode,
         ],
         cwd=args.dll.resolve().parent,
         env=dict(
@@ -55,6 +58,7 @@ def main() -> int:
         "runner_sha256": digest(Path(__file__)),
         "camera_id": 1071,
         "profile_family": 12,
+        "mode": args.mode,
         "output_bytes_expected": OUTPUT_BYTES,
         "output_path": str(args.output.resolve()),
         "returncode": result.returncode,
@@ -78,7 +82,10 @@ def main() -> int:
             events[0].get("success") is True
             and events[0].get("guards_intact") is True
             and len(data) == OUTPUT_BYTES
-            and report["output_sha256"] == OUTPUT_HASH
+            and (
+                args.expected_sha256 is None
+                or report["output_sha256"] == args.expected_sha256
+            )
         )
     print(json.dumps(report, indent=2))
     return 0 if report["passed"] else 1
