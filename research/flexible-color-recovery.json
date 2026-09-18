@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "observed_on": "2026-09-18",
-  "evidence_kind": "official_documentation_and_static_binary_entrypoint_inventory",
-  "status": "First-release scope confirmed; native rendering remains unimplemented",
+  "evidence_kind": "official_documentation_static_recovery_and_scoped_live_oracles",
+  "status": "Parameter normalization verified; full native rendering remains unimplemented",
   "official_sources": [
     {
       "url": "https://nikonimglib.com/nxstdo/onlinehelp/en/the_picture_controls_tool_22.html",
@@ -33,7 +33,7 @@
       ]
     }
   ],
-  "binary_scope": "NX Studio 1.10.1 Windows x86-64, static import/export tables only; no Picture Control vendor execution",
+  "binary_scope": "NX Studio 1.10.1 Windows x86-64; NP3 metadata/normalization live oracles in np3-format.json; rendering entry points remain static recovery",
   "modules": [
     {
       "filename": "Services/picture_control.n5m",
@@ -65,7 +65,17 @@
       "filename": "Rome2.dll",
       "sha256": "45c8b91ddd61a103711d755a57c45db4ce8431b9ec9ce7a1f4fac28fe25582e2",
       "relevant_ascii_markers": ["FlexibleColorParams", "CanEditFlexibleColor", "GetColorBlendingMode", "color_grading"],
-      "finding": "Markers identify investigation targets, not parameter layout or processing equations."
+      "finding": "NP3 normalization has scoped live evidence; actual table generation and scalar rendering are traced below."
+    },
+    {
+      "filename": "Moon2.dll",
+      "sha256": "f02f7499564c14f18933ee2b0bda961c25889f0240a30bfe042fa165ba2e8da0",
+      "coefficient_factory_rva": "0x2120",
+      "coefficient_factory_export": "?GetCoefTable@MIPU@@YAPEBVICoefTable@1@II@Z",
+      "abi": "table_pointer(uint32_engine,uint32_camera)",
+      "vtable_slots": {"release": "0x08", "engine": "0x10", "camera": "0x18", "size": "0x20", "data": "0x28"},
+      "resource_lookup": "prm.bin beside the executable, derived from GetModuleFileNameW(NULL)",
+      "z8_resource": "Engine0x1002,camera1071; see pixel-shift-resources.json for native decoding and hashes."
     }
   ],
   "existing_related_evidence": {
@@ -75,10 +85,55 @@
     "references": ["pixel-shift-adobe-defaults.json", "pixel-shift-adobe-matrix.json"],
     "limit": "The 26-case/21-ID Adobe default matrix does not test actual Flexible Color image processing."
   },
+  "rendering_path_static": {
+    "normalization": "Rome0x131b90 produces41int32 settings; live comparisons in np3-format.json.",
+    "state_access": "Rome0xe8e20 getter and0xe8ea0 setter; Picture Control current getter vtable0x4e0, original getter0x4d8; object+0x38 points to state, settings start at state+0xd0.",
+    "consumer": "Rome0x28a190 copies settings into MIPU TOP parameters.",
+    "parameter_initialization": "Rome0x29da10 populates Kaiji parameters: Blender triples+0x1764,Grading triples+0x17c4,blending uint16+0x17e8,balance int16+0x17ea.",
+    "table_generator": "Rome0x29f0b0(state,unused,output), with a0x34370-byte output; Flexible Color branch state+0x151c equals12; coefficients from Moon GetCoefTable(0x1002,camera).",
+    "scalar_evaluator": "Rome0x2aee40(unused,r_index_pointer,g_index_pointer,b_index_pointer,context)",
+    "evaluator_context": "Grid size+8,output channel pointers+0x18/+0x20/+0x28,generated table pointer+0x38.",
+    "grading": "Builds three65-node channel curves and expands to4096-entry LUTs. Evaluator reads these before its first color matrix.",
+    "blender": "Combines eight parameter regions into32-sector tables; separate positive/negative camera weights, coefficient-backed hue quadrant folding, and chroma baseline1024 with zero clamp.",
+    "limits": [
+      "No image or lattice rendering comparison has been run.",
+      "Camera-dependent tables and processing order require validation; generic HSL is not an established substitute.",
+      "Decompiler stack aliases require assembly and live single-parameter probes before confirming Grading group ordering.",
+      "Full valid parameter-state initialization and table output boundaries remain to be exercised."
+    ]
+  },
+  "coefficient_oracle": {
+    "evidence_kind": "live_unmodified_vendor_coefficient_api_vs_native_resource_decode",
+    "engine": "0x1002",
+    "camera": 1071,
+    "bytes_compared": 422416,
+    "different_bytes": 0,
+    "resource_sha256": "d44561f16bf877a264ecfbb947f5b6635d6b0e9151fa70ca601d9b131804822f",
+    "probe": "tools/probe_color_coefficients.c",
+    "runner": "tools/verify_color_coefficients.py",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/color-coefficients-v1/report.json",
+    "report_sha256": "e382d94cdee8a4c6124a44fe07bf0147c6b1cdf15a16d1a2623b2f0ac25cd7f0",
+    "limit": "Proves loading the same camera coefficient bytes, not generated tables or rendered colors."
+  },
+  "integer_leaf_oracle": {
+    "evidence_kind": "live_unmodified_vendor_integer_math_synthetic_cases",
+    "native_model": "tools/flexible_math.py",
+    "probe": "tools/probe_flexible_math.c",
+    "runner": "tools/verify_flexible_math.py",
+    "cases": 23186,
+    "actual_vendor_calls": 23157,
+    "rejected_unsafe_cases": 29,
+    "differences": 0,
+    "input_and_buffer_guards_unchanged": true,
+    "tests": "uv run pytest tests/test_flexible_math.py -q:35passed",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/flexible-math-v1/report.json",
+    "report_sha256": "ae509fdebe2d044d08c49f5477d198c5f91c7b3e9d511e68c94c6f7e1d7ee608",
+    "limit": "Signed rounding, clamp, five16-bit interpolation variants only; no image rendering."
+  },
   "next_experiments": [
-    "Recover custom-control parser/serializer entry points and NP3 container versioning.",
-    "Obtain controlled default and single-parameter exports with checksums; retain files outside Git.",
-    "Recover parameter scales, defaults, quantization, curve encoding and unknown-field preservation.",
+    "Recover full application-state initialization for the Kaiji color table generator.",
+    "Verify single-parameter generated table changes before porting the camera-dependent operations.",
+    "Implement and verify native custom-curve sampling from the recovered point and gamma model.",
     "Trace the native color-space and operation order for tone curves, Color Blender and Color Grading.",
     "Compare neutral ramps, color patches and edge patterns against an unmodified vendor oracle before claiming rendering fidelity.",
     "Test interaction with merged NEFX separately from parameter-file roundtrip and Lightroom interpretation."
