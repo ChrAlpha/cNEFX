@@ -29,7 +29,9 @@ def directories(path: Path) -> tuple[dict, dict, dict, dict]:
     return root, raw, maker, nef
 
 
-def validate(source: Path, output: Path, count: int) -> dict:
+def validate(
+    source: Path, output: Path, count: int, *, software: str = "NX Ctudio probe"
+) -> dict:
     before_root, before_raw, before_maker, before_nef = directories(source)
     root, raw, maker, nef = directories(output)
     scale = 2 if count in (16, 32) else 1
@@ -47,7 +49,7 @@ def validate(source: Path, output: Path, count: int) -> dict:
         "nikon_compression": maker[0x51][10:12] == b"\x0a\x00",
         "maker_deletions": all(tag not in maker for tag in (0x58, 0x96)),
         "nefinfo_deletions": all(tag not in nef for tag in (7, 15)),
-        "software": root[305] == "NX Ctudio probe",
+        "software": root[305] == software,
         "selector_preserved": maker[0x5E] == before_maker[0x5E],
         "capture_group_preserved": maker[0x56] == before_maker[0x56],
         "colorbalance_preserved": maker[0x97] == before_maker[0x97],
