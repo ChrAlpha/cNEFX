@@ -2,7 +2,7 @@
   "schema_version": 1,
   "observed_on": "2026-09-18",
   "evidence_kind": "official_documentation_static_recovery_and_scoped_live_oracles",
-  "status": "Native NP3 curves, Grading LUTs, Blender sector tables and selector-0 output conversion have scoped evidence; full rendering remains unimplemented",
+  "status": "Native NP3 curves, Grading/Blender tables, tone controls, input saturation matrix and selector-0 output conversion have scoped evidence; full rendering remains unimplemented",
   "official_sources": [
     {
       "url": "https://nikonimglib.com/nxstdo/onlinehelp/en/the_picture_controls_tool_22.html",
@@ -314,6 +314,31 @@
     "effect_strength": "KaijiParam+0x1520 comes from R2Y+0x492. Consumer uses256 for encoded255; otherwise signed truncation of((encoded-128)*256 with sign-dependent5 adjustment)/10. Zero initialization can mask saturation because generation multiplies the saturation coefficient delta by this strength.",
     "custom_curve": "At0x29f0b0, flag KaijiParam+0x1756 with pointer+0x678 selects a curve object, samples257 entries via0x151720 with output scale4096 and replaces the highlights/shadows/white/black source curve before expansion.",
     "limit": "Static field relationships only; complete live application import and constructor parity remain unverified."
+  },
+  "flexible_profile_blender_oracle": {
+    "evidence_kind": "native_blender_vs_live_vendor_table_generation",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/kaiji-blender-profile14-v1/report.json",
+    "report_sha256": "babf75129d89a65870ed2a83a790c709f04b6a64ebf7abcacfcc132881e6dcb8",
+    "model_index": 14,
+    "effect_strength": 256,
+    "cases": 61,
+    "compared_words": 11712,
+    "different_words": 0,
+    "base_coefficients": "0x1c528 + model_index*0x180; model14 is selected for Flexible profile ID0x20 by0x27dbe0.",
+    "limit": "Six32-sector Blender arrays with the recovered Flexible profile index and full strength. Other state defaults remain synthetic; complete application import and image rendering are not exercised."
+  },
+  "native_input_matrix_oracle": {
+    "evidence_kind": "native_input_vs_live_vendor_table_generation",
+    "implementation": "tools/kaiji_input.py",
+    "runner": "tools/verify_kaiji_grading.py --stage input --model-index 14",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/kaiji-input-matrix-v1/report.json",
+    "report_sha256": "5f4abcb4e915f3f29ef11fa4e74e71a39cbaecf6f5db377a7eaa95d0a884aa3a",
+    "cases": 45,
+    "coverage": "Saturation-50/-25/0/25/50, strength0/128/256 and coefficient matrix selector0/1/2.",
+    "compared_words": 405,
+    "different_words": 0,
+    "layout": "Nine signed16 words at output+0x61d4. Saturation factor from resource+0x62438+2*saturation is blended toward1024 by strength/256. First matrix row is copied; remaining six entries are scaled with signed rounding. Resource matrix entries are interleaved at0x5f424+6*entry+2*selector.",
+    "limit": "This is the initial fixed-point color matrix, not the nine-double RGB-to-XYZ output matrix. Image conversion, complete application state and selector naming remain unverified."
   },
   "np3_state_to_generator_oracle": {
     "evidence_kind": "live_unmodified_vendor_np3_normalized_state_to_kaiji_table_generation",

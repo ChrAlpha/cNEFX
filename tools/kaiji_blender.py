@@ -1,4 +1,4 @@
-"""Native 32-sector Blender tables for the pinned Z8 synthetic model-0 state."""
+"""Native 32-sector Blender tables for pinned Z8 model-0 and Flexible profiles."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ def _signed(value: int, bits: int) -> int:
 
 
 def blender_tables(
-    coefficients: bytes, regions: Sequence[Sequence[int]]
+    coefficients: bytes, regions: Sequence[Sequence[int]], *, model_index: int = 0
 ) -> tuple[tuple[int, ...], ...]:
     """Return six 32-word tables, before later engine-wide parameter blending."""
     if (
@@ -27,6 +27,8 @@ def blender_tables(
         raise ValueError("Expected eight hue/chroma/brightness triples.")
     if any(type(v) is not int or not -100 <= v <= 100 for row in regions for v in row):
         raise ValueError("Blender settings must be integers in [-100, 100].")
+    if type(model_index) is not int or model_index not in (0, 14):
+        raise ValueError("Only model indices 0 and 14 are supported.")
 
     def word(offset: int) -> int:
         return struct.unpack_from("<h", coefficients, offset)[0]
@@ -94,7 +96,10 @@ def blender_tables(
         sine = word(0x611E8 + sin_pos // step * 2) * sin_sign
         cosine = word(0x611E8 + cos_pos // step * 2) * cos_sign
         scale = max(0, _signed(chroma[sector] + 1024, 16))
-        base = [word(0x1C528 + channel * 64 + sector * 2) for channel in range(6)]
+        base = [
+            word(0x1C528 + model_index * 0x180 + channel * 64 + sector * 2)
+            for channel in range(6)
+        ]
         transformed = (
             base[0] * cosine - base[2] * sine,
             base[1] * cosine - base[3] * sine,

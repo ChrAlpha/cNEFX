@@ -18,20 +18,22 @@ static int read_state(const char *path, int32_t values[41]) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 4 && argc != 8) {
+    if (argc != 4 && argc != 8 && argc != 12) {
         fprintf(stderr, "Usage: probe_kaiji_state Rome2.dll state.bin output.bin "
-                "[highlights shadows white black]\n");
+                "[highlights shadows white black [model strength saturation matrix]]\n");
         return 2;
     }
-    int16_t tone[4] = {0};
-    if (argc == 8) for (int i = 0; i < 4; ++i) {
+    int16_t settings[8] = {0};
+    const int low[8] = {-120, -120, -100, -100, 0, 0, -50, 0};
+    const int high[8] = {120, 120, 100, 100, 14, 256, 50, 2};
+    for (int i = 0; i < argc - 4; ++i) {
         char *end = NULL;
         errno = 0;
         long value = strtol(argv[4 + i], &end, 10);
-        int limit = i < 2 ? 120 : 100;
-        if (errno || end == argv[4 + i] || *end || value < -limit || value > limit)
+        if (errno || end == argv[4 + i] || *end || value < low[i] || value > high[i])
             return 2;
-        tone[i] = (int16_t)value;
+        if (i == 4 && value != 0 && value != 14) return 2;
+        settings[i] = (int16_t)value;
     }
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
     HMODULE module = LoadLibraryA(argv[1]);
@@ -54,7 +56,13 @@ int main(int argc, char **argv) {
     memcpy(state + 0x17c4, values + 30, 9 * sizeof(int32_t));
     *(uint16_t *)(state + 0x17e8) = (uint16_t)values[39];
     *(int16_t *)(state + 0x17ea) = (int16_t)values[40];
-    if (argc == 8) memcpy(state + 0x1758, tone, sizeof(tone));
+    if (argc >= 8) memcpy(state + 0x1758, settings, 4 * sizeof(int16_t));
+    if (argc == 12) {
+        memcpy(state + 0x1518, settings + 4, sizeof(int16_t));
+        memcpy(state + 0x1520, settings + 5, sizeof(int16_t));
+        memcpy(state + 0x1760, settings + 6, sizeof(int16_t));
+        memcpy(state + 0x1524, settings + 7, sizeof(int16_t));
+    }
     void *address = (uint8_t *)module + 0x29f0b0;
     GenerateTables generate;
     memcpy(&generate, &address, sizeof(generate));
@@ -73,8 +81,10 @@ int main(int argc, char **argv) {
         CloseHandle(file);
     }
     printf("{\"event\":\"kaiji_state\",\"output_bytes\":%lu,"
-           "\"tone\":[%d,%d,%d,%d],\"guards_intact\":%s,\"success\":%s}\n",
-           written, tone[0], tone[1], tone[2], tone[3],
+           "\"tone\":[%d,%d,%d,%d],\"model\":%d,\"strength\":%d,"
+           "\"saturation\":%d,\"matrix\":%d,\"guards_intact\":%s,\"success\":%s}\n",
+           written, settings[0], settings[1], settings[2], settings[3],
+           settings[4], settings[5], settings[6], settings[7],
            guards ? "true" : "false", success ? "true" : "false");
     free(output);
     free(state);
