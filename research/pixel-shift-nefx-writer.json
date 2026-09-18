@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-18",
+  "evidence_kind": "static_writer_recovery_and_saved_synthetic_output_verification",
+  "dll_sha256": "c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c",
+  "functions": {
+    "metadata_update": "0x352860",
+    "software": "0x353320",
+    "center_scaling": "0x353460",
+    "crop_and_crc": "0x353770",
+    "optional_tag_0x68": "0x3539d0",
+    "private_preview": "0x354df0"
+  },
+  "raw_subifd": {
+    "ImageWidth_0x100": "Final cropped width.",
+    "ImageLength_0x101": "Final cropped height.",
+    "BitsPerSample_0x102": [14,14,14],
+    "Compression_0x103": 34713,
+    "PhotometricInterpretation_0x106": 2,
+    "SamplesPerPixel_0x115": 3,
+    "RowsPerStrip_0x116": "Final cropped height.",
+    "PlanarConfiguration_0x11c": 1,
+    "CFARepeatPatternDim_0x828d_and_CFAPattern_0x828e": "Preserved even though the result is three-channel RGB; they must not override the three-channel interpretation.",
+    "payload": "Nikon packed-14 RGB, with strip offsets and byte counts regenerated. Exact packing is separately exercised by the pixel comparisons."
+  },
+  "root": {
+    "Software_0x131": "Caller software string plus terminating NUL.",
+    "DateTime_0x132": "Host local time formatted YYYY:MM:DD HH:MM:SS; independent of capture timestamps, which remain preserved.",
+    "XMP_0x2bc": "Preserved byte-for-byte for per-output 4/16 inputs. Updated Adobe Camera Raw defaults for 8/32 inputs when present and nonempty.",
+    "optional_0xcd41": "Static-only: when present, count and scalar value are zeroed and the vector is cleared. Not present in this fixture."
+  },
+  "maker_note": {
+    "CropArea_0x45": "uint16[4] becomes [0,0,output_width,output_height].",
+    "Compression_0x51": "Bytes 10..11 become LE16 10.",
+    "Center_0x54": "For 16/32 inputs, signed little-endian int32 values at bytes 4 and 12 are doubled, independently of the optional correction flag.",
+    "removed": ["0x0058","0x0096"],
+    "AF_0xb7": "For 16/32 inputs, preserve bytes 0..7 and zero all following bytes.",
+    "optional_0x68": "Static-only: recognized version 0100 resets byte 4 to zero. Absent tags succeed; unsupported versions fail the writer helper. Malformed short payloads are unverified.",
+    "preserved_in_checked_files": ["0x0056 capture group/frame", "0x005e source mode and sparse selector", "0x0097 encrypted ColorBalance", "0x0023 PictureControl"],
+    "new_0x0e2d": {
+      "type": "UNDEFINED",
+      "count": 16,
+      "layout": "ASCII 0100 at bytes0..3; bytes4..5 are LE16 2; byte6 is the source mode byte from tag0x005e; byte7 maps per-output input counts4/8/16/32 to1/2/3/4; bytes8..15 are zero.",
+      "dynamic_limit": "Source and output mode match in the checked single-output sequences. Different source/output modes remain a static dataflow finding."
+    },
+    "new_0x0e2e": {
+      "type": "UNDEFINED",
+      "layout": "16-byte header: ASCII0100; LE32 payload offset16; LE16 width640; LE16 height424; bytes12..15=[3,14,14,14]. Followed by640*424*3 little-endian uint16 preview samples.",
+      "observed_total_bytes": 1628176,
+      "limit": "Header and payload size verified; preview numerical values and other embedded JPEG previews were not verified in this pass."
+    }
+  },
+  "nikon_nef_info_0xc7d5": {
+    "removed_children": ["0x0007 radial coefficients","0x000f"],
+    "child_8": "For16/32 inputs, double LE32 center values at bytes4 and12, then regenerate CRC over bytes0..21.",
+    "child_11": "Bytes4..11 become four LE16 values [0,0,output_width,output_height]; regenerate CRC over bytes0..11.",
+    "child_13": "Bytes4..5 become LE16 10; regenerate CRC over bytes0..5.",
+    "crc": "CRC-16 polynomial0x1021, initial0xffff, no reflection or final XOR; append little-endian uint16. All three checked output blocks have valid CRCs."
+  },
+  "verification": {
+    "tool": "tools/verify_nefx_metadata.py",
+    "comparison_tool": "tools/inspect_nefx_tags.py",
+    "outputs": 24,
+    "all_checks_passed": true,
+    "payload_tags_preserved_per_output": "217..219 in the traversed directories; raw metadata values are represented only by hashes.",
+    "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/nefx-metadata-report.json",
+    "report_sha256": "06a59bfdb02408280ee6f8ed562617e840c49c1d497030a52a8a990fe2f4fc4f",
+    "scope": "Reopened saved outputs from the synthetic sparse pipeline at both ISO sides and both correction settings. No new vendor execution was needed."
+  },
+  "remaining": [
+    "Next-IFD chains, Nikon preview IFD, JPEG generation, private preview numerical values, and serializer padding/alignment",
+    "Missing/short optional tags, malformed metadata, per-output source-mode divergence, and alternate metadata versions",
+    "Cancellation, path encoding and heap-string ownership edge cases",
+    "Authentic image metadata preservation and downstream Lightroom Classic interpretation"
+  ]
+}
