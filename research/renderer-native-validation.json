@@ -278,6 +278,18 @@
     "failed_evidence": "The earlier reversed-LUT pilot differs in120291words,max3188 and is retained externally. V9 capture failed before vendor initialization because compiler TLS required libwinpthread-1.dll; v10 uses Windows TLS. First formal replay rejected an overstrict unused-state assumption; corrected replay pins only observed meaningful fields.",
     "limit": "One source/control, green reference, Bayer1/0, even origin/dimensions, fixed gain and explicit halos only. Four calls are not four independent photographs. No generic border generation, fresh synthetic vendor spatial oracle, native source decoding, complete renderer or Lightroom acceptance is established."
   },
+  "native_highlight_halo": {
+    "implementation": "tools/renderer_highlight.py:tile_halo; tools/verify_renderer_highlight.py",
+    "report": "renderer-highlight-halo-native-v2/report.json",
+    "sha256": "75c4ffd5b46ad028fc8cc64f6e3bc64740fff082f9e0f79e343868c92d655f8e",
+    "evidence_kind": "saved_v10_Nr1_complete_image_to_native_halos_and_highlight",
+    "border_rule": "Fetch six neighboring pixels across internal tile boundaries. Clamp only at the complete upstream image boundary. Copy2ed740 clips against source extent, copies every intersecting tile, then border2ed440 repeats missing left/right pixels and top/bottom rows.",
+    "discrepancy_resolved": "The prior42top-word difference came from independently padding the first tile: seven channel values in neighboring columns210,211,213 repeated across six top rows. It was not a different vendor image-border rule. All311328captured input buffer words match halos generated from the assembled258x172Nr1image.",
+    "coverage": "The same four captured calls over two rectangles.20pixel comparisons total1376352words,including311328halo words and266256new image-to-final words;allzero differences.16table comparisons remain1048576words exact. Unique final coverage remains133128words,not a new photograph.",
+    "verification": "236input hashes stable;94focused tests pass. Tests cover horizontal/vertical internal boundaries,whole-image edge clipping,readonly/noncontiguous sources,invalid rectangles andbounded1036x1036halo allocation froma16384x16384broadcastsource.",
+    "independent_review": "No concrete defects.94tests and complete replay independently rerun,all236hashes andreport checksum match.1225additional valid rectangles match whole-image edgepadding over940800words. Fullsuite1254passed5.49s;scopedRuff/format,ASCII,JSON,diffchecks pass.",
+    "limit": "Nr1pixels still come fromvendor capture. Direct vendor evidence covers one258x172image withtwoeven-origin tiles;synthetic tile-subdivision tests do not establish other source cases orcomplete native rendering."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",

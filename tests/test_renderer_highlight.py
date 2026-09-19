@@ -8,7 +8,12 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from renderer_highlight import recover, transfer_tables, transform  # noqa: E402
+from renderer_highlight import (  # noqa: E402
+    recover,
+    tile_halo,
+    transfer_tables,
+    transform,
+)
 
 
 def _encode(value):
@@ -170,3 +175,95 @@ def test_readonly_noncontiguous_input_is_preserved_and_output_is_independent(fun
 def test_reject_incompatible_or_unsupported_tiles(function, padded):
     with pytest.raises(ValueError, match="even RGB16 tile dimensions"):
         function(padded)
+
+
+def test_halo_reads_across_tiles_and_only_clamps_complete_image_edges():
+    image = np.arange(16 * 20 * 3, dtype="<u2").reshape(16, 20, 3)
+    image.setflags(write=False)
+    for left, top, right, bottom in (
+        (0, 0, 8, 8),
+        (8, 0, 20, 8),
+        (0, 8, 8, 16),
+        (8, 8, 20, 16),
+        (6, 6, 12, 10),
+    ):
+        actual = tile_halo(image, (left, top, right, bottom))
+        expected = np.array(
+            [
+                [
+                    image[max(0, min(y, 15)), max(0, min(x, 19))]
+                    for x in range(left - 6, right + 6)
+                ]
+                for y in range(top - 6, bottom + 6)
+            ]
+        )
+        np.testing.assert_array_equal(actual, expected)
+        assert not np.shares_memory(image, actual)
+    local_padding = np.pad(image[:8, :8], ((6, 6), (6, 6), (0, 0)), mode="edge")
+    assert np.any(tile_halo(image, (0, 0, 8, 8)) != local_padding)
+
+
+def test_tiled_recovery_matches_complete_image_across_both_internal_boundaries():
+    image = np.random.default_rng(912).integers(15000, 17000, (24, 28, 3), dtype="<u2")
+    image = image[::-1, ::-1]
+    before = image.copy()
+    expected = transform(tile_halo(image, (0, 0, 28, 24)))
+    actual = np.zeros_like(image)
+    for top, bottom in ((0, 8), (8, 18), (18, 24)):
+        for left, right in ((0, 10), (10, 12), (12, 28)):
+            actual[top:bottom, left:right] = transform(
+                tile_halo(image, (left, top, right, bottom))
+            )
+    np.testing.assert_array_equal(actual, expected)
+    np.testing.assert_array_equal(image, before)
+
+
+@pytest.mark.parametrize(
+    "rectangle",
+    [
+        None,
+        [0, 0, 4, 4],
+        (0, 0, 4),
+        (False, 0, 4, 4),
+        (0.0, 0, 4, 4),
+        (1, 0, 5, 4),
+        (0, 1, 4, 5),
+        (-2, 0, 4, 4),
+        (0, 0, 0, 4),
+        (4, 0, 2, 4),
+        (0, 0, 6, 4),
+        (0, 0, 4, 6),
+    ],
+)
+def test_halo_rejects_invalid_rectangle(rectangle):
+    with pytest.raises(ValueError):
+        tile_halo(np.zeros((4, 4, 3), dtype="<u2"), rectangle)
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        None,
+        np.zeros((2, 2), dtype="<u2"),
+        np.zeros((2, 2, 4), dtype="<u2"),
+        np.zeros((0, 2, 3), dtype="<u2"),
+        np.zeros((3, 2, 3), dtype="<u2"),
+        np.zeros((2, 3, 3), dtype="<u2"),
+        np.zeros((16386, 2, 3), dtype="<u2"),
+        np.zeros((2, 16386, 3), dtype="<u2"),
+        np.zeros((2, 2, 3), dtype=">u2"),
+        np.zeros((2, 2, 3), dtype="<f4"),
+    ],
+)
+def test_halo_rejects_invalid_image(image):
+    with pytest.raises(ValueError, match="complete even RGB16"):
+        tile_halo(image, (0, 0, 2, 2))
+
+
+def test_halo_bounds_output_without_copying_whole_source_image():
+    image = np.broadcast_to(np.array([0, 15974, 16384], dtype="<u2"), (16384, 16384, 3))
+    padded = tile_halo(image, (8192, 8192, 9216, 9216))
+    assert padded.shape == (1036, 1036, 3)
+    assert padded.nbytes == 1036 * 1036 * 6
+    with pytest.raises(ValueError, match="bounded interior tile"):
+        tile_halo(image, (0, 0, 1026, 2))

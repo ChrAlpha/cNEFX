@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from renderer_highlight import recover, transfer_tables, transform
+from renderer_highlight import recover, tile_halo, transfer_tables, transform
 from verify_image_render import SRGB_HASH, validate_render_events
 from verify_image_sdk import PINNED, picture_controls, provider_paths
 from verify_np3_header import digest
@@ -122,6 +122,16 @@ def verify(args: argparse.Namespace, report: dict) -> None:
     encode, decode = transfer_tables()
     gain = np.minimum(np.arange(65536, dtype=np.int64) * 4, 65535).astype("<u2")
     coverage = np.zeros((172, 258), dtype=np.uint8)
+    upstream = np.zeros((172, 258, 3), dtype="<u2")
+    for rectangle, (nr1, _) in zip(RECTANGLES, STAGES):
+        left, top, right, bottom = rectangle
+        upstream[top:bottom, left:right] = pixels(
+            f"stage-{nr1}-nr1-output", (bottom - top, right - left, 3)
+        )
+        coverage[top:bottom, left:right] += 1
+    if not np.all(coverage == 1):
+        raise ValueError("Missing or overlapping complete upstream image coverage.")
+    coverage.fill(0)
     report["gain_only_different_words"] = 0
     for pair, (nr1, highlight) in enumerate(STAGES):
         rect = list(RECTANGLES[pair])
@@ -160,6 +170,7 @@ def verify(args: argparse.Namespace, report: dict) -> None:
             prefix = f"highlight-buffer-{index}"
             source = pixels(f"{prefix}-input", padded_shape)
             recovered = pixels(f"{prefix}-output", padded_shape)
+            generated_halo = tile_halo(upstream, tuple(rect))
             for name, table in (("forward", encode), ("inverse", decode)):
                 report["tables"].append(
                     {
@@ -169,9 +180,11 @@ def verify(args: argparse.Namespace, report: dict) -> None:
                     }
                 )
             for name, native, vendor in (
+                ("image-to-halo", generated_halo, source),
                 ("source-interior", source[6:-6, 6:-6], original),
                 ("recovery", recover(source), recovered[6:-6, 6:-6]),
                 ("final-stage", transform(source), target),
+                ("image-to-final", transform(generated_halo), target),
             ):
                 report["replays"].append(
                     {"buffer": index, "kind": name, **comparison(native, vendor)}
@@ -216,9 +229,10 @@ def main() -> int:
         "limits": [
             "Pinned v10 capture, one source/control, green reference and Bayer 1/0.",
             "Four calls cover two rectangles; repeated calls are not new images.",
-            "Even origin/dimensions, explicit six-pixel halo, Q10 gains 4096.",
+            "Even origin/dimensions, six-pixel halo, Q10 gains 4096.",
             "Saved stage replay only; no fresh vendor calls or native source decoding.",
-            "Borders, full rendering and Lightroom acceptance remain unverified.",
+            "Border parity covers this two-tile image; full rendering is unverified.",
+            "No Lightroom acceptance is established.",
         ],
     }
     try:

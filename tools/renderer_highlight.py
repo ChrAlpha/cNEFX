@@ -1,8 +1,8 @@
 """Native bounded green-reference highlight recovery with explicit six-pixel halo.
 
-Only the observed Bayer 1/0, even-origin RGB16 branch is covered. Halo pixels
-are supplied by the caller; source decoding and image-border extension are not
-inferred here.
+Only the observed Bayer 1/0, even-origin RGB16 branch is covered. The caller
+supplies either an explicit halo or a complete upstream RGB16 image. Source
+decoding is outside this module.
 """
 
 from __future__ import annotations
@@ -16,6 +16,40 @@ def transfer_tables() -> tuple[np.ndarray, np.ndarray]:
     encode = np.minimum(np.floor(np.sqrt(values) * 256 + 0.5), 65535).astype("<u2")
     decode = ((values * values + 32768) >> 16).astype("<u2")
     return encode, decode
+
+
+def tile_halo(image: np.ndarray, rectangle: tuple[int, int, int, int]) -> np.ndarray:
+    """Copy a tile and its neighbors, extending only at complete-image borders.
+
+    Rectangle coordinates are left, top, right, bottom in the complete upstream
+    image. Treating an already cropped tile as that image loses its neighbors.
+    """
+    if (
+        not isinstance(image, np.ndarray)
+        or image.ndim != 3
+        or image.shape[2] != 3
+        or image.dtype != np.dtype("<u2")
+        or any(not 2 <= size <= 16384 or size % 2 for size in image.shape[:2])
+    ):
+        raise ValueError("Expected a complete even RGB16 image up to 16384 per side.")
+    if (
+        type(rectangle) is not tuple
+        or len(rectangle) != 4
+        or any(type(value) is not int or value % 2 for value in rectangle)
+    ):
+        raise ValueError("Expected an even integer (left, top, right, bottom) tuple.")
+    left, top, right, bottom = rectangle
+    height, width = image.shape[:2]
+    if not (
+        0 <= left < right <= width
+        and 0 <= top < bottom <= height
+        and right - left <= 1024
+        and bottom - top <= 1024
+    ):
+        raise ValueError("Expected a bounded interior tile within the complete image.")
+    rows = np.clip(np.arange(top - 6, bottom + 6), 0, height - 1)
+    columns = np.clip(np.arange(left - 6, right + 6), 0, width - 1)
+    return image[rows[:, None], columns[None, :]]
 
 
 def _validate(padded: np.ndarray) -> None:
