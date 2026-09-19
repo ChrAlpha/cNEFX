@@ -32,6 +32,17 @@
     "coverage": "Two ordinary NEFs and12controlled metadata mutations. Native decode equals ExifTool; native3336byte import matches unmodified Nikon actual-file loader. Whitebalance fields and observed ISO property also match; allguards/providers pass.",
     "verification": "92focused tests pass;26live-report input hashes and4synthetic-report hashes rechecked. Scoped Ruff/format,ASCII/JSON/diff checks pass."
   },
+  "native_source_profile_integration": {
+    "runner": "tools/verify_image_sdk.py --kaiji --prepare-grid --renderer-profile --decryption-table PATH",
+    "report": "sdk-kaiji-native-decryption-v1/report.json",
+    "sha256": "a59cfdf870623cfcf857a8d976ba7d5a7ec6bfb76cec32f1a9722e5e0a56e58c",
+    "cases": 6,
+    "saved_decrypted_inputs": 0,
+    "coverage": "Two original NEFs times three NP3s. Native decrypt_source reads encrypted0097 and source keys,then source controls/blend/index feed complete native Mode3table/grid/ICC generation. Stored decoded hashes are comparison targets only; no decoded.bin inputs are read or hashed.",
+    "result": "1283232tablebytes,4943250Labwords and10037988ICCbytes match fresh vendor outputs. Tables,prepared tables,planes andICC are byte-identical to sdk-kaiji-renderer-native-v1.",
+    "verification": "All104input hashes stable.69focused tests pass; fullpytest822passed4.76s. Scoped Ruff/format,ASCII/JSON/diff pass.",
+    "limit": "Metadata report remains the source-case manifest and expected plaintext checksum oracle. Core decryption has no dependency on that report. External coefficients,calibration andICC template remain required."
+  },
   "limits": [
     "Native decryption requires the externally supplied pinned lookup table; no vendor runtime or Perl is used by the core.",
     "The transform has no authentication; wrong keys cannot be detected from the plaintext version header.",

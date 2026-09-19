@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 
 from color_inputs import source_blend_inputs
+from colorbalance import DECRYPT_TABLE_HASH, decrypt_source
 from image_controls import source_controls, verify_top
 from image_kaiji import verify_image_table, verify_prepared_grid
 from inspect_np3 import parse
@@ -185,6 +186,7 @@ def main() -> int:
     parser.add_argument("--blend-calibration", type=Path)
     parser.add_argument("--prepare-grid", action="store_true")
     parser.add_argument("--renderer-profile", action="store_true")
+    parser.add_argument("--decryption-table", type=Path)
     args = parser.parse_args()
     if args.renderer_profile and not args.prepare_grid:
         parser.error("--renderer-profile requires --prepare-grid.")
@@ -193,6 +195,13 @@ def main() -> int:
     if args.kaiji and (not args.picture_control or args.blend_calibration is None):
         parser.error("--kaiji requires --picture-control and --blend-calibration.")
     blend_calibration = args.blend_calibration.read_bytes() if args.kaiji else None
+    decoding_table = (
+        args.decryption_table.read_bytes() if args.decryption_table else None
+    )
+    if decoding_table is not None and (
+        hashlib.sha256(decoding_table).hexdigest() != DECRYPT_TABLE_HASH
+    ):
+        parser.error("Unexpected native ColorBalance decoding table.")
     if args.kaiji and hashlib.sha256(blend_calibration).hexdigest() != CALIBRATION_HASH:
         parser.error("Unexpected blend calibration hash.")
     root = Path(__file__).resolve().parents[1]
@@ -258,6 +267,8 @@ def main() -> int:
         *args.picture_control,
     ]
     hashes = {str(p.resolve()): digest(p) for p in paths}
+    if args.decryption_table:
+        hashes[str(args.decryption_table.resolve())] = DECRYPT_TABLE_HASH
     if args.kaiji:
         hashes[str(args.blend_calibration.resolve())] = CALIBRATION_HASH
         hashes.update(dependency_hashes(args.dll, args.probe))
@@ -276,14 +287,16 @@ def main() -> int:
         "kaiji_tables": args.kaiji,
         "prepared_grid": args.prepare_grid,
         "renderer_profile": args.renderer_profile,
+        "native_decryption": decoding_table is not None,
         "limits": [
             "Selected metadata fields and selector only, not complete TOP parity.",
             "Without --kaiji, other selector arguments remain SDK outputs "
             "and curve checks cover activation only.",
             "Kaiji comparison covers model14, full strength, matrix0, brightness6, "
             "no application EV adjustment and source ISO bucket6.",
-            "Blend inputs require source AUTO1/AUTO0 and decrypted ColorBalance0803; "
-            "application WB overrides and native decryption remain unimplemented.",
+            "Blend inputs require source AUTO1/AUTO0 and ColorBalance0803; "
+            "application WB overrides remain unimplemented.",
+            "Without --decryption-table, verified saved decoded metadata is reused.",
             "Calibration row0 and auxiliary selector22 are bounded observed defaults; "
             "general metadata derivation of those defaults remains unresolved.",
             "Selected Kaiji fields and complete tables, not every parameter byte.",
@@ -315,13 +328,16 @@ def main() -> int:
                 raise ValueError("Source photograph hash mismatch or ambiguity.")
             path = matches[0]
             index = source["index"]
-            decoded_path = args.metadata_report.parent / f"case{index}.decoded.bin"
-            decoded = decoded_path.read_bytes()
+            tree = _tiff.read(path.read_bytes())
+            if decoding_table is not None:
+                decoded = decrypt_source(tree, decoding_table)
+            else:
+                decoded_path = args.metadata_report.parent / f"case{index}.decoded.bin"
+                decoded = decoded_path.read_bytes()
+                hashes[str(decoded_path.resolve())] = digest(decoded_path)
             if hashlib.sha256(decoded).hexdigest() != source["decoded_block_sha256"]:
                 raise ValueError("Decoded ColorBalance hash mismatch.")
             hashes[str(path.resolve())] = source["source_sha256"]
-            hashes[str(decoded_path.resolve())] = digest(decoded_path)
-            tree = _tiff.read(path.read_bytes())
             expected = source_controls(tree, decoded, coefficients)
             blend_inputs = source_blend_inputs(tree, decoded) if args.kaiji else None
             picture = picture_controls(np3.read_bytes()) if np3 else None
