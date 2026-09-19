@@ -246,6 +246,13 @@
     "verification": "508 input hashes unchanged. 27 FFI/configuration tests,1159 full-suite tests, strictC11 capture build, scopedRuff/format,ASCII/JSON/diff checks passed. Native wrapper guards each row, checks input immutability, closes every profile and transform on errors; mocked failure tests do not claim numerical parity.",
     "limit": "One source/control and NKsRGB-to-NKsRGB,intent0,flags0 only. Linux2.6 build is hash-pinned and external; other builds/profile pairs require validation. This is saved final-stage pixel replay after fresh state capture, not a complete native source renderer or Lightroom acceptance."
   },
+  "lab_lch_lcms_independent_review": {
+    "scope": "aa85181 and066f752",
+    "evidence_kind": "independent_source_review_and_native_replay_no_Wine_or_Ghidra",
+    "finding": "No concrete defects found in the declared scope.61focused tests,scopedRuff/format,strictC11probe anddiffchecks passed. Both report hashes and258+508input hashes matched. Replayed all1231152LabLchoraclewords,266256capturedwords and133128nativeLCMSwords exactly with final-image coverage.",
+    "ffi": "Independent review confirmed ABI signatures,cleanup on interruption,input bounds and row-width independence across9252additional output words. Direct cancellation injection was promoted to a committed cleanup regression;28FFI/configuration tests pass.",
+    "limit": "No fresh vendor calls by the reviewer. Same bounded profiles,configuration and captured upstream-pixel limits."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",

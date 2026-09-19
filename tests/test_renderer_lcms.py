@@ -58,6 +58,8 @@ def ffi(tmp_path, monkeypatch):
             ctypes.c_uint16.from_address(target + width * 6).value = 0
         if state["fault"] == "process":
             raise RuntimeError("Injected processing failure")
+        if state["fault"] == "cancel":
+            raise KeyboardInterrupt
 
     def close(handle):
         state["closed"].append(handle)
@@ -86,12 +88,13 @@ def test_rows_are_guarded_input_is_immutable_and_handles_close(ffi):
 
 
 @pytest.mark.parametrize(
-    "fault", ["second_profile", "transform", "input", "guard", "process", "close"]
+    "fault",
+    ["second_profile", "transform", "input", "guard", "process", "cancel", "close"],
 )
 def test_failed_native_operations_release_every_created_handle(ffi, fault):
     library, profile, state = ffi
     state["fault"] = fault
-    with pytest.raises((ValueError, RuntimeError)):
+    with pytest.raises((ValueError, RuntimeError, KeyboardInterrupt)):
         renderer_lcms.transform(library, profile, np.zeros((4, 3), dtype="<u2"), 2)
     assert state["closed"] == state["opened"]
     assert state["destroyed"] == (
