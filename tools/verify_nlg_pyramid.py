@@ -11,6 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
+from nlg_filter import filter_domain
 from nlg_filter_domain import from_domain, to_domain, zero_strength
 from nlg_pyramid import spatial_planes
 from nlg_rgb_pyramid import downsample, reconstruct
@@ -25,6 +26,7 @@ from verify_renderer_vignette import auxiliary_events
 CAPTURE_HASH = "5f806d02d83a4e93bb4872f2debeebf7f47076c8bdd99160e31b534658496ad4"
 EXTRA_EVENTS = {"nlg_supplier", "nlg_generator", "nlg_pyramid", "nlg_pyramid_plane"}
 EXPECTED_TOTALS = {
+    "adaptive_filter": (2, 4260096),
     "zero_strength": (4, 1331280),
     "downsample": (10, 1418970),
     "reconstruction": (10, 5674710),
@@ -53,6 +55,17 @@ def zero_strength_parameters(raw: bytes) -> None:
         or raw[0xA9:0xAB] != b"\x00\x00"
     ):
         raise ValueError("Unsupported zero-strength RGB filter parameters.")
+
+
+def adaptive_parameters(raw: bytes) -> bytes:
+    if (
+        len(raw) != 0xB6
+        or raw[0] != 0
+        or raw[0x80:0x83] != b"\x01\x01\x01"
+        or not any(raw[0xA9:0xAB])
+    ):
+        raise ValueError("Unsupported adaptive RGB filter parameters.")
+    return raw[0x84:0xAB]
 
 
 def pyramid_events(events: list[dict]) -> dict:
@@ -123,6 +136,18 @@ def replay_pyramids(
     for offset in (0, 12):
         for index in range(offset + 2, offset + 7):
             rgb_parameters(parameters(index))
+            if index == offset + 2:
+                params = adaptive_parameters(parameters(index))
+                domain = to_domain(plane(index, "input", 7))
+                report["adaptive_filter"].append(
+                    {
+                        "index": index,
+                        **comparison(
+                            from_domain(filter_domain(domain, params)),
+                            plane(index, "output", 13),
+                        ),
+                    }
+                )
             if index in (offset + 3, offset + 4):
                 zero_strength_parameters(parameters(index))
                 domain = to_domain(plane(index, "input", 7))
@@ -304,6 +329,7 @@ def main() -> int:
     report = dict(
         evidence_kind="native_Nlg_RGB_transitions_and_spatial_planes_from_saved_pyramids",
         input_hashes={},
+        adaptive_filter=[],
         zero_strength=[],
         downsample=[],
         reconstruction=[],
@@ -314,7 +340,8 @@ def main() -> int:
         limits=[
             "RGB transitions and spatial recursion use saved inputs and parameters.",
             "Zero-strength branches include native domain conversion and clipping.",
-            "Initial Bayer-to-RGB and adaptive filtering remain unreconstructed.",
+            "One captured adaptive-filter block; no source parameter recovery.",
+            "Initial Bayer-to-RGB remains unreconstructed.",
             "Two executions of one Z8 source/control; no additional photograph.",
             "Observed spatial-plane branch only; no full renderer or Lightroom test.",
         ],

@@ -142,7 +142,8 @@ def arguments(tmp_path, monkeypatch, output):
 
 @pytest.mark.parametrize("error,code", [(ValueError, 1), (KeyboardInterrupt, 130)])
 @pytest.mark.parametrize(
-    "group", ["levels", "downsample", "reconstruction", "zero_strength"]
+    "group",
+    ["levels", "downsample", "reconstruction", "zero_strength", "adaptive_filter"],
 )
 def test_partial_evidence_survives_failure(
     tmp_path, monkeypatch, capsys, error, code, group
@@ -179,6 +180,7 @@ def test_no_overwrite_or_repository_output(tmp_path, monkeypatch, location):
 
 
 SMALL_TOTALS = {
+    "adaptive_filter": (2, 24576),
     "zero_strength": (4, 7680),
     "downsample": (10, 8184),
     "reconstruction": (10, 32736),
@@ -199,6 +201,8 @@ def small_capture():
             planes[index, "output", 12] = np.full(
                 (width // 2, width // 2, 3), 100 + index, dtype="<u2"
             )
+            if level == 2:
+                planes[index, "input", 7] = planes[index, "output", 13].copy()
             if level in (3, 4):
                 planes[index, "input", 7] = np.broadcast_to(
                     np.array([16383, 0, 0], dtype="<u2"), (width, width, 3)
@@ -228,8 +232,10 @@ def small_capture():
         for level in range(2, 13):
             raw = bytearray(0xB6)
             raw[0xAC:0xB0] = b"\x01\x01\x01\x01"
-            if level in (3, 4):
+            if level in (2, 3, 4):
                 raw[0x80:0x83] = b"\x01\x01\x01"
+            if level == 2:
+                raw[0xAA] = 31
             raw[0xB3] = int(level != 7)
             raw[0xB4] = 1
             parameters[offset + level] = bytes(raw)
@@ -253,6 +259,7 @@ def replay_small_capture(monkeypatch):
 
 def test_replay_integrates_both_rgb_sequences_and_recursive_spatial_checks(monkeypatch):
     assert verifier.EXPECTED_TOTALS == {
+        "adaptive_filter": (2, 4260096),
         "zero_strength": (4, 1331280),
         "downsample": (10, 1418970),
         "reconstruction": (10, 5674710),
@@ -291,6 +298,7 @@ def test_replay_integrates_both_rgb_sequences_and_recursive_spatial_checks(monke
         23,
     ]
     assert [r["index"] for r in report["zero_strength"]] == [3, 4, 15, 16]
+    assert [r["index"] for r in report["adaptive_filter"]] == [2, 14]
 
 
 @pytest.mark.parametrize("group", tuple(SMALL_TOTALS))
@@ -378,4 +386,38 @@ def test_zero_strength_replay_detects_different_captured_pixels(monkeypatch):
     )
     verifier.summarize(report)
     assert report["zero_strength"][0]["different_words"] == 32 * 32 * 3
+    assert report["passed"] is False
+
+
+@pytest.mark.parametrize("offset", [0, 0x80, 0x81, 0x82, 0xAA])
+def test_adaptive_filter_rejects_different_control_branch(offset):
+    planes, parameters, grids = small_capture()
+    raw = bytearray(parameters[2])
+    raw[offset] = 1 if offset == 0 else 0
+    parameters[2] = bytes(raw)
+    report = {key: [] for key in SMALL_TOTALS}
+    with pytest.raises(ValueError, match="adaptive"):
+        verifier.replay_pyramids(
+            lambda i, phase, slot: planes[i, phase, slot],
+            parameters.__getitem__,
+            grids,
+            report,
+        )
+    assert report["adaptive_filter"] == []
+
+
+def test_adaptive_filter_replay_detects_changed_pixels(monkeypatch):
+    planes, parameters, grids = small_capture()
+    planes[2, "input", 7] = np.zeros_like(planes[2, "input", 7])
+    report = {key: [] for key in SMALL_TOTALS}
+    report.update(sources_unchanged=True, capture_providers=list(range(28)))
+    monkeypatch.setattr(verifier, "EXPECTED_TOTALS", SMALL_TOTALS)
+    verifier.replay_pyramids(
+        lambda i, phase, slot: planes[i, phase, slot],
+        parameters.__getitem__,
+        grids,
+        report,
+    )
+    verifier.summarize(report)
+    assert report["adaptive_filter"][0]["different_words"] == 64 * 64 * 3
     assert report["passed"] is False

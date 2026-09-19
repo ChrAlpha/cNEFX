@@ -124,10 +124,10 @@
       "verification": "All 91 hashes independently rechecked. Thirteen loaded vendor provider paths validated. Read-only inputs, descriptors, owners and contexts; row/padding canaries, page guards, unchanged MXCSR and cleanup pass. Strict C11 compilation and scoped Ruff/format checks pass.",
       "limits": "Scalar conversion leaves only, with zero ring cursors. This does not establish adaptive-filter, scalar/SIMD or full-SDK parity."
     },
-    "limits": "Full-strength spatial filtering, source parameter recovery and initial Bayer handling remain outside this implementation. The captured branch does not establish general scalar/SIMD equivalence."
+    "limits": "This module covers domain conversion and zero-strength clipping. The separate bounded adaptive-filter implementation is recorded below. Source parameter recovery and initial Bayer handling remain incomplete."
   },
   "adaptive_filter_recovery": {
-    "status": "Static mapping only; nonzero-strength native implementation pending",
+    "status": "Bounded native scalar arithmetic implemented and replayed; source parameter recovery remains incomplete",
     "chain": "0x103ee0 -> 0x106a30 -> task vtable 0xaf7a48 -> 0x109850 -> 0x10a890 -> 0x10ce90 -> scalar 0x106cc0",
     "parameters": "Filter block starts at level +0x84. u16 small bases/cutoffs at 0/2/4/6, u8 slopes at 8/9; u16 large bases/cutoffs at 0xa/0xc/0xe/0x10, u8 slopes at 0x12/0x13; impulse modes 0x14/0x15 and u16 thresholds 0x16/0x18; small shifts 0x1a..0x1c; u16 directional blend bounds 0x1e/0x20; large shifts 0x22..0x24; final Y/C strengths 0x25/0x26.",
     "neighborhood": "Nonlinear 5x5 directional and isotropic responses. Activity uses Y>>2 and chroma>>3; direction scores weight Y by four and diagonals by 35/32. Border helper 0x720b0 reflects without repeating edges. Final strength divisions truncate toward zero.",
@@ -139,7 +139,42 @@
       "coverage": "Nineteen guarded scalar cases retain 111816 filter output words. Native reflected padding matches helper 0x720b0 across 224832 words; native zero-strength clipping matches 1941 words. All 143 hashes independently rechecked.",
       "limits": "Passing records guarded vendor execution, padding and zero-strength comparisons. It does not establish native adaptive-filter parity. Level-2 synthetic cases did not trigger chroma correction; low-amplitude chroma coverage is still needed. Blend tables use the recovered setup formula."
     },
-    "limits": "Intermediate signed narrowing and rounding require vendor-oracle validation. Static mapping alone is not native filter correctness or full-render evidence."
+    "limits": "Large parameter shifts and thresholds, out-of-range domain values, general scalar/SIMD equivalence and full-render behavior remain outside the validated native contract."
+  },
+  "native_adaptive_filter": {
+    "implementation": "tools/nlg_filter.py; tools/verify_nlg_pyramid.py",
+    "report": "nlg-pyramid-filter-native-v2/report.json",
+    "sha256": "78ee685840a1e556e5c4b4a9aaa733faa2f897dc8c91b1a71f9230051ae52c4d",
+    "coverage": "Captured indices 2 and 14 each replay the complete 1032x688 RGB stage through native domain conversion, nonzero-strength filtering and inverse conversion. All 4260096 words match. This is two executions of one photograph/control. All earlier pyramid comparison groups remain exact; 990 input hashes and 28 provider paths are validated.",
+    "bounds": "Little-endian int32 Y/Cb/Cr arrays, axes 1..2048. Nonzero strengths require Y 0..8190 and chroma -6143..6142. The 39-byte filter block requires strengths <=31, impulse thresholds <=4095 and chroma weighting left shifts <=8. Unsupported values fail explicitly. Zero strengths preserve the previously established full 16-bit domain clipping.",
+    "arithmetic": "Preserves per-column activity truncations, joint chroma diagonal scaling, direction tie precedence, asymmetric impulse threshold equality, isotropic 3x3 and directional five-sample responses, large 5x5 response, signed rounding, truncation toward zero and intermediate clamps. Vectorized processing evaluates sixteen rows per batch.",
+    "synthetic_replays": [
+      {
+        "capture": "nlg-filter-active-v1/report.json",
+        "capture_sha256": "b600af4d21a66d06b925c9ec28b63de433fa469d651b2907e11cad8500bb8dc2",
+        "report": "nlg-filter-native-v1/report.json",
+        "sha256": "a7b9af17ed008e06edad098efcd791a71ddb0c33c754a90b9a9cb923e4329ef7",
+        "coverage": "51 cases, 150264 words exact, 338 stable hashes. Low-amplitude noise activates level-2 chroma correction in 4008 Cb and 4020 Cr words. Both impulse modes and signed threshold equality are covered."
+      },
+      {
+        "capture": "nlg-filter-blend-v1/report.json",
+        "capture_sha256": "e5fd6af924be93e3dc57f3204949b84b4e79ce0f0041ac8ad6d4e7fbff6e1d5e",
+        "report": "nlg-filter-blend-native-v1/report.json",
+        "sha256": "c320c839ae31dcfdedc33028c8da5034c088ac7fd75ec573d6d376cbb4305533",
+        "coverage": "Eight additional directional cases, 7752 words exact, 80 stable hashes."
+      },
+      {
+        "capture": "nlg-filter-blend-high-v1/report.json",
+        "capture_sha256": "847aa9b7038ff33b782cd7102af84e745ac7265c4a17138b05f66bf8853c14f0",
+        "report": "nlg-filter-blend-high-native-v1/report.json",
+        "sha256": "e0d03735eba3184476d87d0560f585bd7f972bac7dfeeabee38f81ec98ea1d58",
+        "coverage": "Two targeted cases, 1938 words exact, 44 stable hashes. Native activity counters include 278 weight-5, 219 weight-6 and 42 weight-7 pixels. Together the three corpora exercise all four directions and weights 0..8. Counters describe native arithmetic, not a vendor branch trace."
+      }
+    ],
+    "regression_vectors": "tests/fixtures/nlg_filter_vectors.json retains synthetic vendor facts and report hashes. Tests cover active chroma, directional crops, both impulse modes at signed threshold boundaries, high blend weights, noncontiguous read-only inputs, sixteen-row batch boundaries and unsupported numeric contracts.",
+    "verification": "1877 full-suite tests pass in 7.61 seconds, including 65 direct filter tests. Scoped Ruff/format, ASCII/JSON, file-size and diff checks pass. Every recorded hash in the photograph and all three synthetic native reports was independently rechecked after execution.",
+    "review": "Independent scalar-prototype review confirmed captured arithmetic and found unchecked threshold/shift narrowing outside the observed domain. The repository implementation adds explicit bounds for those cases. A fresh review of the vectorized repository diff remains pending.",
+    "limits": "Source parameters are still captured. No initial Bayer synthesis, complete source-derived Nlg pyramid, full renderer, authentic pixel-shift NEFX or Lightroom acceptance is established."
   },
   "initial_bayer_recovery": {
     "status": "Static findings; native implementation and direct vendor comparison pending",
