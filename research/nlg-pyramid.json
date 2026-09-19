@@ -115,6 +115,15 @@
     "zero_strength": "With both strengths zero, scalar 0x106cc0 still clamps Y to [0,8190] and both chroma channels to [-6143,6142]. The native helper implements only this branch, without the adaptive neighborhood calculation.",
     "coverage": "Four captured stages, indices 3/4/15/16, compare 1331280 words exactly. Parameter length 0xb6, initial flag 0, conversion bytes 0x80..0x82 all 1 and strengths 0xa9/0xaa both 0 are required. All previous scale/plane comparison groups remain exact.",
     "verification": "1800 full-suite tests pass in 5.85 seconds. Independent static review found no defects; 203 focused tests and the formal replay were independently run. All 989 recorded hashes independently rechecked, original lifecycle and 28 providers pass.",
+    "synthetic_vendor_oracle": {
+      "report": "nlg-domain-synthetic-v1/report.json",
+      "sha256": "ff6c7fda07913c419861026a04c64d52ff248d2febb26ea51d8356a4a03533b1",
+      "probe_source": "probe_nlg_domain.c",
+      "runner": "nlg_domain_oracle.py",
+      "coverage": "Twenty-three cases compare 715434 forward and 715434 inverse words with zero differences. Inverse inputs are independent, with complete individual unsigned-luma and signed-chroma channel sweeps, negative half ties, clipping, odd/even and singleton dimensions up to 128.",
+      "verification": "All 91 hashes independently rechecked. Thirteen loaded vendor provider paths validated. Read-only inputs, descriptors, owners and contexts; row/padding canaries, page guards, unchanged MXCSR and cleanup pass. Strict C11 compilation and scoped Ruff/format checks pass.",
+      "limits": "Scalar conversion leaves only, with zero ring cursors. This does not establish adaptive-filter, scalar/SIMD or full-SDK parity."
+    },
     "limits": "Full-strength spatial filtering, source parameter recovery and initial Bayer handling remain outside this implementation. The captured branch does not establish general scalar/SIMD equivalence."
   },
   "adaptive_filter_recovery": {
