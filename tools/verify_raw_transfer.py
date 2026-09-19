@@ -155,15 +155,20 @@ def main() -> int:
         )
     except (OSError, ValueError, TypeError) as exc:
         report["error"] = str(exc)
-    with (args.output / "report.json").open("x") as stream:
-        json.dump(report, stream, indent=2)
-        stream.write("\n")
+    except KeyboardInterrupt:
+        report.update(
+            passed=False, cancelled=True, error="Transfer verification cancelled."
+        )
+    finally:
+        with (args.output / "report.json").open("x") as stream:
+            json.dump(report, stream, indent=2)
+            stream.write("\n")
     print(
         json.dumps(
             {"passed": report["passed"], "report": str(args.output / "report.json")}
         )
     )
-    return 0 if report["passed"] else 1
+    return 130 if report.get("cancelled") else (0 if report["passed"] else 1)
 
 
 if __name__ == "__main__":
