@@ -206,6 +206,30 @@
     "verification": "517 input hashes and both generated artifacts unchanged. 106 focused tests, 1098 full-suite tests, scoped Ruff/format, ASCII/JSON and diff checks passed. Separate source_table replay compared all six earlier source/control tables, 1283232 bytes, with zero differences.",
     "limit": "Saved capture replay, no fresh vendor execution. Nlg input pixels still come from vendor captures. External coefficients/calibration/decoding table, ICC template, destination ICC and captured profile text remain required. This establishes bounded CMS0 composition, not source preprocessing, later Lab/Lch, full native rendering, NEFX authenticity or Lightroom acceptance."
   },
+  "native_cms0_independent_review": {
+    "scope": "6fee700 and c8b6fbd",
+    "evidence_kind": "independent_source_review_and_fresh_native_saved_replay_no_Wine",
+    "report": "cms0-independent-review-20260919-v1/report.json",
+    "sha256": "ac807710a17281424dbfc32d506b90188fdf49afbe625e8393fe1b1ce9c92791",
+    "finding": "No concrete defects within the declared bounded scope. 172 focused tests and all 517+286+262 input hashes passed. Independently regenerated every CMS0 numerical artifact and replayed the captured tiles exactly; six source/control tables also match. Additional ICC review passed 120 tests, all 12 captured parameters, and 140 curve probes without an accepted-array contract failure.",
+    "limit": "Captured Nlg pixels, profile text and pinned resources remain inputs. No full native source rendering or authentic NEFX/Lightroom acceptance."
+  },
+  "native_lab_lch": {
+    "implementation": "tools/renderer_lch.py; tools/verify_renderer_lch.py; existing guarded tools/probe_cml.c",
+    "interface": "lab_to_lch(pixels), lch_to_lab(pixels); nonempty packed little-endian uint16(N,3), L channel unchanged.",
+    "report": "renderer-lch-native-v2/report.json",
+    "sha256": "78ff15b0f5dad2441237179c8bfc4d59a38b09c312f1023d4a0c8b48e8f06db1",
+    "evidence_kind": "fresh_CML_profile_export_calls_and_saved_stage_replay_vs_native",
+    "dispatch": "CMS selector3 runs RGBLab matrix then CML Lab/Lch; selector4 runs CML Lch/Lab then LabRGB matrix. CML dispatchers 0x9940/0x9bf0 use 0x9510 for forward and 0x9180 for inverse. Forward SIMD leaves 0xf4b0/0x11180 are covered; scalar fallback 0xff80 is excluded.",
+    "forward": "Subtract32768 from a/b, float32 magnitude and sqrt, nearest-even chroma. Ratio index is nearest-even(8192*min(abs(a),abs(b))/max). Atan table has8193 entries floor(atan2(i,8192)*10430.378350470453+0.5), followed by quadrant folding. Neutral C=h=0.",
+    "inverse": "Angle=h*9.587379924285257e-05. Signed Q15 tables truncate min(sin/cos(angle)*32768,32767). Hue-dependent chroma limit truncates32768/max(abs(sin),abs(cos)). Products divide32768 toward zero, then add32768. Integer signed division avoids floor bias for negative components.",
+    "coverage": "20 fresh export calls cover pixel counts1..9 and large batches in each direction, all65536 hues at five chroma levels, all8193 forward ratio coordinates in eight octants, integer corners and seeded random samples. Existing probe checks exact provider path, lifecycle, buffer guards, input immutability and cleanup. Four v4 stage comparisons validate selectors, formats, object identities and tile extents; all other inner calls must succeed and remain recorded.",
+    "live_pixel_words": 1231152,
+    "saved_pixel_words": 266256,
+    "different_words": 0,
+    "verification": "258 input hashes unchanged. 34 focused tests, 1132 full-suite tests, strict C11 probe compilation, scoped Ruff/format, ASCII/JSON and diff checks passed. Independent exploratory recovery also replayed28older blocks/2572608words exactly; that wider pilot is separate from this formal report.",
+    "limit": "Pinned Lab294-byte and NKLch2 identity profiles only; no arbitrary profile grids or curves. Tables use host NumPy transcendental math. Fresh export calls are single rows, with counts covering SIMD tails. No final LittleCMS stage, native source preprocessing, full-image or Lightroom acceptance."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",
