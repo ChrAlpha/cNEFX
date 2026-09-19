@@ -189,6 +189,23 @@
     "verification": "156 focused tests and 992 full-suite tests passed. Scoped Ruff/format, ASCII/JSON and diff checks passed. Independent review replayed all v1 parameters and pixels exactly, but found accepted samples [0,65534,65535] expand into 192 decreasing adjacent pairs. The new failing-before/passing-after regression rejects such expansions without smoothing. Both v2 live oracles were rerun after the fix.",
     "limit": "One external NKsRGB profile is validated against captured parameters. Sampled curves and matrices remain bounded; unsupported ICC variants fail closed. No fresh complete cms0 composition, later CML Lab/Lch, source preprocessing, full native rendering or Lightroom acceptance."
   },
+  "native_cms0_composition": {
+    "implementation": "tools/renderer_cms.py; tools/verify_renderer_cms.py",
+    "interface": "source_table(NEF,NP3,external resources), source_profile(table,template,text), convert(source ICC,destination ICC,RGB16,width).",
+    "report": "cms0-native-source-v1/report.json",
+    "sha256": "5d838e901a99417d396cc4bba84da4d2a7e65e24fb98fa621e5d9156349a1cc2",
+    "evidence_kind": "saved_CMS0_capture_vs_fresh_native_source_metadata_and_parameters",
+    "pipeline": "NEF TIFF metadata -> native ColorBalance decryption -> source WB/ISO and NP3 settings -> native index/blend/table -> all native grid65 planes -> native ICC -> normalized LUTRGBLab -> native destination ICC matrix/TRCs -> LabRGB. Saved tables, profiles, matrices and curves are comparison targets only.",
+    "generation": {"table_bytes": 213872, "profile_bytes": 1672998, "parameter_words": 2359404, "differences": 0},
+    "capture_pairs": [{"nlg": 477, "inner": 691, "cms": null, "width": 208, "height": 208}, {"nlg": 2537, "inner": 2543, "cms": 2539, "width": 208, "height": 172}, {"nlg": 2538, "inner": 2544, "cms": 2540, "width": 50, "height": 172}],
+    "intermediate_lab_words": 262920,
+    "composed_rgb_words": 262920,
+    "outer_cms_output_words": 133128,
+    "different_words": 0,
+    "capture_contract": "V4 only; one source/vanilla control. Original lifecycle and provider checks pass after removing exactly three instrumentation event types. Every recorded stage and all 12 inner calls validate; nine excluded inner calls retain status and bit-exact ICC parameter evidence. Three matched CMS0 objects require selector6, disabled CML state and captured matrix-object identity. Order is state+730 LUTRGBLab then state+720 LabRGB. Nlg477 lacks an outer output snapshot; its inner object is linked through stage672 state.",
+    "verification": "517 input hashes and both generated artifacts unchanged. 106 focused tests, 1098 full-suite tests, scoped Ruff/format, ASCII/JSON and diff checks passed. Separate source_table replay compared all six earlier source/control tables, 1283232 bytes, with zero differences.",
+    "limit": "Saved capture replay, no fresh vendor execution. Nlg input pixels still come from vendor captures. External coefficients/calibration/decoding table, ICC template, destination ICC and captured profile text remain required. This establishes bounded CMS0 composition, not source preprocessing, later Lab/Lch, full native rendering, NEFX authenticity or Lightroom acceptance."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",
