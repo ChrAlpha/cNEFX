@@ -327,6 +327,17 @@
     "failed_evidence": "First formal replay incorrectly reused the v10 auxiliary highlight-event contract. V11 has three successful cached-path recovery calls; the verifier now checks the exact v11 events separately. Original failed report remains external.",
     "limit": "One source/control; numeric lens parameters and upstream pixels still come from captured vendor state. No fresh synthetic vendor vignette oracle, source parameter generation, other vignette modes, complete native rendering, authentic NEFX or Lightroom acceptance is established."
   },
+  "native_vignette_source_parameters": {
+    "implementation": "tools/vignette_inputs.py; tools/verify_renderer_vignette.py",
+    "report": "renderer-vignette-source-native-v1/report.json",
+    "sha256": "b861227b21a4c94172fed438e90c92bdff62af8ff5989250606c38f069145f6e",
+    "evidence_kind": "source_metadata_to_mode5_vignette_vs_saved_vendor_stages",
+    "metadata": "Full-sensor Z8 RAW8280x5520,crop12,8,8256,5504,default Normal vignette tag2a=3. NEFInfo c7d5/tag6 is116-byte0100 record: degree8 at+10, nine signed rational coefficients at+14. Narrow once tofloat32,require odd powers zero andunitconstant; even indices0/2/4/6 feed radial polynomial. MakerNote54 is20-byte0100 optical center with signedQ8 offsets; scale withfloat32(stage_extent*center)/active_extent.",
+    "static_evidence": "ImageRender28f850 reads INikonImageAdjustment_Vignette vector throughvtable100 andcenter throughf0; passes9floats to3ab5d0. Thatfunction copies themto6b0..6d0 andsets normalization/cap from sensor/crop.28fd14..28fd62 multiplies center bystageextent then divides byactiveextent. Strength setter353890 receives adjustmentvalue*0.01. Currentverifieddefault Normal value40 givesstrength0.4.",
+    "coverage": "All24float32 parameter values acrossfourstates matchsource-derived results bit-for-bit. Freshlygenerated11192radialwords,524288identitywords and213000pixelwordsmatchsavedvendorstatesexactly. Numeric lensparameters are no longer nativecomputationinputs fromcapturedstate;upstreampixels remaincaptured.",
+    "verification": "231input hashes stable;84focusedtests passed. New28parser tests cover signedrational conversion,float32 scaling,metadataimmutability andunsupportedmodel/crop/strength/degree/scales/missingrecords. ScopedRuff/format,ASCII,JSON,diffchecks pass. Independentsource-parserreview pending.",
+    "limit": "One source/control captured at1/4and1/32scale. Parser allows onlyfull-sensor Z8 geometry,power-of-two downscales anddefaultNormal control. Othercamera/crops/useroverrides requireadditionalcontracts. No complete source renderer,authenticpixelshift/NEFX orLightroomacceptance."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",

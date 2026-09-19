@@ -17,6 +17,9 @@ from verify_np3_header import digest
 from verify_renderer_cms import TRACE_EVENTS, stage_events
 from verify_renderer_highlight import TAP_HASH
 from verify_renderer_lab_rgb import comparison
+from vignette_inputs import source_parameters
+
+from nx_ctudio import _tiff
 
 CAPTURE_HASH = "95836becb7528456146e7b2810f81ba3d1c6b9841c8e248140f59fb9d48a5b1f"
 SOURCE_HASH = "28135bfd6d3f271be488e58a30d0a3ad74671d9cb93c0ac7fd67219c93f2fcbd"
@@ -103,6 +106,7 @@ def verify(args: argparse.Namespace, report: dict) -> None:
     case = captured["cases"][0]
     for name in ("source", "np3"):
         pinned(Path(case[name]), case[f"{name}_sha256"])
+    source_root = _tiff.read(pinned(Path(case["source"])))
     stages = stage_events(case["events"])
     auxiliary_events(case["events"])
     core = [
@@ -130,7 +134,12 @@ def verify(args: argparse.Namespace, report: dict) -> None:
     identity = np.arange(65536, dtype="<u2")
     for index, size in sizes.items():
         state = pinned(args.capture.parent / f"case0.stage-{index}-vignette-filter.bin")
-        offset, coefficients = parameters(state)
+        captured_offset, captured_coefficients = parameters(state)
+        offset, coefficients = source_parameters(source_root, size)
+        if struct.pack("<6f", *offset, *coefficients) != struct.pack(
+            "<6f", *captured_offset, *captured_coefficients
+        ):
+            raise ValueError("Source-derived vignette parameters differ from capture.")
         table = radial_table(size, offset, coefficients)
         if struct.unpack_from("<Q", state, 0x250)[0] != len(table):
             raise ValueError(
@@ -213,7 +222,7 @@ def main() -> int:
         parser.error("Output must be a new directory outside the repository.")
     args.output.mkdir(parents=True)
     report = {
-        "evidence_kind": "saved_mode5_vignette_vs_native_tables_and_pixels",
+        "evidence_kind": "source_metadata_to_mode5_vignette_vs_saved_vendor_stages",
         "input_hashes": {},
         "parameters": [],
         "tables": [],
@@ -223,7 +232,7 @@ def main() -> int:
         "limits": [
             "One source/control, mode5, aspect1, unit normalization/cap, strength0.4.",
             "Identity transfer tables, auxiliary correction disabled, unit exponent.",
-            "Numeric lens parameters still come from captured state.",
+            "Lens parameters come from the source NEF; default Normal control only.",
             "Saved upstream pixels; no fresh vendor calls or complete native renderer.",
             "No NEFX authenticity or Lightroom acceptance is established.",
         ],
