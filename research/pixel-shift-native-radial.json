@@ -65,6 +65,32 @@
     "passed": true,
     "limit": "One measured run; no authentic capture, vendor full-resolution pixel comparison, or Lightroom acceptance is implied."
   },
+  "full_resolution_native_control": {
+    "report": "/workspaces/LumaForge/nxc-data/scratch/fullsize-radial-control-v1.json",
+    "sha256": "4481e3d4270eda0b976066ea94ab3fd84d7b0b5f853a9b5df5af6c2a662574fa",
+    "different_samples_by_channel": [160264299, 0, 0],
+    "passed": true,
+    "interpretation": "Red changes with nonzero inherited coefficients; green and zero-coefficient blue are exactly preserved. This is an internal native control, not vendor or capture-quality validation."
+  },
+  "independent_review": {
+    "reviewed_through": "2aadeaf",
+    "findings": "No actionable defects within the correction scope.",
+    "independently_run": {
+      "selected_pytest_cases": 70,
+      "mocked_metadata_rejection_checks": 120,
+      "baseline_and_zero_correction_comparisons": 64,
+      "saved_vendor_replay_cases": 20,
+      "samples_compared": 40195200,
+      "different_samples": 0
+    },
+    "inspection_only": "CLI and full-resolution reports were inspected and hash-checked; their executions were not independently repeated.",
+    "followup": "Expanded publication-failure and decoded-output rejection tests to cover correction enabled as well as disabled. Production code is unchanged since review.",
+    "final_root_tests": {
+      "command": "uv run pytest -q tests/test_pixel_shift.py tests/test_radial.py tests/test_merge.py tests/test_raw_metadata.py tests/test_nefx.py tests/test_tiff_stream.py tests/test_atomic.py tests/test_inspect.py",
+      "passed": 155,
+      "seconds": 0.61
+    }
+  },
   "limitations": [
     "Synthetic saved vendor agreement is not authentic capture quality or Lightroom acceptance.",
     "Extreme coefficient behavior is an input-safety contract, not vendor parity evidence for those parameters.",

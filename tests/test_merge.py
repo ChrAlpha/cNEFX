@@ -145,8 +145,9 @@ def test_correction_rejects_unusable_or_inconsistent_parameters_before_write(
 
 @pytest.mark.parametrize("count", [4, 8, 16, 32])
 @pytest.mark.parametrize("failure", ["writer", "metadata", "decode", "cancel"])
+@pytest.mark.parametrize("corrected", [False, True])
 def test_grouped_merge_releases_sources_and_never_publishes_on_failure(
-    tmp_path: Path, count: int, failure: str
+    tmp_path: Path, count: int, failure: str, corrected: bool
 ) -> None:
     sources = []
     for index in range(count):
@@ -161,6 +162,11 @@ def test_grouped_merge_releases_sources_and_never_publishes_on_failure(
         raw_shape=(8, 8),
         selector=bytes(24),
         iso=3201,
+        radial={
+            "available": True,
+            "center_q8": [0, 0],
+            "coefficients_q20": [[0, 0, 0], [0, 0, 0]],
+        },
     )
 
     def read(path: Path) -> tuple[np.ndarray, dict]:
@@ -198,7 +204,7 @@ def test_grouped_merge_releases_sources_and_never_publishes_on_failure(
         ) as writer,
         pytest.raises(error[0], match=error[1]),
     ):
-        merge(sources, output)
+        merge(sources, output, chromatic_aberration_correction=corrected)
     if failure == "writer":
         writer.assert_called_once()
     else:
@@ -209,8 +215,9 @@ def test_grouped_merge_releases_sources_and_never_publishes_on_failure(
 
 
 @pytest.mark.parametrize("failure", ["final_partial_block", "shape"])
+@pytest.mark.parametrize("corrected", [False, True])
 def test_decoded_output_mismatch_is_rejected_before_publication(
-    tmp_path: Path, failure: str
+    tmp_path: Path, failure: str, corrected: bool
 ) -> None:
     sources = [tmp_path / f"{i}.NEF" for i in range(4)]
     for path in sources:
@@ -222,6 +229,11 @@ def test_decoded_output_mismatch_is_rejected_before_publication(
             raw_shape=(260, 8),
             selector=bytes(24),
             iso=3201,
+            radial={
+                "available": True,
+                "center_q8": [0, 0],
+                "coefficients_q20": [[0, 0, 0], [0, 0, 0]],
+            },
             source_sha256=hashlib.sha256(b"source").hexdigest(),
         )
 
@@ -244,5 +256,9 @@ def test_decoded_output_mismatch_is_rejected_before_publication(
     ):
         decode.return_value.__enter__.return_value.raw_image = actual
         with pytest.raises(ValueError, match="exact pixel verification"):
-            merge(sources, tmp_path / "output.nefx")
+            merge(
+                sources,
+                tmp_path / "output.nefx",
+                chromatic_aberration_correction=corrected,
+            )
     assert set(tmp_path.iterdir()) == set(sources)
