@@ -305,6 +305,27 @@
     "independent_review": "Read the probe and runner; replayed all10cases withstrict ordered event checks. All149distinct source/provider/input/output hashes stable;6924words exact. Independent replay reporthighlight-spatial-oracle-independent-replay.json SHA256a35a8eae8f88a0feee61fa7d1c668108426f7079f7e9c8632edf79fba700b5e0. No newvendor calls inindependentreplay.",
     "limit": "Fixedgreen/Bayer/even-origin branch. Encode/decode areprobe-owned arithmetic,already separatelychecked againstcaptured LUTs. Doesnotexercise eligibility,gain,borderconstruction orfullrenderer. Canaryguards detectwrites butdonotexcludeout-of-range reads. Runner/probe remainexternalresearch artifacts;failedWindows filenamecasing pilotretained."
   },
+  "native_vignette_mode5": {
+    "implementation": "tools/renderer_vignette.py; tools/verify_renderer_vignette.py",
+    "report": "renderer-vignette-native-v2/report.json",
+    "sha256": "7677036d844923067ab38aef555f3fcb8f16c919547c52f1ea3517ee77900381",
+    "evidence_kind": "saved_mode5_vignette_vs_native_tables_and_pixels",
+    "capture": {
+      "report": "stage-pixels-pilot-v11/report.json",
+      "sha256": "95836becb7528456146e7b2810f81ba3d1c6b9841c8e248140f59fb9d48a5b1f",
+      "source": "probe_stage_pixels_v11.c",
+      "source_sha256": "28135bfd6d3f271be488e58a30d0a3ad74671d9cb93c0ac7fd67219c93f2fcbd",
+      "probe": "probe-stage-pixels-v11.exe",
+      "probe_sha256": "fef6675bc4cebc461821e53ccd0a042823ae64172c719b707f5933ea4e6a487b"
+    },
+    "branch": "Mode5; aspect1, unit radial normalization and cap; strength0.4 gives Q13 gain3276. Identity input/output transfer tables. Auxiliary correction at6e0 and diagnostic flags d28..d2a disabled. Numeric offset and polynomial coefficients are read from captured state, without native pointer inputs.",
+    "table_arithmetic": "Generator356d40 uses float32 squared radius and a degree4 polynomial in that squared radius. Length uses the offset-expanded image diagonal; samples beyond the unshifted diagonal reuse its capped value. Negative polynomial values clamp to0. Recovered bounded branch has values below1, encoded by truncating value*4096. Other packed exponents reject explicitly.",
+    "pixel_arithmetic": "Worker353d00 -> RGB16 dispatcher358060 -> radial leaf358de0. Preserve float32 expanded squared-distance expression and each rounding. Radius*4 selects a clipped table index. Correction is floor(pixel*coefficient/4096); result is min(pixel+floor(correction*3276/8192),65535). Center is half image extent plus captured offset minus0.5.",
+    "coverage": "Four generated radial tables: two622-word and two4974-word captures,11192words exact. Eight identity transfer tables add524288words. Three pixel pairs2491->2493,2492->2494,86->161 cover213000words at image sizes258x172 and2064x1376,all exact. Unique final-stage coverage is133128words.",
+    "verification": "230input hashes stable; original render lifecycle and28providers validated. StrictC11 capture compilation passed.56focused tests and1310full-suite tests passed in5.44s; scopedRuff/format,ASCII,JSON anddiff checks passed. Fresh independent review is pending.",
+    "failed_evidence": "First formal replay incorrectly reused the v10 auxiliary highlight-event contract. V11 has three successful cached-path recovery calls; the verifier now checks the exact v11 events separately. Original failed report remains external.",
+    "limit": "One source/control; numeric lens parameters and upstream pixels still come from captured vendor state. No fresh synthetic vendor vignette oracle, source parameter generation, other vignette modes, complete native rendering, authentic NEFX or Lightroom acceptance is established."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",
