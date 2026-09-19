@@ -376,6 +376,16 @@
     "regression": "Independent objdump at renderer RVA 358e23..358e32 and 358ec5 confirms the corrected float32 addition order. Previous code returns [0,46721,35895]; fixed code and saved vendor output return [0,46716,35891].",
     "limit": "Reviewer did not execute new vendor calls or rerun the full suite. Source coverage remains one lossless Z8 photograph and one control at two scales. Vendor-owned radial table allocation lacks probe canaries. Complete native rendering, authentic pixel-shift NEFX and Lightroom acceptance remain unverified."
   },
+  "native_nlg_interpolation": {
+    "implementation": "tools/renderer_nlg_interpolation.py",
+    "report": "nlg-interpolation-native-v1/report.json",
+    "sha256": "a8f18d662894c673a02bfb062a755321eb5cc02626cd226aff77c131a838a404",
+    "evidence_kind": "fresh_vendor_three_point_eight_phase_interpolation",
+    "arithmetic": "Scalar leaf RVA 17020 reads three uint16 samples and writes eight phases. Integer weights at 5cc4a0 sum to 512 in every phase. Truncate each interpolation pass separately with a nine-bit right shift.",
+    "coverage": "729 boundary triples, 65536 seeded random triples and three exhaustive 65536-value channel sweeps. All 2102984 output words match. Guarded per-call output, read-only aggregate input, MXCSR preservation, provider path and cleanup pass. All 23 input/output hashes remain unchanged.",
+    "verification": "23 focused tests pass, including separate-pass rounding, extrema, leading dimensions, noncontiguous/read-only arrays and bounds. Strict C11 -Wall -Wextra -Werror compilation and scoped Ruff/format pass.",
+    "limit": "Pure scalar interpolation leaf only. This does not establish state generation, coarse-grid generation, full Nlg processing or end-to-end native rendering."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",
