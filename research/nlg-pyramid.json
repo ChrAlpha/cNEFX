@@ -1,0 +1,68 @@
+{
+  "status": "Observed vendor generator graph; native recovery in progress",
+  "provider": {
+    "name": "image_render.n5m",
+    "sha256": "b9572f5b176861f69fe1407e7e1e18734a9983cd73421411efd999f4409bccd8",
+    "supplier_vtable_rva": "0xb02ca8",
+    "supplier_entry_rva": "0x230a50",
+    "supplier_initialize_rva": "0x231740",
+    "supplier_update_rva": "0x231ed0",
+    "generator_vtable_rva": "0xaf7928",
+    "generator_create_rva": "0x0ffaa0",
+    "generator_update_rva": "0x101ad0",
+    "generator_state_bytes": 265264,
+    "level_worker_rva": "0x102260",
+    "updated_level_worker_rva": "0x102a50"
+  },
+  "layout": {
+    "supplier": "The Nlg numeric state points at a supplier object at +0x28. The supplier's +8 points at shared state. Shared +0x398 points at the generator object; its +8 points at the 0x40c30-byte generator state.",
+    "output": "Supplier shared state embeds output descriptors at +0x80 and +0x178. Entry 0x230a50 returns them after initialization/update under a mutex. Copy helper 0x2326c0 transfers rows with borrow/release operations.",
+    "parameters": "Generator +0xa8 is level count. Parameter records start at +0xaa with stride0xb6. Six descending and six ascending calls observed. The array has room for sixteen levels; only twelve are claimed here.",
+    "source_controls": "Observed supplier mode1, white balance [1.908203125,1.0,1.537109375], exposure0. Generator crop [12,8,8268,5512] has active size8256x5504. Source Bayer origin [1,0]. These are captured values, not native parameter recovery.",
+    "source_metadata": "Static setup 0x230350 optionally reads metadata key0xa302 and applies the crop from key0x80045. Configuration 0x230c40 calls 0x466380 and0x467bd0, then the observed 0x0feee0/0x231140 branch. The metadata-to-parameter contract remains unrecovered."
+  },
+  "observed_graph": {
+    "initial_input": "8256x5504 one-channel Bayer samples; pixel payload omitted by capture size limit.",
+    "descending_rgb": [[2064,1376],[1032,688],[516,344],[258,172],[129,86],[65,43],[33,22]],
+    "ascending_rgb": [[65,43],[129,86],[258,172],[516,344],[1032,688],[2064,1376]],
+    "spatial_outputs": [[33,22],[65,43],[129,86],[258,172],[516,344],[1032,688]],
+    "argument_mapping": "Worker0x102260 has fifteen arguments. Descriptor owners6..10 are inputs;11..15 are outputs. Output12 is the descending RGB image, output13 the retained RGB image, output11 the reconstructed RGB image, and outputs14/15 the two spatial planes.",
+    "stages": "Worker dispatches initial Bayer/RGB handling through0x1030d0 or0x102e80, spatial filtering through0x103ee0, RGB scale transitions through0x104730, and spatial-plane production through0x104b20.",
+    "identity": "At final calls12 and24, output15 exactly equals shared grid1 and output14 exactly equals shared grid2, each1032x688. These are two executions of the same source/control, not independent photographs."
+  },
+  "captures": [
+    {
+      "report": "nlg-supplier-v1/report.json",
+      "sha256": "25357491f3679afa819035044fc44e716100cadf728b72512ef2aab62a69d86f",
+      "probe_source": "probe_stage_pixels_v14.c",
+      "result": "Four supplier observations identify the same pinned module, vtable and entry. Full render and SDK lifecycle pass."
+    },
+    {
+      "report": "nlg-generator-v1/report.json",
+      "sha256": "696bc324d4dca129d17d1d321bce602984034b464bbcc8867e47da7057641e25",
+      "probe_source": "probe_stage_pixels_v15.c",
+      "result": "Four generator observations capture shared and numeric state for the actual af7928 branch. Full render and SDK lifecycle pass."
+    },
+    {
+      "report": "nlg-pyramid-v1/report.json",
+      "sha256": "5f806d02d83a4e93bb4872f2debeebf7f47076c8bdd99160e31b534658496ad4",
+      "probe_source": "probe_stage_pixels_v16.c",
+      "hook": "nlg_pyramid_tap.h",
+      "runner": "run_nlg_pyramid_capture.py",
+      "calls": 24,
+      "plane_observations": 130,
+      "saved_planes": 120,
+      "pyramid_artifact_bytes": 88958172,
+      "input_hashes": 199,
+      "output_hashes": 765,
+      "result": "All selected calls return success. Bounded planes, parameter records and descriptors saved. Original SDK lifecycle and28providers pass; final RGB16 output retains hash794b1706677dc854398c1036bd39e202dea742bd6d4acbc4b93c0a8c08eb2aa8."
+    }
+  ],
+  "capture_limits": [
+    "At most24calls,8MiB per plane and128MiB aggregate plane budget. Large Bayer and2064x1376RGB payloads are intentionally omitted; descriptor observations distinguish omitted and empty planes.",
+    "Snapshots contain pointer values but no native computation follows them. Inputs are copied before the vendor consumes ownership; outputs after the call returns.",
+    "Probe detour prologues are signature checked; strict C11 -Wall -Wextra -Werror compilation passes. Current capture evidence is not a standalone guarded kernel oracle.",
+    "One lossless Z8 source and one Flexible Color control. No native pyramid/state generation, complete native renderer, authentic pixel-shift NEFX or Lightroom acceptance is established.",
+    "Independent review of this generator capture and ABI mapping remains pending."
+  ]
+}
