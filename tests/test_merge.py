@@ -81,6 +81,68 @@ def test_cli_error_is_json(capsys: pytest.CaptureFixture[str]) -> None:
     assert report["error"]["code"] == "merge_failed"
 
 
+def test_cli_forwards_chromatic_aberration_option(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with patch("nx_ctudio.merge.merge", return_value={"status": "ok"}) as synthesize:
+        assert (
+            main(
+                [
+                    "merge",
+                    "1.NEF",
+                    "2.NEF",
+                    "3.NEF",
+                    "4.NEF",
+                    "--output",
+                    "out.nefx",
+                    "--chromatic-aberration-correction",
+                    "--json",
+                ]
+            )
+            == 0
+        )
+    assert synthesize.call_args.kwargs == {"chromatic_aberration_correction": True}
+    assert '"status": "ok"' in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("failure", ["missing", "different"])
+def test_correction_rejects_unusable_or_inconsistent_parameters_before_write(
+    tmp_path: Path, failure: str
+) -> None:
+    sources = [tmp_path / f"{i}.NEF" for i in range(4)]
+    for path in sources:
+        path.write_bytes(b"source")
+    metadata = sequence()
+    for item in metadata:
+        item.update(
+            crop=(2, 2, 4, 4),
+            raw_shape=(8, 8),
+            selector=bytes(24),
+            iso=3201,
+            radial={
+                "available": True,
+                "center_q8": [0, 0],
+                "coefficients_q20": [[0, 0, 0], [0, 0, 0]],
+            },
+        )
+    if failure == "missing":
+        metadata[0]["radial"] = {"available": False, "reason": "Missing test block."}
+    else:
+        metadata[2]["radial"]["coefficients_q20"][0][0] = 50
+
+    def read(path: Path) -> tuple[np.ndarray, dict]:
+        return np.zeros((8, 8), np.uint16), metadata[sources.index(path)]
+
+    with (
+        patch("nx_ctudio.merge.read_frame", side_effect=read),
+        patch("nx_ctudio.merge.write_nefx") as write,
+        pytest.raises(ValueError, match="correction|radial"),
+    ):
+        merge(sources, tmp_path / "output.nefx", chromatic_aberration_correction=True)
+    write.assert_not_called()
+    assert set(tmp_path.iterdir()) == set(sources)
+
+
 @pytest.mark.parametrize("count", [4, 8, 16, 32])
 @pytest.mark.parametrize("failure", ["writer", "metadata", "decode", "cancel"])
 def test_grouped_merge_releases_sources_and_never_publishes_on_failure(

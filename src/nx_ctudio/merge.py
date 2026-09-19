@@ -13,6 +13,7 @@ import rawpy
 from ._atomic import publication
 from .nefx import write_nefx
 from .pixel_shift import reconstruct_from_reader
+from .radial import RadialCorrection
 from .raw import read_frame
 
 CONSISTENT = (
@@ -40,7 +41,7 @@ CONSISTENT = (
 )
 LIMITATIONS = [
     "Experimental: authentic pixel-shift captures and Lightroom are not validated.",
-    "Radial correction is disabled; Adobe XMP defaults are preserved without updates.",
+    "Adobe XMP defaults are preserved without updates.",
     "HE/HE* decoding is not implemented; use lossless-compressed 14-bit NEF inputs.",
     "Input order must follow consecutive capture numbers in a single sequence.",
 ]
@@ -69,7 +70,9 @@ def validate_sequence(metadata: list[dict[str, Any]]) -> None:
                 raise ValueError(f"Sequence metadata differs: {key}.")
 
 
-def merge(paths: list[Path], output: Path) -> dict[str, Any]:
+def merge(
+    paths: list[Path], output: Path, *, chromatic_aberration_correction: bool = False
+) -> dict[str, Any]:
     if len(paths) not in (4, 8, 16, 32):
         raise ValueError("Expected a complete 4, 8, 16 or 32-frame sequence.")
     if output.suffix.lower() != ".nefx":
@@ -90,16 +93,35 @@ def merge(paths: list[Path], output: Path) -> dict[str, Any]:
     initial = [samples]
     del samples
     by_index = {0: first}
+    correction = None
+    if chromatic_aberration_correction:
+        parameters = first["radial"]
+        if not parameters["available"]:
+            raise ValueError(
+                "Supported chromatic aberration correction metadata is required: "
+                + parameters["reason"]
+            )
+        correction = RadialCorrection(
+            tuple(parameters["center_q8"]),
+            tuple(tuple(row) for row in parameters["coefficients_q20"]),
+        )
 
     def load(index: int) -> np.ndarray:
         if index == 0:
             return initial.pop()
         samples, information = read_frame(resolved[index])
+        if correction is not None and information["radial"] != first["radial"]:
+            raise ValueError("Sequence metadata differs: radial correction parameters.")
         by_index[index] = information
         return samples
 
     pixels = reconstruct_from_reader(
-        len(paths), load, first["crop"], b"0100" + first["selector"], first["iso"]
+        len(paths),
+        load,
+        first["crop"],
+        b"0100" + first["selector"],
+        first["iso"],
+        radial=correction,
     )
     metadata = [by_index[i] for i in range(len(paths))]
     validate_sequence(metadata)
@@ -130,6 +152,7 @@ def merge(paths: list[Path], output: Path) -> dict[str, Any]:
         "shape": list(pixels.shape),
         "samples_verified": int(pixels.size),
         "sequence_validation": "complete_consecutive_metadata_consistent",
+        "chromatic_aberration_correction": chromatic_aberration_correction,
         "inputs": [
             {
                 "path": str(path),
@@ -138,6 +161,11 @@ def merge(paths: list[Path], output: Path) -> dict[str, Any]:
             }
             for path, info in zip(resolved, metadata, strict=True)
         ],
-        "limitations": LIMITATIONS,
+        "limitations": LIMITATIONS
+        + (
+            []
+            if chromatic_aberration_correction
+            else ["Chromatic aberration correction is disabled."]
+        ),
         "warnings": warnings + pending.warnings,
     }

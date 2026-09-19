@@ -28,10 +28,46 @@
     "passed": true,
     "coverage": "Synthetic independently varying RAWs, nonzero ordered sparse selectors, inherited coefficients in all modes and signed centers/all six nonzero coefficients in 4/16-frame modes."
   },
+  "cli": {
+    "option": "nxc merge --chromatic-aberration-correction",
+    "default": "Disabled; existing uncorrected behavior is preserved.",
+    "validation": "Require supported correction metadata in the first frame and identical radial metadata across the sequence. Invalid inputs fail before file publication.",
+    "report_field": "chromatic_aberration_correction",
+    "corrected_replay": {
+      "report": "/workspaces/LumaForge/nxc-data/scratch/native-radial-cli-v1/report.json",
+      "sha256": "f476a031ee7e2e053983e5c6365e0a19c7c1adec83e0e2dda6d423a7fdf58e79",
+      "cases": 12,
+      "samples_compared": 24117120,
+      "different_samples": 0,
+      "all_overwrite_checks_passed": true
+    },
+    "default_replay": {
+      "report": "/workspaces/LumaForge/nxc-data/scratch/native-radial-disabled-v1/report.json",
+      "sha256": "d04d5719ed2dc635062da8d17c6f6137f0ec271e8c1eedc0c33db6159424ac2c",
+      "cases": 8,
+      "samples_compared": 16078080,
+      "different_samples": 0,
+      "all_overwrite_checks_passed": true
+    }
+  },
+  "full_resolution_resource_check": {
+    "report": "/workspaces/LumaForge/nxc-data/scratch/fullsize-radial-v1/report.json",
+    "sha256": "662db1625e61e2b69b5dbbae9cb9848e0654b793fa397112abd28879ec69ae36",
+    "evidence_kind": "Repeated ordinary RAW with synthetic 32-frame sequence metadata and inherited radial coefficients",
+    "raw_shape": [5520, 8280],
+    "output_shape": [11008, 16512, 3],
+    "samples_verified_after_decode": 545292288,
+    "output_size_bytes": 962790404,
+    "max_rss_kib": 2618584,
+    "elapsed_seconds": 108.74110258599922,
+    "address_space_limit_bytes": 4294967296,
+    "timeout_seconds": 300,
+    "passed": true,
+    "limit": "One measured run; no authentic capture, vendor full-resolution pixel comparison, or Lightroom acceptance is implied."
+  },
   "limitations": [
     "Synthetic saved vendor agreement is not authentic capture quality or Lightroom acceptance.",
     "Extreme coefficient behavior is an input-safety contract, not vendor parity evidence for those parameters.",
-    "Full-resolution correction runtime and memory still require measurement.",
-    "The CLI correction option is not yet connected at this checkpoint."
+    "Full-resolution resource measurements do not establish a universal memory or runtime bound."
   ]
 }

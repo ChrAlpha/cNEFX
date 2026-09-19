@@ -62,13 +62,18 @@ def main(argv: list[str] | None = None) -> int:
         help="Experimentally synthesize ordered Z8 frames into native NEFX.",
         description=(
             "Native experimental Z8 pixel-shift synthesis. Supply a complete sequence "
-            "in capture order. HE/HE*, radial correction and "
+            "in capture order. HE/HE* and "
             "Adobe default updates are not supported. Output is never overwritten."
         ),
     )
     merge.add_argument("files", nargs="+", type=Path)
     merge.add_argument("--output", "-o", type=Path, required=True)
     merge.add_argument("--json", action="store_true")
+    merge.add_argument(
+        "--chromatic-aberration-correction",
+        action="store_true",
+        help="Apply source-metadata lateral color correction before the final crop.",
+    )
     picture_curve = commands.add_parser(
         "picture-curve",
         help="Regenerate an NP3 tone curve table.",
@@ -84,7 +89,11 @@ def main(argv: list[str] | None = None) -> int:
         from .merge import merge as synthesize
 
         try:
-            report = synthesize(args.files, args.output)
+            report = synthesize(
+                args.files,
+                args.output,
+                chromatic_aberration_correction=args.chromatic_aberration_correction,
+            )
             exit_code = 0
         except (Exception, KeyboardInterrupt) as exc:
             exit_code = 130 if isinstance(exc, KeyboardInterrupt) else 1

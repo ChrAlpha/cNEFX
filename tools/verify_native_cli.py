@@ -42,6 +42,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("pipeline_reports", nargs="+", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--chromatic-aberration-correction", action="store_true")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     if args.output.resolve().is_relative_to(root):
@@ -51,6 +52,10 @@ def main() -> int:
         "evidence_kind": "native_cli_saved_synthetic_vendor_comparison",
         "passed": False,
         "cases": [],
+        "chromatic_aberration_correction": args.chromatic_aberration_correction,
+        "pipeline_reports": [
+            {"path": str(p), "sha256": digest(p)} for p in args.pipeline_reports
+        ],
         "code_sha256": {
             str(p.relative_to(root)): digest(p)
             for p in sorted((root / "src/nx_ctudio").glob("*.py"))
@@ -62,7 +67,7 @@ def main() -> int:
     }
     expected_cases = 0
     try:
-        for source_report in args.pipeline_reports:
+        for corpus, source_report in enumerate(args.pipeline_reports):
             source = json.loads(source_report.read_text())
             if (
                 not source["passed"]
@@ -73,7 +78,8 @@ def main() -> int:
             expected_cases += len(source["cases"])
             for case in source["cases"]:
                 files, patches = [], []
-                directory = args.output / f"inputs-{case['input_count']}-{case['iso']}"
+                name = f"{corpus}-{case['input_count']}-{case['iso']}"
+                directory = args.output / f"inputs-{name}"
                 directory.mkdir()
                 first_shutter = None
                 for index, item in enumerate(case["fixtures"]):
@@ -99,7 +105,7 @@ def main() -> int:
                             "purpose": "Synthetic consecutive shutter counts only",
                         }
                     )
-                output = args.output / f"merge-{case['input_count']}-{case['iso']}.nefx"
+                output = args.output / f"merge-{name}.nefx"
                 command = [
                     sys.executable,
                     "-m",
@@ -110,6 +116,8 @@ def main() -> int:
                     str(output),
                     "--json",
                 ]
+                if args.chromatic_aberration_correction:
+                    command.append("--chromatic-aberration-correction")
                 result = subprocess.run(
                     command, capture_output=True, text=True, timeout=180, check=False
                 )
@@ -126,7 +134,16 @@ def main() -> int:
                     observed["stdout"] = result.stdout
                     raise ValueError("Native CLI failed.")
                 observed["cli"] = json.loads(result.stdout)
-                vendor = next(item for item in case["outputs"] if not item["radial"])
+                if (
+                    observed["cli"]["chromatic_aberration_correction"]
+                    != args.chromatic_aberration_correction
+                ):
+                    raise ValueError("Native CLI correction mode differs from request.")
+                vendor = next(
+                    item
+                    for item in case["outputs"]
+                    if item["radial"] == args.chromatic_aberration_correction
+                )
                 reference = Path(vendor["path"])
                 if digest(reference) != vendor["sha256"]:
                     raise ValueError("Vendor output hash mismatch.")
