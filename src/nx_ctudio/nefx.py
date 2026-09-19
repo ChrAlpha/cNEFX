@@ -5,6 +5,7 @@ from __future__ import annotations
 import binascii
 import os
 import struct
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from numpy.typing import NDArray
 
 from . import __version__
 from ._atomic import publication
-from ._tiff import Directory, read, serialize
+from ._tiff import Directory, ImagePayload, read, serialize, serialize_to
 
 
 def preview(samples: NDArray[np.uint16]) -> NDArray[np.uint16]:
@@ -37,24 +38,32 @@ def preview(samples: NDArray[np.uint16]) -> NDArray[np.uint16]:
 
 
 def pack14(samples: NDArray[np.uint16]) -> bytes:
+    return b"".join(_packed14_payload(samples).chunks())
+
+
+def _packed14_payload(samples: NDArray[np.uint16]) -> ImagePayload:
     height, width, _ = samples.shape
     if width % 4:
         raise ValueError("The observed NEFX packing requires width divisible by four.")
     length = width * 3 * 7 // 4
     stride = (length + 15) & ~15
-    output = np.zeros((height, stride), dtype=np.uint8)
     shifts = np.arange(7, dtype=np.uint64) * 8
-    for start in range(0, height, 64):
-        block = samples[start : start + 64]
-        pixels = block.astype(np.uint64).reshape(len(block), -1, 4)
-        words = pixels[..., 0] | (pixels[..., 1] << 14)
-        words |= (pixels[..., 2] << 28) | (pixels[..., 3] << 42)
-        output[start : start + len(block), :length] = (
-            ((words[..., None] >> shifts) & 255)
-            .astype(np.uint8)
-            .reshape(len(block), -1)
-        )
-    return output.tobytes()
+
+    def chunks() -> Iterator[bytes]:
+        for start in range(0, height, 64):
+            block = samples[start : start + 64]
+            pixels = block.astype(np.uint64).reshape(len(block), -1, 4)
+            words = pixels[..., 0] | (pixels[..., 1] << 14)
+            words |= (pixels[..., 2] << 28) | (pixels[..., 3] << 42)
+            output = np.zeros((len(block), stride), dtype=np.uint8)
+            output[:, :length] = (
+                ((words[..., None] >> shifts) & 255)
+                .astype(np.uint8)
+                .reshape(len(block), -1)
+            )
+            yield output.tobytes()
+
+    return ImagePayload(height * stride, chunks)
 
 
 def _patch(
@@ -79,6 +88,10 @@ def _patch(
 
 def encode(source: bytes, samples: NDArray[np.uint16], count: int) -> bytes:
     """Preserve source metadata and JPEGs; Adobe XMP defaults remain unchanged."""
+    return serialize(_prepare(source, samples, count))
+
+
+def _prepare(source: bytes, samples: NDArray[np.uint16], count: int) -> Directory:
     if count not in (4, 8, 16, 32):
         raise ValueError("Unsupported pixel-shift input count.")
     if (
@@ -118,7 +131,7 @@ def encode(source: bytes, samples: NDArray[np.uint16], count: int) -> bytes:
         (284, 3, (1,)),
     ):
         raw.numbers(code, kind, *values)
-    raw.images[273] = [pack14(samples)]
+    raw.images[273] = [_packed14_payload(samples)]
     root.set(305, 2, f"NX Ctudio {__version__}\0".encode("ascii"))
     root.set(306, 2, datetime.now().strftime("%Y:%m:%d %H:%M:%S\0").encode("ascii"))
     if 0xCD41 in root.tags:
@@ -158,7 +171,7 @@ def encode(source: bytes, samples: NDArray[np.uint16], count: int) -> bytes:
         info.tags.pop(code, None)
     _patch(info, 11, [(4, struct.pack("<4H", 0, 0, width, height))], crc=True)
     _patch(info, 13, [(4, b"\x0a\0")], crc=True)
-    return serialize(root)
+    return root
 
 
 def write_nefx(
@@ -166,9 +179,9 @@ def write_nefx(
 ) -> list[str]:
     if os.path.lexists(path):
         raise FileExistsError("Output already exists.")
-    data = encode(source, samples, count)
+    root = _prepare(source, samples, count)
     with publication(path) as pending:
         with pending.temporary.open("xb") as stream:
-            stream.write(data)
+            serialize_to(root, stream)
         pending.publish()
     return pending.warnings

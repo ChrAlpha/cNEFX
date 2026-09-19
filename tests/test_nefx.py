@@ -7,7 +7,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from nx_ctudio._tiff import Directory, Tag, read, serialize
+from nx_ctudio._tiff import Directory, ImagePayload, Tag, read, serialize
 from nx_ctudio.nefx import pack14, preview, write_nefx
 
 
@@ -59,7 +59,7 @@ def test_parser_rejects_repeated_payload_amplification() -> None:
 
 def test_failed_write_never_leaves_a_final_file(tmp_path: Path) -> None:
     output = tmp_path / "output.nefx"
-    with patch("nx_ctudio.nefx.encode", return_value=b"content"):
+    with patch("nx_ctudio.nefx._prepare", return_value=Directory({})):
         with patch("nx_ctudio._atomic.os.fsync", side_effect=OSError("Disk full")):
             with pytest.raises(OSError, match="Disk full"):
                 write_nefx(output, b"", np.zeros((1, 4, 3), np.uint16), 4)
@@ -69,10 +69,10 @@ def test_failed_write_never_leaves_a_final_file(tmp_path: Path) -> None:
 def test_atomic_writer_does_not_replace_an_existing_destination(tmp_path: Path) -> None:
     output = tmp_path / "output.nefx"
     output.write_bytes(b"existing")
-    with patch("nx_ctudio.nefx.encode") as encode:
+    with patch("nx_ctudio.nefx._prepare") as prepare:
         with pytest.raises(FileExistsError):
             write_nefx(output, b"", np.zeros((1, 4, 3), np.uint16), 4)
-        encode.assert_not_called()
+        prepare.assert_not_called()
     assert output.read_bytes() == b"existing"
 
 
@@ -96,3 +96,36 @@ def test_preview_omits_last_source_row_and_column() -> None:
     assert np.all(result[:-1, :-1] == 100)
     assert not np.any(result[-1])
     assert not np.any(result[:, -1])
+
+
+@pytest.mark.parametrize("error", [OSError("Disk full"), KeyboardInterrupt()])
+def test_stream_failure_removes_partial_output(
+    tmp_path: Path, error: BaseException
+) -> None:
+    def chunks():
+        yield b"part"
+        raise error
+
+    root = Directory({})
+    root.numbers(273, 4, 0)
+    root.numbers(279, 4, 8)
+    root.images[273] = [ImagePayload(8, chunks)]
+    with patch("nx_ctudio.nefx._prepare", return_value=root):
+        with pytest.raises(type(error)):
+            write_nefx(tmp_path / "output.nefx", b"", np.zeros((1, 4, 3), np.uint16), 4)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_packed14_preserves_rows_across_block_boundaries() -> None:
+    samples = np.random.default_rng(70).integers(0, 16384, (129, 12, 3), np.uint16)
+    encoded = pack14(samples)
+    stride = 64
+    assert len(encoded) == 129 * stride
+    for row in range(129):
+        data = encoded[row * stride : (row + 1) * stride]
+        values = []
+        for offset in range(0, 63, 7):
+            word = int.from_bytes(data[offset : offset + 7], "little")
+            values.extend((word >> shift) & 16383 for shift in (0, 14, 28, 42))
+        assert values == samples[row].reshape(-1).tolist()
+        assert data[63:] == b"\0"

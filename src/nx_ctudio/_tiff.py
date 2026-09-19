@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import struct
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
+from io import BytesIO
+from typing import BinaryIO
 
 WIDTHS = {1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4, 10: 8, 11: 4, 12: 8}
 LINKS = {34665, 34853, 40965, 330}
@@ -28,9 +31,15 @@ class Tag:
 
 
 @dataclass
+class ImagePayload:
+    length: int
+    chunks: Callable[[], Iterator[bytes]]
+
+
+@dataclass
 class Directory:
     tags: dict[int, Tag]
-    images: dict[int, list[bytes]] = field(default_factory=dict)
+    images: dict[int, list[bytes | ImagePayload]] = field(default_factory=dict)
 
     def set(self, code: int, kind: int, payload: bytes) -> None:
         if len(payload) % WIDTHS[kind]:
@@ -116,18 +125,57 @@ def read(data: bytes) -> Directory:
 
 
 def serialize(root: Directory) -> bytes:
-    output = bytearray(b"II*\0\x08\0\0\0")
+    output = BytesIO()
+    serialize_to(root, output)
+    return output.getvalue()
+
+
+def serialize_to(root: Directory, stream: BinaryIO) -> None:
+    """Relocate a TIFF graph into an empty, writable, seekable binary stream."""
+    if not stream.seekable() or not stream.writable():
+        raise ValueError("TIFF output must be writable and seekable.")
+    if stream.seek(0, 2) != 0:
+        raise ValueError("TIFF output stream must be empty.")
+
+    def put(offset: int, payload: bytes) -> None:
+        stream.seek(offset)
+        if stream.write(payload) != len(payload):
+            raise OSError("Short write while serializing TIFF output.")
+        if stream.tell() != offset + len(payload):
+            raise OSError("TIFF output stream did not honor its write position.")
+
+    put(0, b"II*\0\x08\0\0\0")
+    end = 8
 
     def allocate(size: int, align: bool = True) -> int:
-        offset = (len(output) + 15) & ~15 if align else len(output)
+        nonlocal end
+        offset = (end + 15) & ~15 if align else end
         if size < 0 or offset + size >= 1 << 32:
             raise ValueError("Output exceeds classic TIFF offset limits.")
-        output.extend(bytes(offset + size - len(output)))
+        if offset + size > end:
+            # Empty-stream holes preserve zero padding without allocating it in RAM.
+            put(offset + size - 1, b"\0")
+        end = offset + size
         return offset
 
-    def write(payload: bytes) -> int:
-        offset = allocate(len(payload))
-        output[offset : offset + len(payload)] = payload
+    def write(payload: bytes | ImagePayload) -> int:
+        length = payload.length if isinstance(payload, ImagePayload) else len(payload)
+        offset = allocate(length) if length else end
+        if isinstance(payload, ImagePayload):
+            written = 0
+            for chunk in payload.chunks():
+                if not isinstance(chunk, bytes):
+                    raise TypeError("TIFF image chunks must be bytes.")
+                if written + len(chunk) > length:
+                    raise ValueError("TIFF image chunks exceed their declared length.")
+                put(offset + written, chunk)
+                written += len(chunk)
+            if written != length:
+                raise ValueError(
+                    "TIFF image chunks do not match their declared length."
+                )
+        else:
+            put(offset, payload)
         return offset
 
     def walk(directory: Directory, base: int, start: int | None = None) -> int:
@@ -138,18 +186,27 @@ def serialize(root: Directory) -> bytes:
         if start is None:
             start = allocate(size)
         else:
-            if start != len(output):
+            if start != end:
                 raise ValueError("Invalid directory placement.")
             allocate(size, align=False)
-        struct.pack_into("<H", output, start, len(tags))
+        put(start, struct.pack("<H", len(tags)))
         image_values = {}
         for offsets_tag, lengths_tag in IMAGES:
             if offsets_tag not in directory.images:
                 continue
             offsets, lengths = [], []
             for payload in directory.images[offsets_tag]:
-                offsets.append(write(payload) - base if payload else 0)
-                lengths.append(len(payload))
+                length = (
+                    payload.length
+                    if isinstance(payload, ImagePayload)
+                    else len(payload)
+                )
+                if length or isinstance(payload, ImagePayload):
+                    position = write(payload)
+                    offsets.append(position - base if length else 0)
+                else:
+                    offsets.append(0)
+                lengths.append(length)
             image_values[offsets_tag] = offsets
             image_values[lengths_tag] = lengths
         for index, tag in enumerate(tags):
@@ -159,10 +216,12 @@ def serialize(root: Directory) -> bytes:
                 kind, count = 4, len(values)
                 payload = struct.pack("<" + "I" * count, *values)
             if tag.nikon_header:
+                if len(tag.nikon_header) != 10:
+                    raise ValueError("Invalid embedded Nikon TIFF header.")
                 position = allocate(18)
-                output[position : position + 18] = tag.nikon_header + b"II*\0\x08\0\0\0"
+                put(position, tag.nikon_header + b"II*\0\x08\0\0\0")
                 walk(tag.children[0], position + 10, position + 18)
-                count = len(output) - position
+                count = end - position
                 kind = 7
                 value = struct.pack("<I", position - base)
             else:
@@ -178,8 +237,8 @@ def serialize(root: Directory) -> bytes:
                     else payload.ljust(4, b"\0")
                 )
             entry = struct.pack("<HHI", tag.code, kind, count) + value
-            output[start + 2 + index * 12 : start + 14 + index * 12] = entry
+            put(start + 2 + index * 12, entry)
         return start
 
     walk(root, 0, 8)
-    return bytes(output)
+    stream.seek(end)

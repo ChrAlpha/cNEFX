@@ -1,12 +1,13 @@
 {
   "schema_version": 1,
   "observed_on": "2026-09-20",
-  "scope": "Pixel-shift reconstruction memory; NEFX serialization remains a separate memory gap",
+  "scope": "Grouped pixel-shift reconstruction and streamed NEFX serialization",
   "implementation": {
     "reader": "Each zero-based capture index is decoded once; at most four original source planes are retained.",
     "repair": "Independent groups of four preserve ordered sparse-repair dependencies.",
     "pairs": "Pair index j with j + input_count / 2, retaining the two-row displacement and ordered selected-sample overrides.",
-    "output": "The cropped RGB array remains resident; exact NEFX verification compares 128-row blocks."
+    "output": "The cropped RGB array remains resident; exact NEFX verification compares 128-row blocks.",
+    "serialization": "Packed14 RGB is emitted in 64-row blocks to the atomic temporary file. TIFF relocation uses seekable output with zero-filled gaps, avoiding full-output packing and serialization buffers."
   },
   "saved_vendor_replay": [
     {
@@ -47,9 +48,56 @@
       }
     ]
   },
+  "streamed_writer": {
+    "fixed_clock_baseline_comparison": {
+      "baseline_commit": "4d554b5",
+      "report": "/workspaces/LumaForge/nxc-data/scratch/nefx-stream-byte-replay-v1/report.json",
+      "sha256": "b91fd7e87db6d1d447d6a9406851638109d9a8adc3323d735511b6869491cab3",
+      "cases": 8,
+      "bytes_compared": 96398368,
+      "all_identical": true,
+      "provenance": "Snapshot predates the final stream-position validation guard; report pins the exact implementation used. Final source hashes are covered by the native CLI and full-resolution checks below."
+    },
+    "synthetic_writer_memory": {
+      "rgb_shape": [3072, 4096, 3],
+      "baseline_max_rss_kib": 360060,
+      "streamed_max_rss_kib": 177236,
+      "identical_nefx_sha256": "40d1c384033bca8e2bb355c3a5f3fa2d65bd2422460fdeeff7cdf6faa5c4c891",
+      "decoded_pixel_differences": 0,
+      "baseline_report": "/workspaces/LumaForge/nxc-data/scratch/nefx-memory-baseline-v1.json",
+      "baseline_report_sha256": "571c03db4778177b5bab546130088047af90b4aac6fd552aa1b46c5ce9d2654e",
+      "streamed_report": "/workspaces/LumaForge/nxc-data/scratch/nefx-memory-stream-v1.json",
+      "streamed_report_sha256": "4d15fd65adb73daa0c50e217663d68128ee5511caea2e1e5c18525220d071f85",
+      "limit": "Separate processes, synthetic RGB with patched crop metadata; writer snapshot predates the final stream-position guard. RSS sampled before output decode."
+    },
+    "final_cli_saved_vendor_comparison": {
+      "report": "/workspaces/LumaForge/nxc-data/scratch/native-cli-stream-v1/report.json",
+      "sha256": "ffe382a9901d94f9595253f53ff4c756568cc86ba36ab5a7d950eb23330bad32",
+      "cases": 8,
+      "samples_compared": 16078080,
+      "different_samples": 0,
+      "all_overwrite_checks_passed": true
+    }
+  },
+  "full_resolution_resource_check": {
+    "report": "/workspaces/LumaForge/nxc-data/scratch/fullsize-merge-memory-v1/report.json",
+    "sha256": "51530ba7999a02a0d59ddb393e32dd1e6e515461c33e111d472c543481895e76",
+    "evidence_kind": "Repeated ordinary RAW with synthetic 32-frame sequence metadata and empty repair selector",
+    "raw_shape": [5520, 8280],
+    "output_shape": [11008, 16512, 3],
+    "samples_verified_after_decode": 545292288,
+    "output_size_bytes": 962790404,
+    "max_rss_kib": 2597872,
+    "elapsed_seconds": 29.821962330000133,
+    "address_space_limit_bytes": 4294967296,
+    "timeout_seconds": 300,
+    "overwrite_rejected": true,
+    "passed": true,
+    "limit": "One measured run; no authentic capture, vendor full-resolution pixel comparison, or Lightroom acceptance is implied."
+  },
   "remaining": [
-    "NEFX packing and TIFF serialization still allocate full-output copies.",
     "Final RGB allocation and LibRaw verification still scale with output dimensions.",
-    "Authentic capture quality, full-resolution end-to-end memory and Lightroom acceptance remain unverified."
+    "Full-resolution nonzero sparse selectors, other frame counts and firmware variants need resource coverage.",
+    "Authentic capture quality and Lightroom acceptance remain unverified."
   ]
 }
