@@ -184,14 +184,47 @@
     "limits": "Source parameters are still captured. No initial Bayer synthesis, complete source-derived Nlg pyramid, full renderer, authentic pixel-shift NEFX or Lightroom acceptance is established."
   },
   "initial_bayer_recovery": {
-    "status": "Static findings; native implementation and direct vendor comparison pending",
+    "status": "Bounded native Bayer reduction implemented; synthetic and real-source window comparisons pass",
     "artifact": "nlg-bayer-static-recovery.txt",
     "sha256": "24b37431df8f89d8d743d2c0783a55a5809aa1ee7325045cefe5d0db6e895271",
     "reducer_chain": "0x1030d0 -> 0x1053a0 -> vtable 0xaf7968 -> 0x1095d0 -> 0x109d10 -> 0x10b710 -> scalar 0x69f20",
     "reducer": "A 4x4 CFA-aware reducer computes RGB and a byte-valued directional auxiliary map. Pattern comes from owner context +0x20, not the parameter block. Even source axes are required by the owning dispatcher. Output extent is (source extent + 2) / 4 with integer truncation.",
+    "implementation": "tools/nlg_bayer.py; tests/test_nlg_bayer.py; tests/fixtures/nlg_bayer_vectors.json",
+    "native_contract": "Little-endian uint16 Bayer arrays with even axes 2..2048. Patterns 0/1/2/3 are RGGB/GRBG/GBRG/BGGR. Precision 0/1 shifts each 14-bit sample right by one; precision 2/3 doubles each 12-bit sample before averaging. Unsupported numeric values fail explicitly. Processing uses 32 output rows per batch.",
+    "auxiliary": "Four directional scores use first-maximum tie precedence and strict monotonic suppression. The 1024-byte classification table uses signed (high-low)>>3, wrapped uint16 thresholds and first-match ordering. It has no 511 mask. The native module preserves monochrome behavior, per-sample normalization and CFA phase at partial blocks.",
+    "verification": "59 direct Bayer tests pass. Before adding the two targeted regression tests, 1958 full-suite tests passed in 7.88 seconds. Deterministic fixture reconstruction checks every original vendor input and RGB/auxiliary output hash. Scoped Ruff/format, ASCII, JSON and diff checks pass.",
+    "review": "Independent review found no implementation defects within the declared bounds and independently replayed all sixteen synthetic cases with 99 capture and 133 native-report hashes unchanged. Review found nondiscriminating strict-monotonicity and direction-tie fixtures; the two additional targeted cases below close that gap.",
+    "synthetic_vendor_oracle": {
+      "capture": "nlg-bayer-synthetic-v1/report.json",
+      "capture_sha256": "74fd5b3d25fc3882b65d4d1889cbeb9aed608967c27919c4b3d8f1bd58d7cd96",
+      "report": "nlg-bayer-synthetic-v1/native-report.json",
+      "sha256": "6090dcf6e605881192b46e59b47b0c6df4b63c0e8c6a625ed2f102f7da462bbd",
+      "probe_source": "probe_nlg_bayer.c",
+      "runner": "nlg_bayer_oracle_v2.py",
+      "coverage": "Sixteen cases compare 8394 RGB words and 2798 auxiliary bytes exactly. Direct scalar leaf 0x69f20 and wrapper 0x1053a0 outputs also agree. Covers every CFA and precision value, shifts, small and partial axes, monochrome, descending and wrapped thresholds. Native diagnostics count 1372 monotonic selections and 24 threshold ties; these are not a vendor branch trace.",
+      "guards": "Read-only inputs, descriptors, owners and contexts; guarded buffers and row canaries, unchanged MXCSR, pinned vendor providers and cleanup pass. All 99 capture hashes and 133 native-comparison hashes rechecked. Strict C11 compilation and scoped Ruff/format checks pass.",
+      "limits": "Synthetic inputs and bounded scalar/wrapper calls only. No real-source replay or subsequent initial Bayer stages are established by this corpus."
+    },
+    "targeted_auxiliary_validation": {
+      "capture": "nlg-bayer-ties-v1/report.json",
+      "sha256": "d6d27bd34d6f04a2916352bcc3b82916d34e59edeed343d97a5fef92784ba664",
+      "runner": "nlg_bayer_ties_oracle.py",
+      "result": "Two 4x4 cases distinguish strict monotonicity and first-maximum direction precedence. Guarded direct leaf and wrapper agree: RGB [0,1120,0] and [0,1352,0], auxiliary 8 for both. Corresponding non-strict or last-direction mutations produce auxiliary 4. Both expected outputs are retained in regression tests."
+    },
+    "real_source_windows": {
+      "capture": "nlg-bayer-source-v2/report.json",
+      "sha256": "3205d9fc07fb623eea02f90bf4c6981a2e8acb7bd0396050efd54ec20a8115bc",
+      "probe_source": "probe_stage_pixels_v17.c",
+      "hook": "nlg_bayer_tap.h",
+      "runner": "run_nlg_bayer_capture_v2.py",
+      "coverage": "Two executions of one 8256x5504 lossless Z8 source/control, twelve windows each. Each window retains 4x1024 Bayer pixels and 1x256 RGB/auxiliary outputs at output rows 0/17/688/1375 and columns 0/904/1808. All 18432 RGB words and 6144 auxiliary bytes match the native reducer exactly.",
+      "integrity": "Inputs copied before wrapper 0x1053a0; outputs after its joined work returns. All selected source bytes and descriptors remain unchanged. Payload 241312 bytes, below 1 MiB. Original SDK lifecycle, 28 provider paths and final render hash preserved. Report contains 206 input and 851 output hashes.",
+      "mxcsr": "Version1 was rejected because call2 inherited MXCSR exception status bits, although 8123 remained 8123. Version2 validates control bits with status mask 0x3f and still requires exact before/after equality. The failed version1 report is preserved.",
+      "limits": "Bounded windows from one photograph and one control, not a complete native initial Bayer chain, a second photograph or pixel-shift evidence. Source parameters remain captured."
+    },
     "subsequent_stages": "0x1056e0 black/gain/offset and nonlinear limiting; 0x6af00 lookup; 0x105e40 interpolation or monochrome 0x6bd70; 0x6bf40 signed chroma smoothing and auxiliary blending.",
     "fallback": "0x102e80 -> vtable 0xaf79c8 -> 0x109580 -> 0x109ba0 -> 0x10b420 -> 0x66fb0 reads three-channel RGB, not Bayer.",
-    "limits": "The current capture omits Bayer pixels and the immediate 2064x1376 RGB output. No direct reducer replay is possible from these saved inputs. A guarded synthetic RGB-plus-auxiliary oracle and bounded source-row tap are required."
+    "limits": "The original pyramid capture omits Bayer pixels and the immediate 2064x1376 RGB output; the additional capture covers only the stated windows. Black/gain correction, lookup, interpolation, chroma smoothing and source parameter recovery remain separate unfinished stages."
   },
   "capture_limits": [
     "At most24calls,8MiB per plane and128MiB aggregate plane budget. Large Bayer and2064x1376RGB payloads are intentionally omitted; descriptor observations distinguish omitted and empty planes.",
