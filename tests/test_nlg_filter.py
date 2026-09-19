@@ -10,12 +10,39 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from nlg_filter import _blend_table, filter_domain
+from nlg_filter import _blend_table, _impulse, filter_domain
 
 VECTORS = json.loads(
     (Path(__file__).parent / "fixtures/nlg_filter_vectors.json").read_text()
 )
 PARAMS = bytes.fromhex(VECTORS["impulses"][0]["params"])
+
+
+@pytest.mark.parametrize("mode", [0, 1])
+@pytest.mark.parametrize("delta", [-15, -14, -13, 13, 14, 15])
+def test_intermediate_impulse_selection_distinguishes_threshold_equality(mode, delta):
+    window = np.full((1, 1, 5, 5, 3), [4096, 0, 0], dtype=np.int64)
+    window[0, 0, 2, 2] += delta
+    params = bytearray(PARAMS)
+    params[0x14:0x16] = bytes((mode, mode))
+    struct.pack_into("<2H", params, 0x16, 7, 7)
+    outside = delta < -14 or delta >= 14
+    expected = delta if outside == bool(mode) else 0
+    actual = _impulse(window, struct.unpack_from("<19H", params), params)
+    np.testing.assert_array_equal(actual, [[[expected] * 3]])
+
+
+@pytest.mark.parametrize("case", VECTORS["isolated_impulses"], ids=lambda c: c["name"])
+def test_vendor_isolated_impulses_discriminate_modes_and_thresholds(case):
+    mode, delta = case["name"].removeprefix("isolated_impulse_mode").split("_delta")
+    source = np.full((7, 9, 3), [4096, 0, 0], dtype="<i4")
+    source[3, 4] += int(delta)
+    params = bytes.fromhex(case["params"])
+    actual = filter_domain(source, params)
+    assert hashlib.sha256(actual.tobytes()).hexdigest() == case["expected_sha256"]
+    changed = bytearray(params)
+    changed[0x14:0x16] = bytes((1 - int(mode),) * 2)
+    assert np.any(filter_domain(source, bytes(changed)) != actual)
 
 
 @pytest.mark.parametrize("index", [0, 1])

@@ -173,7 +173,14 @@
     ],
     "regression_vectors": "tests/fixtures/nlg_filter_vectors.json retains synthetic vendor facts and report hashes. Tests cover active chroma, directional crops, both impulse modes at signed threshold boundaries, high blend weights, noncontiguous read-only inputs, sixteen-row batch boundaries and unsupported numeric contracts.",
     "verification": "1877 full-suite tests pass in 7.61 seconds, including 65 direct filter tests. Scoped Ruff/format, ASCII/JSON, file-size and diff checks pass. Every recorded hash in the photograph and all three synthetic native reports was independently rechecked after execution.",
-    "review": "Independent scalar-prototype review confirmed captured arithmetic and found unchecked threshold/shift narrowing outside the observed domain. The repository implementation adds explicit bounds for those cases. A fresh review of the vectorized repository diff remains pending.",
+    "review": "Independent review of 77eec3b found no implementation defects within the declared numeric bounds. It independently reran 280 focused tests, the complete photograph replay and all three synthetic corpora, with identical report hashes and stable inputs. All 17 original fixture records match their vendor sources. Review found that the original impulse fixtures did not discriminate modes or thresholds; the additional isolated cases below address that test gap.",
+    "isolated_impulse_validation": {
+      "capture": "nlg-filter-impulse-v1/report.json",
+      "sha256": "06161b408fc2f853630e57021296a5bd1130c13278e63c1c9a2984bc96268b18",
+      "runner": "nlg_filter_impulse_oracle.py",
+      "coverage": "Twelve fresh vendor cases disable neighboring responses while retaining the impulse branch and strengths. Deltas -15/-14/-13/13/14/15 around threshold 7 distinguish both modes and asymmetric signed threshold equality. All 2268 output words match the native filter; all recorded hashes rechecked.",
+      "regression": "Twelve intermediate impulse assertions and twelve vendor final-output assertions added. Forcing both modes to zero is rejected by all twelve isolated final-output test cases; forcing thresholds to zero is rejected by six. Focused filter tests: 89 pass. This closes the prior nondiscriminating-fixture gap."
+    },
     "limits": "Source parameters are still captured. No initial Bayer synthesis, complete source-derived Nlg pyramid, full renderer, authentic pixel-shift NEFX or Lightroom acceptance is established."
   },
   "initial_bayer_recovery": {
