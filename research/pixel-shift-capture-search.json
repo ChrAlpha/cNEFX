@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "checked_on": "2026-09-20",
+  "question": "Can a complete authentic Z8 pixel-shift NEF sequence and matching NEFX reference be downloaded from a public source?",
+  "result": "No downloadable authentic sequence or NEFX reference was verified in this bounded search.",
+  "sources": [
+    {
+      "url": "https://raw.pixls.us/json/getrepository.php",
+      "observation": "HTTP 200. The catalog still lists three ordinary Z8 RAW files dated 2023-06-02, predating pixel-shift support. These are not a capture sequence."
+    },
+    {
+      "url": "https://tiszta-eg-tiszta-fold-mayer-miklos.kit.com/4ced05d60d",
+      "observation": "Search index advertises Z8 pixel-shift test shots and says a Google Drive link is sent by email. Direct page returned HTTP 403. No direct file URL, archive size, or actual contents were verified.",
+      "interaction": "No form submitted or person contacted."
+    },
+    {
+      "url": "https://www.photoartfromscience.com/single-post/pixel-shift-shooting-analysis-of-the-nikon-z8",
+      "observation": "HTTP 200. Describes authentic 4/8/16-shot comparisons but exposes no source RAW or NEFX download links."
+    },
+    {
+      "url": "https://julianbaird.com/blog/2024/6/6/nikon-z8-pixel-shift-shooting-for-landscape-photography",
+      "observation": "HTTP 200. Describes a landscape sequence without a downloadable sequence or reference."
+    },
+    {
+      "url": "https://discuss.pixls.us/t/nefx-editing-in-darktable/55017",
+      "observation": "Twelve posts read through public JSON. A sample is offered, but none is attached or linked."
+    },
+    {
+      "url": "https://community.adobe.com/questions-680/p-pixel-shift-files-from-nikon-z8-report-as-smaller-pixel-dimensions-929655",
+      "observation": "HTTP 200. Contains historical ACR 16.1.1 support confirmation but no sample download. It does not establish compatibility of nxc output."
+    }
+  ],
+  "limits": [
+    "Search was bounded and does not prove that no public dataset exists.",
+    "PhotographyBlog, DPReview, Diglloyd, Fred Miranda, Photomacrography and Reddit pages returned HTTP 403.",
+    "Brave Search eventually returned HTTP 429; Google required JavaScript and Bing did not yield useful matches.",
+    "No mailing-list signup, outreach, account interaction, or large download was performed."
+  ]
+}
