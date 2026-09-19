@@ -12,7 +12,7 @@ import rawpy
 
 from ._atomic import publication
 from .nefx import write_nefx
-from .pixel_shift import reconstruct
+from .pixel_shift import reconstruct_from_reader
 from .raw import read_frame
 
 CONSISTENT = (
@@ -86,17 +86,23 @@ def merge(paths: list[Path], output: Path) -> dict[str, Any]:
             raise ValueError("Duplicate input file or hard link.")
         identities.add(identity)
         resolved.append(path)
-    arrays, metadata = [], []
-    for path in resolved:
-        samples, information = read_frame(path)
-        arrays.append(samples)
-        metadata.append(information)
-    validate_sequence(metadata)
-    first = metadata[0]
-    pixels = reconstruct(
-        arrays, first["crop"], b"0100" + first["selector"], first["iso"]
+    samples, first = read_frame(resolved[0])
+    initial = [samples]
+    del samples
+    by_index = {0: first}
+
+    def load(index: int) -> np.ndarray:
+        if index == 0:
+            return initial.pop()
+        samples, information = read_frame(resolved[index])
+        by_index[index] = information
+        return samples
+
+    pixels = reconstruct_from_reader(
+        len(paths), load, first["crop"], b"0100" + first["selector"], first["iso"]
     )
-    del arrays
+    metadata = [by_index[i] for i in range(len(paths))]
+    validate_sequence(metadata)
     source = resolved[0].read_bytes()
     if hashlib.sha256(source).hexdigest() != first["source_sha256"]:
         raise ValueError("First input changed before metadata copying.")
@@ -105,7 +111,10 @@ def merge(paths: list[Path], output: Path) -> dict[str, Any]:
         warnings = write_nefx(candidate, source, pixels, len(paths))
         with rawpy.imread(str(candidate)) as image:
             actual = image.raw_image[..., :3]
-            if actual.shape != pixels.shape or not np.array_equal(actual, pixels):
+            if actual.shape != pixels.shape or any(
+                not np.array_equal(actual[row : row + 128], pixels[row : row + 128])
+                for row in range(0, len(pixels), 128)
+            ):
                 raise ValueError("Written NEFX failed exact pixel verification.")
         for path, information in zip(resolved, metadata, strict=True):
             if digest(path) != information["source_sha256"]:

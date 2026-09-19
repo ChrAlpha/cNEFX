@@ -1,10 +1,13 @@
 """Native numerical contracts independent of file decoding and vendor binaries."""
 
+import hashlib
+import weakref
+
 import numpy as np
 import pytest
 
 from nx_ctudio._sparse import Selection
-from nx_ctudio.pixel_shift import reconstruct
+from nx_ctudio.pixel_shift import reconstruct, reconstruct_from_reader
 
 EMPTY_SELECTOR = b"0100" + bytes(24)
 
@@ -77,3 +80,71 @@ def test_unsupported_count_fails(count: int) -> None:
         reconstruct(
             [np.zeros((8, 8), np.uint16)] * count, (1, 1, 6, 6), EMPTY_SELECTOR, 3201
         )
+
+
+@pytest.mark.parametrize(
+    "count, iso, expected",
+    [
+        (4, 3200, "00c6bfaf3ae40269061c55417136a8a7e91a48cd56e34f0b3ded8809386c570e"),
+        (4, 3201, "fdd15054231f1be1a9fd3f6a8a7b4ddad7909a95a7306ad8bc8642ebaaf2d5a1"),
+        (8, 3200, "347bf321d896764e6354543a14d772195a384b78db2c0d2bd353e57bc9d8cc41"),
+        (8, 3201, "e504c36a171e265f9a5300069bf251d191996c951097efbb3c9bc344ec04eb87"),
+        (16, 3200, "66074a4760fe4ae65a7a03f5bf71ca4b0c4f1e2e56082dc3d5a6df0fa52472e2"),
+        (16, 3201, "1ea85aed00f49cca995e46f14c0e0f5ef12c517ce3c4b3c23dfbfb8dce896cfd"),
+        (32, 3200, "0e023ad1c6b94ee0ed795ff797c19604a1649e6f95ee7b660335881d49059857"),
+        (32, 3201, "3d15105fc7346588ad30758ab6ae35a7926a60c693c1d699e310471aa28d63ec"),
+    ],
+)
+def test_reader_releases_inputs_and_preserves_ordered_repairs(
+    count: int, iso: int, expected: str
+) -> None:
+    references = []
+    reads = []
+
+    def read(index: int) -> np.ndarray:
+        assert index not in reads
+        reads.append(index)
+        samples = np.random.default_rng(510 + index).integers(
+            0, 16384, (18, 24), dtype=np.uint16
+        )
+        references.append(weakref.ref(samples))
+        assert sum(ref() is not None for ref in references) <= 4
+        return samples
+
+    selector = (
+        b"0100" + Selection(18, 24, first_row=6, inner_step=1, inner_after=5).pack()
+    )
+    actual = reconstruct_from_reader(count, read, (2, 2, 20, 14), selector, iso)
+    assert sorted(reads) == list(range(count))
+    assert all(ref() is None for ref in references)
+    # Pinned before the streaming change; consecutive repair rows depend on order.
+    assert hashlib.sha256(actual.astype("<u2").tobytes()).hexdigest() == expected
+
+
+@pytest.mark.parametrize("shape", [(9, 10), (10, 9), (9, 9)])
+def test_odd_raw_axes_are_outside_the_recovered_domain(shape: tuple[int, int]) -> None:
+    with pytest.raises(ValueError, match="even"):
+        reconstruct(
+            [np.zeros(shape, np.uint16)] * 4, (1, 1, 6, 6), EMPTY_SELECTOR, 3201
+        )
+
+
+@pytest.mark.parametrize("failure", ["geometry", "dtype", "range", "decode"])
+def test_later_reader_failure_does_not_return_partial_rgb(failure: str) -> None:
+    reads = []
+
+    def read(index: int) -> np.ndarray:
+        reads.append(index)
+        if index == 7:
+            if failure == "decode":
+                raise OSError("Decode failed.")
+            if failure == "geometry":
+                return np.zeros((8, 10), np.uint16)
+            if failure == "dtype":
+                return np.zeros((8, 8), np.int16)
+            return np.full((8, 8), 16384, np.uint16)
+        return np.zeros((8, 8), np.uint16)
+
+    with pytest.raises((ValueError, OSError)):
+        reconstruct_from_reader(16, read, (1, 1, 6, 6), EMPTY_SELECTOR, 3201)
+    assert reads == list(range(8))

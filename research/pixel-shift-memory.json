@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-20",
+  "scope": "Pixel-shift reconstruction memory; NEFX serialization remains a separate memory gap",
+  "implementation": {
+    "reader": "Each zero-based capture index is decoded once; at most four original source planes are retained.",
+    "repair": "Independent groups of four preserve ordered sparse-repair dependencies.",
+    "pairs": "Pair index j with j + input_count / 2, retaining the two-row displacement and ordered selected-sample overrides.",
+    "output": "The cropped RGB array remains resident; exact NEFX verification compares 128-row blocks."
+  },
+  "saved_vendor_replay": [
+    {
+      "report": "/workspaces/LumaForge/nxc-data/scratch/native-cli-grouped-v2/report.json",
+      "sha256": "63094529487257673e24b0101abdb751e1311c66f9d1506c24e0226ff9053e75",
+      "cases": 8,
+      "samples": 16078080,
+      "different_samples": 0,
+      "counts": [4, 8, 16, 32],
+      "iso": [3200, 3201],
+      "overwrite_rejected": true
+    },
+    {
+      "report": "/workspaces/LumaForge/nxc-data/scratch/native-core-grouped-radial-v1.json",
+      "sha256": "6b52e355b4124adb6b380f1cf99aa5a536ebfceb7683e2a97725b2da51e600a6",
+      "cases": 4,
+      "samples": 8039040,
+      "different_samples": 0,
+      "note": "Uses the uncorrected reference outputs from the radial corpus; radial correction is still disabled."
+    }
+  ],
+  "memory_measurement": {
+    "evidence_kind": "Scaled synthetic reconstruction in separate Linux processes; not a full-resolution end-to-end measurement",
+    "raw_shape": [1536, 2048],
+    "input_count": 32,
+    "iso": 3200,
+    "eager_max_rss_kib": 392736,
+    "grouped_max_rss_kib": 150392,
+    "identical_output_sha256": "519925c42c80f5f4ec7749952982baa593c6d5b0140398ea3a59b069034b080a",
+    "reports": [
+      {
+        "path": "/workspaces/LumaForge/nxc-data/scratch/pixelshift-memory-eager-v1.json",
+        "sha256": "bf375de7a92cd142c50de8a09ce01a4bafaf8e78a464ad2381e173afaaf10976"
+      },
+      {
+        "path": "/workspaces/LumaForge/nxc-data/scratch/pixelshift-memory-streaming-v1.json",
+        "sha256": "394aa8ebb44ba5c002ad3678df69fd0fb7426d19646292636dd2b51a98604d28"
+      }
+    ]
+  },
+  "remaining": [
+    "NEFX packing and TIFF serialization still allocate full-output copies.",
+    "Final RGB allocation and LibRaw verification still scale with output dimensions.",
+    "Authentic capture quality, full-resolution end-to-end memory and Lightroom acceptance remain unverified."
+  ]
+}
