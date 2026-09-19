@@ -101,5 +101,28 @@
     "default_regression": {"report": "sdk-kaiji-default-regression-v1/report.json", "sha256": "de3a90b372a65078d19ae2df57d061f523de7537dfd41374375baa82ef2f4526", "cases": 6, "result": "Default Mode2/grid33 tables,prepared tables,planes and profiles remain byte-identical to sdk-kaiji-icc-native-v1."},
     "verification": "105input hashes stable for each run.794full pytest tests passed4.82s;94focused tests,strict C11,scoped Ruff/format,ASCII/JSON/diff checks pass. Both output selectors and mismatched lifecycle selections are tested.",
     "limit": "Pinned coefficients,mode/blend calibration and Nikon ICC template; source AUTO1/AUTO0 and externally decrypted ColorBalance0803 only. No full-image preprocessing,downstream transforms or Lightroom parity."
+  },
+  "active_graph_pilot": {
+    "report": "render-graph-analysis-v1.json",
+    "sha256": "eb9b3e207d3cd8bffafcc55a125211b70567c9b16b0b35f24480aa65ab7c92d7",
+    "evidence_kind": "process_local_graph_instrumentation_with_guarded_render_lifecycle",
+    "probe": "External probe_render_graph.c and probe-render-graph-v3.exe",
+    "coverage": "One ordinary source,vanilla NP3,scale1/32,RGB16. Four execution-time graph snapshots with83,83,96,96ordered stages;10GetStdLut calls saved. Original guarded render/provider checks pass;203input/artifact hashes recorded.",
+    "abi_correction": "LUT adapter vtable0xb08d08->0x276210 returnsuint32 status inEAX. Ghidra's void prototype is wrong; failing to preserve it caused v1/v2render_setup=-1. Preserving status0 makes v3complete. The old pilot reports are retained.",
+    "enabled_order": "Early snapshot: scale_twentyfive_percent10,awb_histogram15,Nr1Kaiji18,highlight_recovery19,vignette22,raw_lut23,pc_custom_curve_histogram24,degamma_raw_lut25,NlgKaiji27,cms030,Nr2Kaiji37,EdgeKaiji39,distortion40,cms244,lch_histogram46,cms358. Names for Kaiji stages resolved through RTTI.",
+    "activation": "RAW LUT gate0x277f20 checks pc_custom_curve_histogram UUID05343566-7eb1-4301-bc47-280511c5d1ed or noise-reduction slot+0x168. Both raw_lut and degamma_raw_lut are enabled in this observed graph; callerRVAs277812/277dc9 confirm their actual encode/decode LUT requests.",
+    "lut_abi": "Factory0x276170->constructor0x4936b0,vtable0xb23250. Setter0x493930(filter,threeuint16tables,16,16,3);processslotb23528->493d20(filter,output_block,context);enablebytefilter+54. Process uses independent channel lookup and contains no WB or matrix operation.",
+    "limit": "Graph enabled state alone does not prove every stage changes every pixel. Original generic verifier rejects added instrumentation events; analysis explicitly removes only known trace events before validating the original render lifecycle. WB/matrix placement inside Kaiji stages remains unresolved. This is a pilot,not full-image parity."
+  },
+  "native_raw_transfer_tables": {
+    "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
+    "report": "raw-transfer-native-v1/report.json",
+    "sha256": "6867b6acfb47f98e7726dafc65db54a6e346caac52164a9dcbe38b8bba85dd95",
+    "evidence_kind": "fresh_utilities_GetStdLut_export_vs_native_libm",
+    "coverage": "GetStdLut(curve0,gamma0/1,input16,output16);131072words compared,0differences. Both hashes also match10LUTsnapshots from actualrenderer execution.",
+    "arithmetic": "All arithmetic in float32,including normalized coordinates. Scalar native libm.powf matches; NumPy float32 power differs at62words and doublepow narrowed tofloat32 differs at2words,total across both tables. Final RGB16 conversion truncates. Encoder endpoint is65534,decoder65535.",
+    "runtime": "Linux glibc2.41;actual libm provider resolved with dladdr and hashed. Other libm implementations require separate numerical validation.",
+    "verification": "FreshDLLexport run passes provider path,table immutability,exclusive output and release checks;7input hashesstable.12focused tests and834fullpytesttests pass4.73s. Strict C11,scoped Ruff/format,ASCII/JSON/diff checks pass.",
+    "limit": "Fixed16-bit tables only. Source WB/matrix,Kaiji denoise/highlight stages,Lab/Lch transformations and complete native rendering remain unrecovered."
   }
 }
