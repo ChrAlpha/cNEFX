@@ -95,9 +95,10 @@ def transform(
     descending = np.arange(width - 1, -1, -1, dtype=np.float32)
     dy = np.arange(origin[1], origin[1] + height, dtype=np.float32) - cy
     # Preserve the leaf's expanded polynomial and per-operation float32 rounding.
-    distance_squared = (
-        (descending - (anchor + anchor)) * descending + anchor * anchor
-    )[None, :] + (dy * dy)[:, None]
+    row_constant = anchor * anchor + dy * dy
+    distance_squared = ((descending - (anchor + anchor)) * descending)[
+        None, :
+    ] + row_constant[:, None]
     if np.any(distance_squared < 0):
         raise ValueError(
             "Negative rounded squared radius is outside the verified branch."

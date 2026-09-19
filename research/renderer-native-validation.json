@@ -338,6 +338,23 @@
     "verification": "231input hashes stable;84focusedtests passed. New28parser tests cover signedrational conversion,float32 scaling,metadataimmutability andunsupportedmodel/crop/strength/degree/scales/missingrecords. ScopedRuff/format,ASCII,JSON,diffchecks pass. Independentsource-parserreview pending.",
     "limit": "One source/control captured at1/4and1/32scale. Parser allows onlyfull-sensor Z8 geometry,power-of-two downscales anddefaultNormal control. Othercamera/crops/useroverrides requireadditionalcontracts. No complete source renderer,authenticpixelshift/NEFX orLightroomacceptance."
   },
+  "native_vignette_radius_order": {
+    "implementation": "tools/renderer_vignette.py; tests/test_renderer_vignette.py",
+    "report": "vignette-leaf-native-v2/report.json",
+    "sha256": "5f4a0ec48d6879987af1cb59eb863516bc61ec152dc818331997c7d70f287e0a",
+    "evidence_kind": "fresh_synthetic_RGB16_vignette_leaf",
+    "source": "probe_vignette_leaf.c",
+    "source_sha256": "07aa6875d482a0834e22ae28e7b69be91ca59b00ca1ade1800db1e83718963ba",
+    "probe": "probe-vignette-leaf-v1.exe",
+    "probe_sha256": "0baabfaf2beeb6db9e9eff1df9aa5823474ae2a5564aef3aea583b6fa41e88d6",
+    "runner": "vignette_leaf_oracle.py",
+    "runner_sha256": "558e033fe167ee301a09663c12649d41b96fe17945313742bde42ec99b19b8d0",
+    "correction": "Fresh synthetic case4 found2differences among79872words,max5. SSE358e23..358e32 precomputes anchor_squared+dy_squared;358ec5 adds the per-pixel term last. The decompiled expression lost this addition grouping. At tilex186,y40,radius_squared525987.5 selects2900;previous grouping525987.5625 selected2901. New regression fails beforefix andpassesafter.",
+    "coverage": "8fresh cases,97356words exact:1x1 to208x128tiles,imagelogicalextents32x24through16384x16384,random/extremeRGB16,positive/negativecenter offsets,mixedcoefficients andidentity. Hash-pinnedrenderer leaf358de0;guardpages,read-onlyinputs/state,canaries,providerpath,exclusiveoutput andcleanup checked.45hashesstable;30s perprocess.",
+    "source_replay": "Post-fixsource-derived replayrenderer-vignette-source-native-v2/report.json SHA2566b3e78905b2e9a845f977f43d3d6617ceec9f1c04058dacf4c2d26698fee2d2e retainsall535480tablewords and213000pixelwordsexact;231hashesstable.",
+    "verification": "StrictC11-Wall-Wextra-Werror probecompile,85focusedtests and1339fullsuite5.54s pass. ScopedRuff/format,ASCII,JSON,diffchecks pass. Earlierfailedvignette-leaf-native-v1 retained. Freshindependentreview ofsourceparser/radiusfix pending.",
+    "limit": "Radialtables are caller-generated;thisliveoracle validatespixelarithmetic,notvendor tablegeneration. Fixedgain3276,identitytransfer,auxiliarydisabled. No end-to-end native renderer oradditionalphotograph/NEFX/Lightroom acceptance."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",

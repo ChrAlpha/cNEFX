@@ -71,6 +71,20 @@ def test_saturation_noncontiguous_pixels_and_tile_coordinates():
     assert np.all(image == 60000)
 
 
+def test_radius_uses_vendor_precomputed_anchor_and_vertical_sum():
+    image = np.zeros((41, 208, 3), dtype="<u2")
+    image[40, 186] = [0, 43593, 33492]
+    actual = transform(
+        image,
+        (2064, 1376),
+        (1248, 1248),
+        (-6.416015625, 1.521484375),
+        (0.0, 0.07179546356201172, 0.01258087158203125, 0.5126314163208008),
+    )
+    # Fresh vendor leaf: radius squared525987.5 selects2900, not2901.
+    np.testing.assert_array_equal(actual[40, 186], [0, 46716, 35891])
+
+
 @pytest.mark.parametrize(
     "size", [None, (0, 4), (4, 0), (16385, 2), (True, 4), (4.0, 3)]
 )
