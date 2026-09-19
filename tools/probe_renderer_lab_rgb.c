@@ -12,6 +12,15 @@
 typedef void (*Kernel)(const void *, const void *, const void *, void *, void *, void *);
 typedef struct { uint8_t *allocation, *data, *copy; size_t size, pages; } Buffer;
 typedef struct { void *pixels; uint32_t bits, pixel_bytes, row_bytes; } Descriptor;
+typedef struct { uint64_t before[4]; Descriptor value; uint8_t after[32]; } GuardedDescriptor;
+typedef struct { uint64_t before[4]; int32_t value[4]; uint8_t after[32]; } GuardedRectangle;
+
+static int argument_guards(const void *data, size_t size) {
+    const uint8_t *bytes = data;
+    for (size_t i = 0; i < 32; ++i)
+        if (bytes[i] != 0xa5 || bytes[32 + size + i] != 0xa5) return 0;
+    return 1;
+}
 
 static int allocate(Buffer *b, size_t size) {
     SYSTEM_INFO info;
@@ -75,7 +84,9 @@ static int width_value(const char *text, unsigned *value) {
 
 int main(int argc, char **argv) {
     unsigned width;
-    if (argc != 7 || !width_value(argv[5], &width)) return 2;
+    int inverse = argc == 8 && !strcmp(argv[7], "rgb-lab");
+    if ((argc != 7 && !inverse) || !width_value(argv[5], &width)) return 2;
+    unsigned kernel_rva = inverse ? 0x53b640u : KERNEL_RVA;
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
     Buffer matrix = {0}, curves = {0}, input = {0}, row = {0}, output = {0};
     Buffer state = {0}, job = {0}, scratch = {0};
@@ -91,11 +102,13 @@ int main(int argc, char **argv) {
     }
     for (size_t i = 0; i < 9; ++i) {
         float value; memcpy(&value, matrix.data + i * 4, 4);
-        if (!isfinite(value) || fabsf(value) > 16) { failure = "matrix_value"; goto cleanup; }
+        if (!isfinite(value) || fabsf(value) > 16 || (inverse && value < 0)) {
+            failure = "matrix_value"; goto cleanup;
+        }
     }
     for (size_t i = 0; i < CURVE_WORDS * 3; ++i) {
         float value; memcpy(&value, curves.data + i * 4, 4);
-        if (!isfinite(value) || value < 0 || value > 65535) {
+        if (!isfinite(value) || value < 0 || value > (inverse ? 1 : 65535)) {
             failure = "curve_value"; goto cleanup;
         }
     }
@@ -107,18 +120,19 @@ int main(int argc, char **argv) {
     }
     memset(state.data, 0, state.size);
     memset(job.data, 0, job.size);
-    memcpy(state.data + 0x3c8, matrix.data, matrix.size);
-    state.data[0x230] = 1;
+    memcpy(state.data + (inverse ? 0x238 : 0x3c8), matrix.data, matrix.size);
+    state.data[0x230] = inverse ? 0 : 1;
     for (unsigned i = 0; i < 3; ++i) {
         uint32_t identity = 6, sampled = 5;
-        memcpy(state.data + 0x558 + i * 0x78, &identity, 4);
-        uint8_t *curve = state.data + 0x3f0 + i * 0x78;
+        memcpy(state.data + (inverse ? 0x6c0 : 0x558) + i * 0x78, &identity, 4);
+        uint8_t *curve = state.data + (inverse ? 0x260 : 0x3f0) + i * 0x78;
         memcpy(curve, &sampled, 4);
         uintptr_t pointer = (uintptr_t)curves.data + i * CURVE_WORDS * 4;
-        memcpy(curve + 0x40, &pointer, 8);
+        unsigned vector = inverse ? 0x60 : 0x40;
+        memcpy(curve + vector, &pointer, 8);
         pointer += CURVE_WORDS * 4;
-        memcpy(curve + 0x48, &pointer, 8);
-        memcpy(curve + 0x50, &pointer, 8);
+        memcpy(curve + vector + 8, &pointer, 8);
+        memcpy(curve + vector + 16, &pointer, 8);
     }
     memcpy(job.data + 0x7c, &pitch, 4);
     if (!freeze(&state) || !freeze(&job)) { failure = "state_protection"; goto cleanup; }
@@ -130,7 +144,7 @@ int main(int argc, char **argv) {
     printf("{\"event\":\"provider\",\"path_hex\":\"");
     for (DWORD i = 0; i < length; ++i) printf("%02x", (unsigned char)path[i]);
     puts("\"}");
-    uintptr_t address = (uintptr_t)dll + KERNEL_RVA;
+    uintptr_t address = (uintptr_t)dll + kernel_rva;
     MEMORY_BASIC_INFORMATION region;
     if (VirtualQuery((const void *)address, &region, sizeof(region)) != sizeof(region) ||
         region.AllocationBase != (void *)dll || region.Type != MEM_IMAGE ||
@@ -142,17 +156,37 @@ int main(int argc, char **argv) {
     if ((before & ~0x20u) != 0x1f80u) { failure = "mxcsr_before"; goto cleanup; }
     printf("{\"event\":\"ready\",\"kernel_rva\":%u,\"width\":%u,"
            "\"height\":%llu,\"read_only_inputs\":true,\"mxcsr\":%u}\n",
-           KERNEL_RVA, width, (unsigned long long)height, before);
+           kernel_rva, width, (unsigned long long)height, before);
     fflush(stdout);
     for (size_t y = 0; y < height; ++y) {
         memset(row.data, 0xa5, row.size);
         memset(scratch.data, 0, scratch.size);
-        int32_t rectangle[4] = {0, 0, (int32_t)width, 1};
-        Descriptor in = {input.data + y * row_bytes, 48, 6, (uint32_t)row_bytes};
-        Descriptor out = {row.data, 48, 6, (uint32_t)row_bytes};
-        kernel(state.data, job.data, rectangle, &in, &out, scratch.data);
+        GuardedRectangle rectangle; GuardedDescriptor in, out;
+        memset(&rectangle, 0xa5, sizeof(rectangle));
+        memset(&in, 0xa5, sizeof(in)); memset(&out, 0xa5, sizeof(out));
+        const int32_t expected_rectangle[4] = {0, 0, (int32_t)width, 1};
+        memcpy(rectangle.value, expected_rectangle, sizeof(expected_rectangle));
+        in.value.pixels = input.data + y * row_bytes;
+        out.value.pixels = row.data;
+        in.value.bits = out.value.bits = 48;
+        in.value.pixel_bytes = out.value.pixel_bytes = 6;
+        in.value.row_bytes = out.value.row_bytes = (uint32_t)row_bytes;
+        Descriptor expected_in, expected_out;
+        memcpy(&expected_in, &in.value, sizeof(expected_in));
+        memcpy(&expected_out, &out.value, sizeof(expected_out));
+        expected_in.pixels = (uint8_t *)expected_in.pixels + row_bytes;
+        expected_out.pixels = (uint8_t *)expected_out.pixels + row_bytes;
+        kernel(state.data, job.data, rectangle.value, &in.value, &out.value, scratch.data);
         after = _mm_getcsr();
-        if (!intact(&row) || !intact(&scratch) || (after & ~0x20u) != 0x1f80u) {
+        if (!argument_guards(&rectangle, sizeof(rectangle.value)) ||
+            !argument_guards(&in, sizeof(in.value)) || !argument_guards(&out, sizeof(out.value)) ||
+            memcmp(rectangle.value, expected_rectangle, sizeof(expected_rectangle)) ||
+            memcmp(&in.value, &expected_in, sizeof(expected_in)) ||
+            memcmp(&out.value, &expected_out, sizeof(expected_out))) {
+            failure = "argument_guards_or_fields"; goto cleanup;
+        }
+        unsigned permitted = inverse ? 0x21u : 0x20u;
+        if (!intact(&row) || !intact(&scratch) || (after & ~permitted) != 0x1f80u) {
             failure = "row_guards_or_mxcsr"; goto cleanup;
         }
         memcpy(output.data + y * row_bytes, row.data, row_bytes);

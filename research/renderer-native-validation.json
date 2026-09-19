@@ -148,6 +148,24 @@
     "verification": "162focusedtests pass,including55newnativekernel tests and33newverifier tests. ScopedRuff/format,strictC11,JSON/ASCII/diffchecks pass. Failedv1report retained:wrongworkingdirectory preventedDLLdependencyload;usingvendorroot in v2resolvesit.",
     "limit": "Bounded sampled-curveLabRGBbranch only. Matrix andcurves stillcomefromexternalcapturedstate;not nativeprofileparameter extraction. No fullsource,Nlg,RGBLabmatrix/CMLlaterstages,completecms0orLightroomparity."
   },
+  "native_rgb_lab_matrix": {
+    "implementation": "tools/renderer_rgb_lab.py; tools/verify_renderer_lab_rgb.py --rgb-lab; shared probe_renderer_lab_rgb.c",
+    "report": "renderer-rgb-lab-matrix-oracle-v2/report.json",
+    "sha256": "ebfcb8442d4d6c5fe835677e7c02249e7d550dae82abb6aeb03d733199c773fc",
+    "evidence_kind": "live_unmodified_RGBLab_matrix_kernel_and_saved_capture_vs_native",
+    "scope": "Kernel53b640,normalizedmonotonic65536-entry inputcurves,nonnegativefloat32matrix entries0..16,identityauxiliarycurves. Separate fromgrid65RGBLab.",
+    "arithmetic": "558ee0directchannelcurve lookup->550210left-associativefloat32matrix->5511b0D50XYZLab. Groups4use recoveredfloat32log/exp cube-rootapproximation andCVTPS2DQnearest-even;per-row tailsuse doublepower,olderlinearbranchconstants andfloor(value+0.5). Approximatecube-root isbypassedbelowpiecewisethreshold;not replacedbygenericNumPypower forSIMDgroups.",
+    "live_cases": 36,
+    "live_compared_words": 527823,
+    "saved_blocks": 4,
+    "saved_compared_words": 392712,
+    "different_words": 0,
+    "coverage": "Widths1..9,50,207,208;capturedinputcurves/matrix,normalizedidentity andsaturatedXYZ configurations. Corners,thresholdneighbors,neutralramp,4096seededpoints. All260inputhashes unchanged;8opposite-directioncapturecalls retainedandexcludedaftervalidatingsuccess.",
+    "review_repairs": "2353a92reviewfound no numericaldefects butidentifiedunguarded rectangle/descriptors. Sharedprobe nowguardsthose structures andchecksimmutablefields plusdocumentedone-rowpointeradvance aftereachcall. Verificationcancellationnowpersistsreportandreturns130,regressiontested. RGBLabkernel mayraise maskedMXCSRinvalid alongsideinexact atblack;thisisrecordedandpermittedonlyafterthecall withcontrolbitsunchanged.",
+    "forward_regression": {"report": "renderer-lab-rgb-guarded-v3/report.json", "sha256": "f32448dc471cafb84d8501fd5f5264cb8daae14054cc7cf09b7a84c142569ea3", "live_cases": 36, "live_compared_words": 527823, "saved_compared_words": 785424, "different_words": 0, "input_hashes": 284},
+    "verification": "199focusedtests pass,including35newRGBLabnativechecks and2direction/cancellationregressions. StrictC11,scopedRuff/format,ASCII/JSON/diffchecks pass.",
+    "limit": "Matrix/inputcurves remaincapturedparameters;onlynonnegative matricesareaccepted. DoesnotrecoverCMLLab/Lch,sourcepreprocessing,Nlgspatialgain orcompletecms0/nativeimageparity."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",

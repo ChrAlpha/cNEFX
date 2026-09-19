@@ -14,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 from renderer_lab_rgb import transform
+from renderer_rgb_lab import transform as transform_rgb
 from verify_image_render import validate_render_events
 from verify_image_sdk import picture_controls, provider_paths
 from verify_np3_header import digest, windows
@@ -22,7 +23,9 @@ from verify_renderer_lut import RENDER_HASH, WIDTHS
 KERNEL_RVA = 0x53A2F0
 
 
-def validate_events(events: list, dll: Path, width: int, height: int) -> None:
+def validate_events(
+    events: list, dll: Path, width: int, height: int, *, rgb_lab: bool = False
+) -> None:
     if type(events) is not list or len(events) != 3:
         raise ValueError("Expected three Lab/RGB kernel events.")
     if any(type(event) is not dict for event in events):
@@ -35,19 +38,19 @@ def validate_events(events: list, dll: Path, width: int, height: int) -> None:
     if loaded.casefold() != windows(dll).replace("\\", "/").casefold():
         raise ValueError("Unexpected kernel provider.")
     mxcsr = complete.get("mxcsr")
+    allowed_flags = (0x1F80, 0x1FA0, 0x1F81, 0x1FA1) if rgb_lab else (0x1F80, 0x1FA0)
     if (
         type(mxcsr) is not list
         or len(mxcsr) != 2
-        or any(
-            type(value) is not int or value not in (0x1F80, 0x1FA0) for value in mxcsr
-        )
+        or any(type(value) is not int or value not in allowed_flags for value in mxcsr)
+        or mxcsr[0] not in (0x1F80, 0x1FA0)
     ):
         raise ValueError("Unexpected kernel MXCSR controls or exception flags.")
     expected = [
         {"event": "provider", "path_hex": provider["path_hex"]},
         {
             "event": "ready",
-            "kernel_rva": KERNEL_RVA,
+            "kernel_rva": 0x53B640 if rgb_lab else KERNEL_RVA,
             "width": width,
             "height": height,
             "read_only_inputs": True,
@@ -67,7 +70,7 @@ def validate_events(events: list, dll: Path, width: int, height: int) -> None:
         raise ValueError("Kernel lifecycle, output or guard mismatch.")
 
 
-def capture_events(events: list) -> list[dict]:
+def capture_events(events: list, *, rgb_lab: bool = False) -> list[dict]:
     """Retain only the observed bounded branch; validate excluded calls too."""
     selected = []
     indices = set()
@@ -91,10 +94,10 @@ def capture_events(events: list) -> list[dict]:
         ):
             raise ValueError("Failed, incomplete or unbounded inner capture.")
         branch = (event["kernel_rva"], event["format"])
-        if branch == (KERNEL_RVA, 0x10060204):
-            selected.append(event)
-        elif branch != (0x53B640, 0x10060201):
+        if branch not in ((KERNEL_RVA, 0x10060204), (0x53B640, 0x10060201)):
             raise ValueError("Unexpected inner renderer branch.")
+        if (branch[0] == 0x53B640) == rgb_lab:
+            selected.append(event)
     if not selected:
         raise ValueError("No captured Lab/RGB calls.")
     return selected
@@ -129,7 +132,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("dll", "probe", "wine-prefix", "capture", "output"):
         parser.add_argument(f"--{name}", type=Path, required=True)
+    parser.add_argument("--rgb-lab", action="store_true")
     args = parser.parse_args()
+    native_transform = transform_rgb if args.rgb_lab else transform
     root = Path(__file__).resolve().parents[1]
     if args.output.exists() or args.output.resolve().is_relative_to(root):
         parser.error("Output must be a new directory outside the repository.")
@@ -137,7 +142,8 @@ def main() -> int:
         parser.error("Unexpected renderer provider hash.")
     args.output.mkdir(parents=True)
     report = {
-        "evidence_kind": "captured_and_live_LabRGB_kernel_vs_native",
+        "evidence_kind": "captured_and_live_matrix_kernel_vs_native",
+        "direction": "rgb-lab" if args.rgb_lab else "lab-rgb",
         "input_hashes": {},
         "replays": [],
         "cases": [],
@@ -145,7 +151,7 @@ def main() -> int:
         "numpy_version": np.__version__,
         "libc": list(platform.libc_ver()),
         "limits": [
-            "Kernel53a2f0,Lab16,identity auxiliary curves,sampled output curves.",
+            "Selected matrix branch only; identity auxiliary and sampled RGB curves.",
             "Captured matrix/curves are parameters; no native profile generation.",
             "Fresh calls reconstruct guarded pointer state; no complete rendering.",
             "Partial source sampling; no native source or Lightroom acceptance.",
@@ -164,7 +170,7 @@ def main() -> int:
             args.probe,
             Path(__file__),
             root / "tools/probe_renderer_lab_rgb.c",
-            Path(transform.__code__.co_filename),
+            Path(native_transform.__code__.co_filename),
         ):
             pinned(path)
         source = json.loads(pinned(args.capture))
@@ -175,7 +181,7 @@ def main() -> int:
             raise ValueError("Expected one successful guarded source render.")
         case = source["cases"][0]
         events = case["events"]
-        selected = capture_events(events)
+        selected = capture_events(events, rgb_lab=args.rgb_lab)
         extras = {"stage_taps", "stage_pixels", "inner_pixels"}
         if [e for e in events if e.get("event") == "stage_taps"] != [
             {"event": "stage_taps", "installed": True}
@@ -203,23 +209,37 @@ def main() -> int:
             index, width, height = event["index"], event["width"], event["height"]
             prefix = args.capture.parent / f"case0.inner-{index}"
             state = pinned(Path(f"{prefix}-state.bin"))
-            if len(state) != 0x890 or state[0x230] != 1 or state[0x888] != 0:
+            if (
+                len(state) != 0x890
+                or state[0x230] != int(not args.rgb_lab)
+                or state[0x888] != 0
+            ):
                 raise ValueError("Unsupported captured Lab/RGB state.")
+            auxiliary = 0x6C0 if args.rgb_lab else 0x558
+            curve_base = 0x260 if args.rgb_lab else 0x3F0
             if any(
-                struct.unpack_from("<I", state, 0x558 + i * 0x78)[0] != 6
-                or struct.unpack_from("<I", state, 0x3F0 + i * 0x78)[0] != 5
+                struct.unpack_from("<I", state, auxiliary + i * 0x78)[0] != 6
+                or struct.unpack_from("<I", state, curve_base + i * 0x78)[0] != 5
                 for i in range(3)
             ):
                 raise ValueError("Unsupported captured curve types.")
             matrix = (
-                np.frombuffer(state, dtype="<f4", count=9, offset=0x3C8)
+                np.frombuffer(
+                    state, dtype="<f4", count=9, offset=0x238 if args.rgb_lab else 0x3C8
+                )
                 .reshape(3, 3)
                 .copy()
             )
             curves = np.array(
                 [
                     np.frombuffer(
-                        pinned(Path(f"{prefix}-table-1-{i}-0.bin")), dtype="<f4"
+                        pinned(
+                            Path(
+                                f"{prefix}-table-{0 if args.rgb_lab else 1}-{i}"
+                                f"-{1 if args.rgb_lab else 0}.bin"
+                            )
+                        ),
+                        dtype="<f4",
                     )
                     for i in range(3)
                 ]
@@ -233,7 +253,9 @@ def main() -> int:
             report["replays"].append(
                 {
                     "index": index,
-                    **comparison(transform(sample, matrix, curves, width), vendor),
+                    **comparison(
+                        native_transform(sample, matrix, curves, width), vendor
+                    ),
                 }
             )
             key = hashlib.sha256(matrix.tobytes() + curves.tobytes()).hexdigest()
@@ -250,6 +272,16 @@ def main() -> int:
             np.array([0.5, 1.5, 65534.5], dtype="<f4")[:, None], 65536, axis=1
         )
         configs["synthetic_half_even"] = (np.zeros((3, 3), dtype="<f4"), half)
+        if args.rgb_lab:
+            del configs["synthetic_signed_matrix"], configs["synthetic_half_even"]
+            configs["synthetic_normalized_identity"] = (
+                np.eye(3, dtype="<f4"),
+                ramp / np.float32(65535),
+            )
+            configs["synthetic_saturated_xyz"] = (
+                np.full((3, 3), 16, dtype="<f4"),
+                np.ones_like(ramp),
+            )
         for config_index, (key, (matrix, curves)) in enumerate(configs.items()):
             matrix_path = args.output / f"config{config_index}.matrix.bin"
             curve_path = args.output / f"config{config_index}.curves.bin"
@@ -279,6 +311,7 @@ def main() -> int:
                         windows(input_path),
                         str(width),
                         windows(output_path),
+                        *(["rgb-lab"] if args.rgb_lab else []),
                     ],
                     cwd=args.dll.resolve().parent.parent,
                     env=dict(
@@ -307,13 +340,14 @@ def main() -> int:
                     args.dll,
                     width,
                     len(sample) // width,
+                    rgb_lab=args.rgb_lab,
                 )
                 raw = output_path.read_bytes()
                 if len(raw) != sample.nbytes:
                     raise ValueError("Unexpected saved kernel output size.")
                 vendor = np.frombuffer(raw, dtype="<u2").reshape(-1, 3)
                 record.update(
-                    comparison(transform(sample, matrix, curves, width), vendor)
+                    comparison(native_transform(sample, matrix, curves, width), vendor)
                 )
         report["sources_unchanged"] = all(
             digest(Path(path)) == value for path, value in hashes.items()
@@ -327,7 +361,11 @@ def main() -> int:
             stdout=(exc.stdout or b"").decode(errors="replace"),
             stderr=(exc.stderr or b"").decode(errors="replace"),
         )
-    except (Exception, KeyboardInterrupt) as exc:
+    except KeyboardInterrupt:
+        report.update(
+            passed=False, cancelled=True, error="Matrix verification cancelled."
+        )
+    except Exception as exc:
         report["error"] = {"type": type(exc).__name__, "message": str(exc)}
     finally:
         with (args.output / "report.json").open("x") as stream:
@@ -338,7 +376,7 @@ def main() -> int:
             {"passed": report["passed"], "report": str(args.output / "report.json")}
         )
     )
-    return 0 if report["passed"] else 1
+    return 130 if report.get("cancelled") else (0 if report["passed"] else 1)
 
 
 if __name__ == "__main__":
