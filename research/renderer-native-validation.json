@@ -130,6 +130,24 @@
     "bounds": "Nlg allocation is0x10f9c0bytes. V3 snapshot contains64extra readable bytes; analysis hashes only the allocation prefix. Subsequent probe corrects the capture extent.",
     "limit": "Partial sampling,one source/control,process-local vtable patches. Raw format IDs and object IDs are retained. Concurrency can reorder return events; entry indices are not complete graph identity. No full native renderer or Lightroom acceptance."
   },
+  "native_lab_rgb": {
+    "implementation": "tools/renderer_lab_rgb.py; tools/probe_renderer_lab_rgb.c; tools/verify_renderer_lab_rgb.py",
+    "interface": "transform(pixels,matrix,curves,width); packedLab16(N,3),float32matrix(3,3),three monotonic65536-entry float32 curves,complete nonempty rows.",
+    "report": "renderer-lab-rgb-oracle-v2/report.json",
+    "sha256": "abd80b0a2626ffdd447edfbc3afca9d3f0bb9e5a6a9ba8224baf0d4dfb4acca0",
+    "evidence_kind": "live_unmodified_LabRGB_kernel_and_saved_capture_vs_native",
+    "dispatch": "Vtableb2a868+358->534920;selector535b40 chooses53a2f0 when direction1 and identity auxiliary curves. Actualcms0selector6 runs recoveredRGBLab followedbythisLabRGB;cms3selector4 also usesLabRGB afterCML processing. OppositeRGBLabmatrix kernel53b640 remains separate.",
+    "arithmetic": "Lab16->D50XYZ via54c3d0,float32groups4 anddouble per-row tail;float32row-major matrix atstate3c8,separate products andleft-to-right addition;three sampled curves via5717b0(type5),clipped coordinates andfloat32linear interpolation;CVTPS2DQ nearest-even quantization in5503c0 forbothgroups andtails. Ghidra's integer casts incorrectly implied truncation.",
+    "live_cases": 36,
+    "live_compared_words": 527823,
+    "saved_blocks": 8,
+    "saved_compared_words": 785424,
+    "different_words": 0,
+    "coverage": "Twelve widths1..9,50,207,208;capturedmatrix/curves plus synthetic signedmatrix/clipping andhalf-evenconstant curves. Corners,Labthreshold neighbors,neutralramp and4096seededrandompoints. Probe reconstructs pointerstate,protectsinputsreadonly,guardsrows/scratch,checksprovider/MXCSR/release andexclusiveoutput.",
+    "capture_scope": "stage-pixels-pilot-v4 originalrender lifecycle/providerchecks pass afterexcludingexactstage_taps/stage_pixels/inner_pixels events. All12recordedinnercalls mustsucceed withbothsnapshots;4RGBLab-directioncalls retained asexcluded. Currentcapture correctsNlgextent to10f9c0. All284recordedinputhashes unchanged.",
+    "verification": "162focusedtests pass,including55newnativekernel tests and33newverifier tests. ScopedRuff/format,strictC11,JSON/ASCII/diffchecks pass. Failedv1report retained:wrongworkingdirectory preventedDLLdependencyload;usingvendorroot in v2resolvesit.",
+    "limit": "Bounded sampled-curveLabRGBbranch only. Matrix andcurves stillcomefromexternalcapturedstate;not nativeprofileparameter extraction. No fullsource,Nlg,RGBLabmatrix/CMLlaterstages,completecms0orLightroomparity."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",
