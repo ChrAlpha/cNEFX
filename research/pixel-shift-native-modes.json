@@ -82,6 +82,70 @@
     "root_tests_passed": 221,
     "root_command": "uv run pytest -q tests/test_pixel_shift.py tests/test_merge.py tests/test_merge_outputs.py tests/test_atomic.py tests/test_radial.py tests/test_nefx.py tests/test_tiff_stream.py tests/test_raw_metadata.py tests/test_inspect.py"
   },
+  "completion_audit": {
+    "reviewed_commit": "cbab3856848db611aa9bf9871c828c2a74ee548f",
+    "result": "Independent read-only review found no actionable synthesis, sequence validation, NEFX serialization or publication defects.",
+    "independent_tests_passed": 110,
+    "independent_core_replays": 24,
+    "fresh_in_memory_nefx_roundtrips": {
+      "uncorrected_cases": 9,
+      "uncorrected_outputs": 24,
+      "uncorrected_samples": 28940544,
+      "corrected_cases": 12,
+      "corrected_outputs": 48,
+      "corrected_samples": 48234240,
+      "different_samples": 0,
+      "additional_checks": "Selected Nikon metadata, CRCs, capture and merge markers, private RGB preview, preserved JPEG payloads and unchanged source XMP.",
+      "filesystem_publication_rerun": false,
+      "reference": "Existing hash-pinned synthetic vendor corpora listed in this record; no new vendor execution or authentic capture validation."
+    },
+    "root_writable_linux_tests": {
+      "command": "uv run pytest -q tests/test_pixel_shift.py tests/test_merge.py tests/test_merge_outputs.py tests/test_atomic.py tests/test_radial.py tests/test_nefx.py tests/test_tiff_stream.py tests/test_raw_metadata.py tests/test_inspect.py",
+      "passed": 228,
+      "seconds": 0.78,
+      "coverage": "Includes filesystem-dependent cancellation, no-replace publication, cleanup and destination-parent synchronization."
+    },
+    "fresh_full_resolution_replays": {
+      "source_commit": "cbab3856848db611aa9bf9871c828c2a74ee548f",
+      "corrected_32_to_1": {
+        "report": "/workspaces/LumaForge/nxc-data/scratch/fullsize-radial-cbab385-v1/report.json",
+        "sha256": "30b1d13f2ccfa3ef9102128e4806af54a85c8cb931863e1e4db66f73a3f127ef",
+        "elapsed_seconds": 102.8076070520001,
+        "max_rss_kib": 2619468,
+        "address_space_limit_bytes": 4294967296,
+        "samples_verified": 545292288
+      },
+      "uncorrected_32_to_4": {
+        "report": "/workspaces/LumaForge/nxc-data/scratch/fullsize-modes-cbab385-v1/report.json",
+        "sha256": "534847458f2a1e14eecc43c892f48dfa4a9e8b3fb69180be4bad7e4b32fea239",
+        "elapsed_seconds": 30.39276353800051,
+        "max_rss_kib": 761876,
+        "address_space_limit_bytes": 2147483648,
+        "samples_verified": 545292288,
+        "overwrite_rejected": true
+      },
+      "timeout_seconds_each": 300,
+      "passed": true,
+      "input_and_production_source_hashes_unchanged": true,
+      "limit": "Repeated ordinary RAW inputs with synthetic sequence metadata. Exact decoded-output checks prove serialization consistency, not full-resolution Nikon equality, authentic capture quality or Lightroom acceptance."
+    },
+    "scope_boundary": "Preserved Adobe defaults are a disclosed ancillary appearance limitation, not a demonstrated merged-sample defect or a reason to resume general renderer development.",
+    "external_acceptance": "Authentic complete sequences, matching Nikon NEFX references and version-pinned Lightroom import/Develop/export remain unavailable."
+  },
+  "isolated_linux_wheel": {
+    "report": "/workspaces/LumaForge/nxc-data/scratch/native-wheel-isolated-cbab385-v1/report.json",
+    "sha256": "c7252b103b98c8b99290d3e76302739f34e36454e5883df5cbdd0d9659630199",
+    "source_commit": "cbab3856848db611aa9bf9871c828c2a74ee548f",
+    "python": "3.13.5",
+    "installation": "Fresh wheel built and installed offline outside the checkout with only declared runtime dependencies; uv pip check passed.",
+    "modes": [[4, 1], [8, 2]],
+    "outputs": 3,
+    "samples_compared": 2411712,
+    "different_samples": 0,
+    "runtime_trace": "Installed nxc executed without Nikon DLL, Wine, ExifTool, repository source or repository tools access in strace execve/openat records.",
+    "inputs_unchanged": true,
+    "limit": "Synthetic uncorrected inputs on host CPython 3.13.5; not authentic capture, Python 3.12 or Lightroom acceptance."
+  },
   "limits": [
     "No authentic pixel-shift capture or Lightroom acceptance is established.",
     "Adobe default metadata updates for per-output 8/32 inputs remain unimplemented.",

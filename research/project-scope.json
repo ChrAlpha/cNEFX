@@ -36,14 +36,21 @@
     "A readable NEFX with the right samples is not byte-identical Nikon serialization."
   ],
   "release_gaps": [
-    "Authentic pixel-shift capture and downstream application references",
-    "8/32-frame Adobe default updates and broader correction-parameter coverage",
-    "HE/HE* decoding, HLG, non-FX image areas and firmware coverage",
-    "Broader full-resolution resource coverage and cross-platform packaging"
+    "Authentic complete Z8 pixel-shift sequences and matching NX Studio NEFX references",
+    "Downstream application acceptance of native NEFX outputs, including Lightroom"
+  ],
+  "compatibility_limits": [
+    "Source Adobe XMP defaults are preserved; vendor-equivalent default sharpening and noise reduction are not established. This is an appearance limitation, not evidence of different merged RAW samples.",
+    "HE/HE* decoding is unsupported. HLG, non-FX image areas, other firmware and broader correction parameters remain unvalidated.",
+    "Full-resolution resource measurements cover synthetic repeated-RAW cases, not authentic capture quality or a universal memory bound."
+  ],
+  "deferred_work": [
+    "Exact vendor Adobe-default calibration is ancillary compatibility work and does not authorize Picture Control or general renderer development.",
+    "Cross-platform packaging follows native Linux synthesis."
   ],
   "active_priorities": [
-    "Real capture validation of ordered pixel-shift synthesis",
-    "Bounded full-resolution sequence memory use",
-    "Merge correctness and NEFX output fidelity"
+    "Validate ordered synthesis against authentic capture and matching reference files when they become available.",
+    "Resolve concrete merge, NEFX serialization or resource defects demonstrated by capture validation.",
+    "Retain experimental status until authentic capture and downstream acceptance are established."
   ]
 }
