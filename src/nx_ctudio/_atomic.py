@@ -58,6 +58,20 @@ class Publication:
                 os.close(descriptor)
             self.directory_rename(self.temporary, self.destination)
         self.published = True
+        try:
+            descriptor = os.open(
+                self.destination.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+            )
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        except (OSError, KeyboardInterrupt) as exc:
+            reason = str(exc) or type(exc).__name__
+            self.warnings.append(
+                "Output published; parent directory sync failed at "
+                f"{self.destination.parent}: {reason}"
+            )
 
 
 @contextmanager

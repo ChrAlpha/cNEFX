@@ -13,10 +13,20 @@
   },
   "publication": {
     "platform": "Linux with libc renameat2 and filesystem RENAME_NOREPLACE support",
-    "algorithm": "Write/verify outputs privately, validate the complete original sequence and source hashes, fsync manifest and staging directory, then publish the directory with one no-replace rename.",
+    "algorithm": "Write/verify outputs privately, validate the complete original sequence and source hashes, fsync manifest and staging directory, publish with one no-replace rename, then fsync the destination parent directory.",
     "existing_destination": "Rejected even when the destination is an empty directory or dangling symlink, including a concurrent creation.",
     "failure": "Decode, metadata, write, verification, source mutation and cancellation failures leave no partial output set at the requested destination.",
-    "durability_limit": "Atomic visibility and no replacement are tested. Power-loss durability of the destination parent is not established."
+    "durability_limit": "Successful publication now synchronizes the destination parent. Parent-sync failure or interruption preserves the published result and returns a warning. Actual power-loss recovery is not experimentally established.",
+    "parent_sync_regression": {
+      "report": "/workspaces/LumaForge/nxc-data/scratch/native-modes-parent-sync-v1/report.json",
+      "sha256": "a51341c2634c8dd5058b09ba346cd64a7eb552968cd3173d1c40e3930c241fac",
+      "cases": 9,
+      "outputs": 24,
+      "samples_compared": 28940544,
+      "different_samples": 0,
+      "fault_tests": "File and directory publication order, OSError and KeyboardInterrupt during parent sync, descriptor closure, and successful batch report with retained outputs on sync failure.",
+      "root_tests_passed": 228
+    }
   },
   "saved_vendor_matrix": {
     "report": "/workspaces/LumaForge/nxc-data/scratch/native-modes-v3/report.json",

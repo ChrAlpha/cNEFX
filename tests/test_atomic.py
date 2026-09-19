@@ -1,5 +1,7 @@
 """Publication and cleanup outcomes are separate observable states."""
 
+import os
+import stat
 from pathlib import Path
 from unittest.mock import patch
 
@@ -139,3 +141,67 @@ def test_directory_cleanup_failure_retains_published_files(tmp_path: Path) -> No
     assert pending.published
     assert (target / "first.nefx").read_bytes() == b"first"
     assert len(pending.warnings) == 1
+
+
+@pytest.mark.parametrize("directory", [False, True])
+def test_parent_directory_is_synced_after_output_becomes_visible(
+    tmp_path: Path, directory: bool
+) -> None:
+    target = tmp_path / "result"
+    sync = os.fsync
+    parent_identity = tmp_path.stat().st_ino
+    observations = []
+
+    def observe(descriptor: int) -> None:
+        state = os.fstat(descriptor)
+        if state.st_ino == parent_identity and stat.S_ISDIR(state.st_mode):
+            observations.append(target.exists())
+        sync(descriptor)
+
+    with publication(target, directory=directory) as pending:
+        if directory:
+            (pending.temporary / "first.nefx").write_bytes(b"first")
+        else:
+            pending.temporary.write_bytes(b"complete")
+        with patch("nx_ctudio._atomic.os.fsync", side_effect=observe):
+            pending.publish()
+    assert observations == [True]
+    assert pending.warnings == []
+
+
+@pytest.mark.parametrize("directory", [False, True])
+@pytest.mark.parametrize("error", [OSError("sync failed"), KeyboardInterrupt()])
+def test_parent_sync_failure_retains_published_result_with_warning(
+    tmp_path: Path, directory: bool, error: BaseException
+) -> None:
+    target = tmp_path / "result"
+    sync = os.fsync
+    closed = os.close
+    parent_identity = tmp_path.stat().st_ino
+    parent_descriptors = []
+
+    def fail_parent(descriptor: int) -> None:
+        if os.fstat(descriptor).st_ino == parent_identity:
+            parent_descriptors.append(descriptor)
+            raise error
+        sync(descriptor)
+
+    with publication(target, directory=directory) as pending:
+        payload = pending.temporary / "first.nefx" if directory else pending.temporary
+        payload.write_bytes(b"complete")
+        with (
+            patch("nx_ctudio._atomic.os.fsync", side_effect=fail_parent),
+            patch("nx_ctudio._atomic.os.close", wraps=closed) as close,
+        ):
+            pending.publish()
+            assert len(parent_descriptors) == 1
+            assert any(
+                call.args == (parent_descriptors[0],) for call in close.call_args_list
+            )
+    assert pending.published
+    result = target / "first.nefx" if directory else target
+    assert result.read_bytes() == b"complete"
+    assert list(tmp_path.iterdir()) == [target]
+    assert len(pending.warnings) == 1
+    assert "Output published" in pending.warnings[0]
+    assert "parent directory" in pending.warnings[0]

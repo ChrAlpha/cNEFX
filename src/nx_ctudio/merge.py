@@ -188,9 +188,7 @@ def _merge(
             )
             del pixels
             if directory and result["warnings"]:
-                raise OSError(
-                    "Temporary output cleanup failed during batch construction."
-                )
+                raise OSError("Temporary output publication reported a warning.")
             warnings.extend(result.pop("warnings"))
             result.update(output=str(output / name if directory else output))
             if directory:

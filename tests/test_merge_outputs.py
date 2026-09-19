@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import weakref
 from contextlib import contextmanager
 from pathlib import Path
@@ -200,3 +201,32 @@ def test_cli_reports_each_output_and_total_verified_samples(
     text = capsys.readouterr().out
     assert "batch/merged-01.nefx" in text and "batch/merged-02.nefx" in text
     assert "Samples verified: 96" in text
+
+
+def test_parent_sync_failure_reports_published_batch_without_deleting_outputs(
+    tmp_path: Path,
+) -> None:
+    paths = inputs(tmp_path, 8)
+    target = tmp_path / "merged"
+    parent_inode = tmp_path.stat().st_ino
+    sync = os.fsync
+
+    def fail_parent(descriptor: int) -> None:
+        if os.fstat(descriptor).st_ino == parent_inode:
+            raise OSError("Parent sync unavailable.")
+        sync(descriptor)
+
+    with (
+        pipeline(paths, target),
+        patch("nx_ctudio._atomic.os.fsync", side_effect=fail_parent),
+    ):
+        report = merge_outputs(paths, target, 2)
+    assert report["status"] == "ok"
+    assert len(report["warnings"]) == 1
+    assert "parent directory sync failed" in report["warnings"][0]
+    for item in report["outputs"]:
+        assert (
+            hashlib.sha256(Path(item["output"]).read_bytes()).hexdigest()
+            == item["sha256"]
+        )
+    assert len(list(target.iterdir())) == 3
