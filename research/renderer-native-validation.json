@@ -355,6 +355,20 @@
     "verification": "StrictC11-Wall-Wextra-Werror probecompile,85focusedtests and1339fullsuite5.54s pass. ScopedRuff/format,ASCII,JSON,diffchecks pass. Earlierfailedvignette-leaf-native-v1 retained. Freshindependentreview ofsourceparser/radiusfix pending.",
     "limit": "Radialtables are caller-generated;thisliveoracle validatespixelarithmetic,notvendor tablegeneration. Fixedgain3276,identitytransfer,auxiliarydisabled. No end-to-end native renderer oradditionalphotograph/NEFX/Lightroom acceptance."
   },
+  "native_vignette_fresh_tables": {
+    "report": "vignette-table-native-v3/report.json",
+    "sha256": "231ec901cac74158e46cf130a732d1edfc591abfdb95e411e0c237b5ba078de8",
+    "evidence_kind": "fresh_vendor_mode5_table_generator",
+    "source": "probe_vignette_table.c",
+    "source_sha256": "9241792efd37439d8dcbe6e967ff8df7b1e488e3aae0caa2a804588776285a1a",
+    "probe": "probe-vignette-table-v1.exe",
+    "probe_sha256": "68805569d4924864e73793974b258c82c38226b0a7792241b414e8bdfcc6ee0f",
+    "runner": "vignette_table_oracle.py",
+    "runner_sha256": "57038652efeb764d704b5e3ed0c59c9076585d357a9ea466211049a78ad9dbde",
+    "coverage": "12freshcases,75330tablewordsexact. Dimensions2x2through16384x16384including8256x5504,positive/negativecenter offsets,mixed/negative/zero coefficients,quantizationboundaries. Calls generator356d40 onguarded0xd30state withnumericonlyinputs andinitiallyemptyvector;vendorallocatestable and049140releasesit. State/readonlyinput,providerpath,exclusiveoutput andcleanup checks pass.37hashesstable;30s percase.",
+    "verification": "StrictC11-Wall-Wextra-Werror probecompile andscopedRuffpass. Actualgenerator output compared againstrenderer_vignette.radial_table withoutcapturedtablereuse. No repositoryimplementation changed inthischeckpoint.",
+    "limit": "Aspect1,unitnormalization/cap andpolynomialbelow1. Vendor-owned table allocation has no probecanaries;state/inputguards do not proveeveryinternalaccesssafe. Syntheticnumericparameters,no fullrendererinitialization. Independent review ofsourceparser/radiusfix stillpending."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",
