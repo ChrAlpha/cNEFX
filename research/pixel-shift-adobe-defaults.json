@@ -1,5 +1,25 @@
 {
   "schema_version": 1,
+  "native_implementation_boundary": {
+    "checked_on": "2026-09-20",
+    "status": "Predictor still requires external vendor resource data; production preserves source XMP.",
+    "source_xmp_counterexample": {
+      "report": "/workspaces/LumaForge/nxc-data/scratch/adobe-xmp-dependency-v1.json",
+      "sha256": "5475e3b512046046fb826f5e4ebf5fd0c79727936dd175e3ccc0df022bec7a44",
+      "cases": ["standard-manual", "standard-default"],
+      "identical_source_xmp_sha256": "24b4cdfcdbbcd3fb8a2387031a5142302553dba57fbbb8b1d4ef1d27db6fbd1a",
+      "vendor_output_sharpness": [40, 48],
+      "conclusion": "An updater using only source XMP cannot reproduce both vendor outputs when MakerNotes differ.",
+      "limit": "Synthetic variants intentionally inherit XMP. This does not prove non-invertibility for every camera-authored, internally consistent source."
+    },
+    "required_calibration": [
+      "AUTO contrast mapping and per-profile contrast/saturation limits",
+      "Source/group sharpness and clarity mappings and caps",
+      "White-balance thresholds, brightness/contrast selector and noise contributions",
+      "Four sharpening scale curves, frame-count correction rows and Nikon cipher tables"
+    ],
+    "remaining": "Recover and validate vendor-independent calibration equations before adding an exact native updater. Do not infer smoothing reductions or sharpening ratios from source XMP alone."
+  },
   "observed_on": "2026-09-18",
   "evidence_kind": "static_equation_recovery_and_portable_source_metadata_evaluation",
   "tool": "tools/adobe_defaults.py",
