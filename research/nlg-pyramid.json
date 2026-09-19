@@ -228,11 +228,29 @@
       "report": "nlg-bayer-native-v1/report.json",
       "sha256": "c1260ad7766d3fd045b72d0d024f2dd6dd8364a4a4442949893fbfbef2e2cf0b",
       "coverage": "All 24 windows, 18432 RGB words and 6144 auxiliary bytes exact. Every comparison is retained. All 1084 hashes rechecked, original lifecycle and 28 providers validated. No vendor code executes during replay.",
-      "contract": "Pins the capture, provider files and imported native modules. Requires complete ordered events, observed controls and descriptor geometry, unchanged descriptors, exact MXCSR preservation, baseline final render and all expected comparison counts. Failed and cancelled reports remain in a new external output directory."
+      "contract": "Pins the capture, provider files and imported native modules. Requires complete ordered events, observed controls and descriptor geometry, unchanged descriptors, exact MXCSR preservation, baseline final render and all expected comparison counts. Failed and cancelled reports remain in a new external output directory.",
+      "independent_review": "No defects found; independent replay produced the identical report hash with all 1084 hashes stable. Independent CLI injection confirmed retained partial reports and exit codes 1/130 for failure/cancellation. Committed command-level regressions also test these paths and refusal to overwrite prior results."
+    },
+    "native_gain_and_lookup": {
+      "implementation": "tools/nlg_bayer_gain.py; tests/test_nlg_bayer_gain.py; tests/fixtures/nlg_bayer_gain_vectors.json",
+      "chain": "0x1056e0 black/gain/nonlinear preparation, then 0x6af00 shared lookup",
+      "arithmetic": "Flag zero narrows input-minus-black to signed16; nonzero flags retain the unsigned-input subtraction in signed32. Gain multiplication and rounding addition wrap signed32. Negative half ties round away from zero. Nonlinear processing preserves ordered blue/red coupling and green limiting before unsigned offsets and signed16 saturation. Lookup indexes the shared uint16 table at clipped twice-signed16 input, adds two in 32 bits, shifts by two and caps at 4095.",
+      "bounds": "Little-endian uint16 RGB gain inputs, signed16 lookup inputs, axes 1..2048. Parameters retain their uint16, uint8 and signed16 stored widths. Lookup requires exactly 65536 little-endian uint16 entries. The level decoder requires a complete 0xb6-byte record; the scalar gain worker ignores its +0x1a word.",
+      "capture": "nlg-gain-synthetic-v1/report.json",
+      "capture_sha256": "cbde1287d4d1bb1f909f4da2a275a78fd5171a6a115b75a15f46b05b88e55b79",
+      "probe_source": "probe_nlg_gain.c",
+      "oracle_runner": "nlg_gain_oracle.py",
+      "report": "nlg-gain-native-v1/report.json",
+      "sha256": "d11573659fbc96918cb16bf394c57a31fa50b7f52303efd71f358ae53eccf8bf",
+      "native_runner": "verify_nlg_gain_native.py",
+      "coverage": "26 cases, 106137 gain words and 302745 lookup words exact. Both gain branches, all three nonlinear paths, signed subtraction and multiplication overflow, rounding-add overflow, signed half ties, green limits, coupling and offset saturation. Four independent lookup sweeps exercise every signed16 input in every channel. Source parameter/table generation is not covered.",
+      "integrity": "145 vendor-capture and 148 native-report hashes reverified. Read-only inputs, contexts, descriptors, parameters and tables; guarded buffers, halo canaries, provider paths, unchanged MXCSR and cleanup pass. Strict C11 and scoped Ruff/format checks pass.",
+      "verification": "56 direct tests retain eleven explicit vendor gain/lookup vectors and four complete signed-input lookup sweep hashes, plus parameter decoding, endian, stored-width and immutable-input checks. Full suite: 2052 passed in 7.77 seconds.",
+      "limits": "Synthetic scalar leaves and captured numeric controls only. Actual source-photo LUT and its generation, SIMD equivalence, interpolation, chroma smoothing and a complete native initial Bayer chain remain unverified."
     },
     "subsequent_stages": "0x1056e0 black/gain/offset and nonlinear limiting; 0x6af00 lookup; 0x105e40 interpolation or monochrome 0x6bd70; 0x6bf40 signed chroma smoothing and auxiliary blending.",
     "fallback": "0x102e80 -> vtable 0xaf79c8 -> 0x109580 -> 0x109ba0 -> 0x10b420 -> 0x66fb0 reads three-channel RGB, not Bayer.",
-    "limits": "The original pyramid capture omits Bayer pixels and the immediate 2064x1376 RGB output; the additional capture covers only the stated windows. Black/gain correction, lookup, interpolation, chroma smoothing and source parameter recovery remain separate unfinished stages."
+    "limits": "The original pyramid capture omits Bayer pixels and the immediate 2064x1376 RGB output; the additional capture covers only the stated windows. Gain/lookup have synthetic validation only. Real-source gain/lookup, interpolation, chroma smoothing and source parameter recovery remain unfinished."
   },
   "capture_limits": [
     "At most24calls,8MiB per plane and128MiB aggregate plane budget. Large Bayer and2064x1376RGB payloads are intentionally omitted; descriptor observations distinguish omitted and empty planes.",
