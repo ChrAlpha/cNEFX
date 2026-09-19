@@ -369,6 +369,13 @@
     "verification": "StrictC11-Wall-Wextra-Werror probecompile andscopedRuffpass. Actualgenerator output compared againstrenderer_vignette.radial_table withoutcapturedtablereuse. No repositoryimplementation changed inthischeckpoint.",
     "limit": "Aspect1,unitnormalization/cap andpolynomialbelow1. Vendor-owned table allocation has no probecanaries;state/inputguards do not proveeveryinternalaccesssafe. Syntheticnumericparameters,no fullrendererinitialization. Independent review ofsourceparser/radiusfix stillpending."
   },
+  "native_vignette_source_radius_review": {
+    "commits": ["67f0f13", "baf2926", "68a99dc"],
+    "result": "No actionable findings within the declared source and numeric bounds.",
+    "verification": "Independent reviewer reran 85 focused tests. All 231 source-replay, 45 leaf-oracle and 37 table-oracle input hashes match. In-memory replay reproduced 24 source parameter words, 535480 table words, 213000 source pixel words, 97356 synthetic leaf words and 75330 generator words exactly.",
+    "regression": "Independent objdump at renderer RVA 358e23..358e32 and 358ec5 confirms the corrected float32 addition order. Previous code returns [0,46721,35895]; fixed code and saved vendor output return [0,46716,35891].",
+    "limit": "Reviewer did not execute new vendor calls or rerun the full suite. Source coverage remains one lossless Z8 photograph and one control at two scales. Vendor-owned radial table allocation lacks probe canaries. Complete native rendering, authentic pixel-shift NEFX and Lightroom acceptance remain unverified."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",
