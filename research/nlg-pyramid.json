@@ -58,6 +58,16 @@
       "result": "All selected calls return success. Bounded planes, parameter records and descriptors saved. Original SDK lifecycle and28providers pass; final RGB16 output retains hash794b1706677dc854398c1036bd39e202dea742bd6d4acbc4b93c0a8c08eb2aa8."
     }
   ],
+  "native_spatial_planes": {
+    "implementation": "tools/nlg_pyramid.py; tools/verify_nlg_pyramid.py",
+    "report": "nlg-pyramid-native-v2/report.json",
+    "sha256": "ab6cf0ade5e72c793fd99d8a5219e56c7ba8dc37180b2f936e84b9cfa2698e14",
+    "arithmetic": "Scalar worker700a0 computes chroma-adjusted luma,clamps to14bits,and applies the two byte strengths. Worker70380 expands previous planes with parity-dependent9/3/3/1weights andone rightshift4,adds andsaturates. Worker708c0 applies horizontal thenvertical[1,2,1]/4withseparate truncations andmirrorededges. Both output planes recurse throughall sixascending levels.",
+    "coverage": "24plane comparisons total3786044words,945980previous-plane input words,and2840064finalshared-grid comparison words,all exact. Each of two executions uses its owncapturedRGBpyramid;native previouslevels feedsubsequentlevels withoutsubstitutingcapturedplanes.",
+    "verification": "987hashesstable;originalSDKlifecycle and28providers validated.81focusedtests and1678fullsuite tests pass5.64s. ScopedRuff/format,ASCII,JSON,diffchecks pass.",
+    "bounds": "RGBandpreviousplanes0..16383,uint16,dimensions1..2048. Chromaandtwoplaneamounts0..255. Previousplanesrequireceil-halfsize withbothdimensions>=2. Onlyobserved smoothing-enabled branch isimplemented.",
+    "limit": "RGBpyramid andparametersremaincaptured. Freshsyntheticvendorplaneoracle andindependentreviewpending. This removes capturedspatialplaneinputs fromtherecursion,butdoesnotyetrecoverBayer/RGBpyramidgeneration orcompleteNlginitialization."
+  },
   "capture_limits": [
     "At most24calls,8MiB per plane and128MiB aggregate plane budget. Large Bayer and2064x1376RGB payloads are intentionally omitted; descriptor observations distinguish omitted and empty planes.",
     "Snapshots contain pointer values but no native computation follows them. Inputs are copied before the vendor consumes ownership; outputs after the call returns.",
