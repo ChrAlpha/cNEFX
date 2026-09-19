@@ -14,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 from renderer_lab_rgb import transform
+from renderer_profile import parameters
 from renderer_rgb_lab import transform as transform_rgb
 from verify_image_render import validate_render_events
 from verify_image_sdk import picture_controls, provider_paths
@@ -128,11 +129,29 @@ def comparison(native: np.ndarray, vendor: np.ndarray) -> dict:
     }
 
 
+def parameter_comparison(native: np.ndarray, vendor: np.ndarray) -> dict:
+    if (
+        native.dtype != np.dtype("<f4")
+        or vendor.dtype != native.dtype
+        or native.shape != vendor.shape
+    ):
+        raise ValueError("Expected matching float32 parameter arrays.")
+    return {
+        "compared_words": int(native.size),
+        "different_words": int(
+            np.count_nonzero(native.view("<u4") != vendor.view("<u4"))
+        ),
+        "native_sha256": hashlib.sha256(native.tobytes()).hexdigest(),
+        "vendor_sha256": hashlib.sha256(vendor.tobytes()).hexdigest(),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("dll", "probe", "wine-prefix", "capture", "output"):
         parser.add_argument(f"--{name}", type=Path, required=True)
     parser.add_argument("--rgb-lab", action="store_true")
+    parser.add_argument("--icc-profile", type=Path)
     args = parser.parse_args()
     native_transform = transform_rgb if args.rgb_lab else transform
     root = Path(__file__).resolve().parents[1]
@@ -144,6 +163,8 @@ def main() -> int:
     report = {
         "evidence_kind": "captured_and_live_matrix_kernel_vs_native",
         "direction": "rgb-lab" if args.rgb_lab else "lab-rgb",
+        "parameter_source": "native_icc" if args.icc_profile else "captured_state",
+        "parameter_cases": [],
         "input_hashes": {},
         "replays": [],
         "cases": [],
@@ -152,7 +173,7 @@ def main() -> int:
         "libc": list(platform.libc_ver()),
         "limits": [
             "Selected matrix branch only; identity auxiliary and sampled RGB curves.",
-            "Captured matrix/curves are parameters; no native profile generation.",
+            "The matrix/TRC ICC, when supplied, remains an external profile input.",
             "Fresh calls reconstruct guarded pointer state; no complete rendering.",
             "Partial source sampling; no native source or Lightroom acceptance.",
         ],
@@ -173,6 +194,13 @@ def main() -> int:
             Path(native_transform.__code__.co_filename),
         ):
             pinned(path)
+        native_parameters = None
+        if args.icc_profile:
+            pinned(Path(parameters.__code__.co_filename))
+            pinned(root / "tools/cml_luts.py")
+            native_parameters = parameters(
+                pinned(args.icc_profile), inverse=not args.rgb_lab
+            )
         source = json.loads(pinned(args.capture))
         for path, expected in source["input_hashes"].items():
             if hashlib.sha256(pinned(Path(path))).hexdigest() != expected:
@@ -244,6 +272,22 @@ def main() -> int:
                     for i in range(3)
                 ]
             )
+            if native_parameters is not None:
+                expected_matrix, expected_curves = matrix, curves
+                matrix, curves = native_parameters
+                checked = {
+                    "index": index,
+                    "matrix": parameter_comparison(matrix, expected_matrix),
+                    "curves": parameter_comparison(curves, expected_curves),
+                }
+                report["parameter_cases"].append(checked)
+                if (
+                    checked["matrix"]["different_words"]
+                    or checked["curves"]["different_words"]
+                ):
+                    raise ValueError(
+                        "Native ICC parameters differ from the captured renderer."
+                    )
             raw = pinned(Path(f"{prefix}-input.bin"))
             target = pinned(Path(f"{prefix}-output.bin"))
             if len(raw) != width * height * 6 or len(target) != len(raw):

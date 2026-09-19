@@ -166,6 +166,29 @@
     "verification": "199focusedtests pass,including35newRGBLabnativechecks and2direction/cancellationregressions. StrictC11,scopedRuff/format,ASCII/JSON/diffchecks pass.",
     "limit": "Matrix/inputcurves remaincapturedparameters;onlynonnegative matricesareaccepted. DoesnotrecoverCMLLab/Lch,sourcepreprocessing,Nlgspatialgain orcompletecms0/nativeimageparity."
   },
+  "matrix_kernel_independent_review": {
+    "scope": "3714611, including shared argument guards and cancellation handling",
+    "evidence_kind": "independent_source_review_and_saved_replay_no_wine_rerun",
+    "findings": "No concrete defects found. Previous rectangle/descriptor guard and cancellation exit-code findings are addressed.",
+    "verification": "125 focused tests, strict C11, scoped Ruff/format and whitespace checks passed. Verified both report checksums and all 260+284 input hashes. Independently replayed all 72 live cases and 12 saved blocks with zero differences. Cancellation after one completed case in both directions retained partial evidence and returned 130.",
+    "limit": "C guard failure paths were inspected but not fault-injected. Bounded matrix branches and explicit parameters only."
+  },
+  "native_icc_matrix_parameters": {
+    "implementation": "tools/renderer_profile.py; tools/verify_renderer_lab_rgb.py --icc-profile",
+    "interface": "parameters(profile,inverse=False) returns a row-major float32 3x3 matrix and three float32 65536-entry curves for RGB/Lab; inverse=True returns Lab/RGB parameters.",
+    "profile_scope": "v2.2 D50 monitor RGB/XYZ matrix profile, no A2B/B2A tags, nonnegative bounded colorants and strictly increasing full-domain sampled TRCs. Parametric, identity/gamma and nonmonotonic TRCs or float32 expansions are excluded.",
+    "arithmetic": "Forward matrix is the transposed ICC colorant columns divided by 65536. Forward curves use float32 interpolation at arange(65536)*(float32(1/65535)*(count-1)), followed by float32 normalization. Inverse curves interpolate in double precision and narrow to float32 without CML's uint16 quantization. Matrix inversion uses a double determinant, float32 cofactors and double reciprocal multiplication before narrowing; determinant must exceed 1/65536.",
+    "static_evidence": "image_render RVAs 0x5313f0 (matrix inversion), 0x531fb0 (inverse curves), 0x531780 (sample import). External decompiled-renderer-icc-parameters directory.",
+    "evidence_kind": "native_ICC_parameters_vs_captured_state_and_fresh_vendor_matrix_kernels",
+    "reports": [
+      {"direction": "lab-rgb", "report": "renderer-native-icc-lab-rgb-v2/report.json", "sha256": "dd6b513dac0ab96fc1b596b5f481030d300dfba952cfefb259d1d9f9d2af69dc", "parameter_words": 1572936, "live_cases": 36, "live_pixel_words": 527823, "saved_blocks": 8, "saved_pixel_words": 785424, "input_hashes": 286},
+      {"direction": "rgb-lab", "report": "renderer-native-icc-rgb-lab-v2/report.json", "sha256": "69577ef6767d7520a699028ca1ccfaeedc34620bfaae8c07786be2287f3199dc", "parameter_words": 786468, "live_cases": 36, "live_pixel_words": 527823, "saved_blocks": 4, "saved_pixel_words": 392712, "input_hashes": 262}
+    ],
+    "different_words": 0,
+    "coverage": "All 12 captured inner calls use native NKsRGB.icm parameters. Float parameters compare by raw bits, including signed zero. Fresh kernels use these native parameters plus two synthetic configurations per direction, across widths 1..9,50,207,208. All recorded inputs unchanged.",
+    "verification": "156 focused tests and 992 full-suite tests passed. Scoped Ruff/format, ASCII/JSON and diff checks passed. Independent review replayed all v1 parameters and pixels exactly, but found accepted samples [0,65534,65535] expand into 192 decreasing adjacent pairs. The new failing-before/passing-after regression rejects such expansions without smoothing. Both v2 live oracles were rerun after the fix.",
+    "limit": "One external NKsRGB profile is validated against captured parameters. Sampled curves and matrices remain bounded; unsupported ICC variants fail closed. No fresh complete cms0 composition, later CML Lab/Lch, source preprocessing, full native rendering or Lightroom acceptance."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",

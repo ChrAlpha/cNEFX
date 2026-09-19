@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
@@ -13,6 +14,7 @@ from verify_np3_header import windows  # noqa: E402
 from verify_renderer_lab_rgb import (  # noqa: E402
     KERNEL_RVA,
     capture_events,
+    parameter_comparison,
     validate_events,
 )
 
@@ -192,3 +194,17 @@ def test_cancellation_persists_report_and_returns_130(tmp_path, monkeypatch, cap
     assert len(report["input_hashes"]) == 5
     assert "cancelled" in report["error"]
     assert json.loads(capsys.readouterr().out)["passed"] is False
+
+
+def test_parameter_comparison_preserves_float_bits():
+    expected = np.array([0, 1, 32768], dtype="<f4")
+    assert parameter_comparison(expected, expected)["different_words"] == 0
+    modified = expected.copy()
+    modified[0] = -0.0
+    modified[1] = np.nextafter(np.float32(1), np.float32(2))
+    report = parameter_comparison(modified, expected)
+    assert report["compared_words"] == 3 and report["different_words"] == 2
+    assert report["native_sha256"] != report["vendor_sha256"]
+    for other in (expected[:-1], expected.astype("<f8")):
+        with pytest.raises(ValueError):
+            parameter_comparison(expected, other)
