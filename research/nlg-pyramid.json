@@ -250,6 +250,33 @@
       "review_corrections": "The replay helper now rejects any changed hash on a repeated read. An in-memory mutation of unused parameter byte +0x1a is rejected with a retained failure report in nlg-gain-hash-mutation-v2. Four additional saved vendor cases cover observed nonlinear behavior and signed green limits. Forcing green slope to zero fails the observed nonlinear case; forcing green upper to 16383 fails all three new limit cases. The original v1 report is historical evidence with the pinning limitation; v2 revalidates all 26 cases and 148 hashes with corrected pinning.",
       "limits": "Synthetic scalar leaves and captured numeric controls only. Actual source-photo LUT and its generation, SIMD equivalence, interpolation, chroma smoothing and a complete native initial Bayer chain remain unverified."
     },
+    "native_lookup_tables": {
+      "implementation": "tools/nlg_tables.py; tests/test_nlg_tables.py; tests/fixtures/nlg_table_vectors.json",
+      "chain": "0x230c40 -> 0x231140 -> forward 0x42b480 and inverse 0x42a180. Generator vtable 0xaf7928 slots +0x10/+0x18 call 0x101a70/0x101aa0 to copy tables into state +0xc28/+0x20c28. Initial lookup 0x6af00 uses the forward table.",
+      "arithmetic": "Preserves each float32 multiply/add, square root, truncating float-to-int conversion and uint16 saturation. The inverse scale follows the caller's float32 reciprocal, promotion to double, multiplication by 0.5 and narrowing to float32. Both table modes are implemented without fused operations.",
+      "bounds": "Finite Python float scale in [1/256,256], uint16 base and offset, boolean mode. Both outputs are independent 65536-entry little-endian uint16 arrays. Float-to-int conversion remains within signed32 for these bounds.",
+      "capture": "nlg-tables-synthetic-v1/report.json",
+      "capture_sha256": "5b02b900a3ea6160f02f628d507710ce8d70c4b790b84f879128b9f8e6592100",
+      "probe_source": "probe_nlg_tables.c",
+      "oracle_runner": "nlg_tables_oracle_v2.py",
+      "coverage": "24 guarded cases compare 1572864 forward and 1572864 inverse words exactly. Includes both modes, scale endpoints, uint16 base/offset endpoints, saturation, float32 scale narrowing and reciprocal rounding. All 92 recorded hashes rechecked. Input protection, output guards, provider paths, floating exception/control checks and cleanup pass.",
+      "report": "nlg-tables-native-v1/report.json",
+      "sha256": "203cb5dc97aa9abbfdf5afe0ae533b020aaeeaafe39d47ce3dd3a6df3f9a88a2",
+      "native_runner": "verify_nlg_tables_native.py",
+      "source_candidate": "Candidate scale 1, base 0, offset 191 and alternate mode matches both complete tables in all four passing v17 generator snapshots: 524288 words exact. Together with the synthetic corpus, native replay compares 3670016 words and rechecks 1139 hashes. Four snapshots are observations of one source/control, not four photographs.",
+      "verification": "23 direct tests pass; full suite 2079 passed in 11.58 seconds. Scoped Ruff/format, JSON, ASCII and diff checks pass. Full-table vendor hashes and source candidate hashes are retained in fixtures.",
+      "limits": "Offset 191 and source mode are partly inferred from output tables. Caller base zero is established statically; complete source metadata, exposure and configuration derivation remain unfinished. No full renderer, pixel-shift or Lightroom acceptance is established."
+    },
+    "gain_source_capture_attempt": {
+      "status": "Failed transparency validation; do not treat as a passing source oracle",
+      "capture": "nlg-gain-source-v1/report.json",
+      "sha256": "43a00dbeb4b1814cd4af1134172965b582d6e12c97f4662887d6938b09480279",
+      "probe_source": "probe_stage_pixels_v18.c; nlg_gain_tap.h",
+      "runner": "run_nlg_gain_source_capture.py",
+      "observations": "24 windows compare 18432 signed gain and 18432 lookup words exactly, with both Bayer/gain and gain/lookup continuity exact. SDK lifecycle and 28 providers validate; 216 input and 985 output hashes are stable. Added payload 677288 bytes.",
+      "failure": "Final RGB16 differs in 141 of 133128 words, maximum error 99. The earliest identified difference is 11 NR1 output words with maximum error 4. Comparable Bayer, pyramid and grid snapshots are unchanged. This does not establish the cause.",
+      "review": "Independent review confirms the failed final-output gate and successful bounded comparisons. Hook MXCSR sampling excludes TLS, logging and parts of the outer hook; whole-hook preservation needs verification. Preserve the failed evidence and repair capture transparency before promoting source validation."
+    },
     "subsequent_stages": "0x1056e0 black/gain/offset and nonlinear limiting; 0x6af00 lookup; 0x105e40 interpolation or monochrome 0x6bd70; 0x6bf40 signed chroma smoothing and auxiliary blending.",
     "fallback": "0x102e80 -> vtable 0xaf79c8 -> 0x109580 -> 0x109ba0 -> 0x10b420 -> 0x66fb0 reads three-channel RGB, not Bayer.",
     "limits": "The original pyramid capture omits Bayer pixels and the immediate 2064x1376 RGB output; the additional capture covers only the stated windows. Gain/lookup have synthetic validation only. Real-source gain/lookup, interpolation, chroma smoothing and source parameter recovery remain unfinished."
