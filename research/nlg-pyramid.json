@@ -131,7 +131,25 @@
     "chain": "0x103ee0 -> 0x106a30 -> task vtable 0xaf7a48 -> 0x109850 -> 0x10a890 -> 0x10ce90 -> scalar 0x106cc0",
     "parameters": "Filter block starts at level +0x84. u16 small bases/cutoffs at 0/2/4/6, u8 slopes at 8/9; u16 large bases/cutoffs at 0xa/0xc/0xe/0x10, u8 slopes at 0x12/0x13; impulse modes 0x14/0x15 and u16 thresholds 0x16/0x18; small shifts 0x1a..0x1c; u16 directional blend bounds 0x1e/0x20; large shifts 0x22..0x24; final Y/C strengths 0x25/0x26.",
     "neighborhood": "Nonlinear 5x5 directional and isotropic responses. Activity uses Y>>2 and chroma>>3; direction scores weight Y by four and diagonals by 35/32. Border helper 0x720b0 reflects without repeating edges. Final strength divisions truncate toward zero.",
+    "vendor_oracle": {
+      "report": "nlg-filter-vendor-v1/report.json",
+      "sha256": "d05030a9a42c6f53ba2bee53c424837742f54de02a067974d04236828a869613",
+      "probe_source": "probe_nlg_filter.c",
+      "runner": "nlg_filter_oracle.py",
+      "coverage": "Nineteen guarded scalar cases retain 111816 filter output words. Native reflected padding matches helper 0x720b0 across 224832 words; native zero-strength clipping matches 1941 words. All 143 hashes independently rechecked.",
+      "limits": "Passing records guarded vendor execution, padding and zero-strength comparisons. It does not establish native adaptive-filter parity. Level-2 synthetic cases did not trigger chroma correction; low-amplitude chroma coverage is still needed. Blend tables use the recovered setup formula."
+    },
     "limits": "Intermediate signed narrowing and rounding require vendor-oracle validation. Static mapping alone is not native filter correctness or full-render evidence."
+  },
+  "initial_bayer_recovery": {
+    "status": "Static findings; native implementation and direct vendor comparison pending",
+    "artifact": "nlg-bayer-static-recovery.txt",
+    "sha256": "24b37431df8f89d8d743d2c0783a55a5809aa1ee7325045cefe5d0db6e895271",
+    "reducer_chain": "0x1030d0 -> 0x1053a0 -> vtable 0xaf7968 -> 0x1095d0 -> 0x109d10 -> 0x10b710 -> scalar 0x69f20",
+    "reducer": "A 4x4 CFA-aware reducer computes RGB and a byte-valued directional auxiliary map. Pattern comes from owner context +0x20, not the parameter block. Even source axes are required by the owning dispatcher. Output extent is (source extent + 2) / 4 with integer truncation.",
+    "subsequent_stages": "0x1056e0 black/gain/offset and nonlinear limiting; 0x6af00 lookup; 0x105e40 interpolation or monochrome 0x6bd70; 0x6bf40 signed chroma smoothing and auxiliary blending.",
+    "fallback": "0x102e80 -> vtable 0xaf79c8 -> 0x109580 -> 0x109ba0 -> 0x10b420 -> 0x66fb0 reads three-channel RGB, not Bayer.",
+    "limits": "The current capture omits Bayer pixels and the immediate 2064x1376 RGB output. No direct reducer replay is possible from these saved inputs. A guarded synthetic RGB-plus-auxiliary oracle and bounded source-row tap are required."
   },
   "capture_limits": [
     "At most24calls,8MiB per plane and128MiB aggregate plane budget. Large Bayer and2064x1376RGB payloads are intentionally omitted; descriptor observations distinguish omitted and empty planes.",
