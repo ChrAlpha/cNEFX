@@ -8,10 +8,10 @@
   },
   "rgb_lab_dispatch": {
     "evidence_kind": "static_recovery_and_instrumented_render_pilot",
-    "selection": "image_render0x48bf50 creates a CML XForm before0x48b010 chooses its processing mode. An accepted RGB/Lab A2B0 with Lab destination selects mode2, clears CML transformer state+0x600 and installs internal LUTRGBLab at+0x730.",
+    "selection": "image_render0x48bf50 creates a CML XForm before0x48b010 chooses its processing mode. An accepted RGB/Lab A2B0 with Lab destination can select mode2. Later live stage-state captures establish actual cms0 mode6, with both internal LUTRGBLab at+0x730 and Lab/RGB processing at+0x720 populated; CML transformer state+0x600 is zero. The recovered RGB/Lab kernel is the first part of that composition.",
     "abi": "Filter vtable0xb2a478 setup slot+0x330->0x4e6d10; process slot+0x338->0x4e6ee0. Process returns a pointer-shaped error, null on success, and takes self,format,width,height,input,input-row/input-pixel/input-channel strides,output,output-row/output-pixel/output-channel strides.",
     "consumer": "Parser0x4e5290->0x4e5700->0x4e5860 consumes mft2 directly. Observed format0x10060201, pixel stride6, channel stride2; row0x4f2690->0x528460.",
-    "limit": "Other selector modes can combine internal LUT, matrix and CML stages. Previous CML profile-consumer equivalence does not establish equivalence for this path."
+    "limit": "The earlier mode2 attribution to actual cms0 was not demonstrated. Live mode6 runs RGB/Lab then Lab/RGB; native RGB/Lab parity alone does not establish complete cms0 equivalence."
   },
   "native_rgb_lab": {
     "implementation": "tools/renderer_lut.py",
@@ -114,6 +114,22 @@
     "lut_abi": "Factory0x276170->constructor0x4936b0,vtable0xb23250. Setter0x493930(filter,threeuint16tables,16,16,3);processslotb23528->493d20(filter,output_block,context);enablebytefilter+54. Process uses independent channel lookup and contains no WB or matrix operation.",
     "limit": "Graph enabled state alone does not prove every stage changes every pixel. Original generic verifier rejects added instrumentation events; analysis explicitly removes only known trace events before validating the original render lifecycle. WB/matrix placement inside Kaiji stages remains unresolved. This is a pilot,not full-image parity."
   },
+  "stage_pixel_pilot": {
+    "evidence_kind": "instrumented_vendor_render_and_native_saved_tile_comparisons",
+    "report": "stage-pixels-analysis-v3.json",
+    "sha256": "774f742e4ca6c4fa6d38d3d010dfb01fff7890909b8b776f0feeb5cfe559302a",
+    "earlier_report": "stage-pixels-analysis-v2-complete.json",
+    "earlier_sha256": "c6b8efa0e1335f32cb8b679d3fab2097319822338f614c047a84519bc2e271b3",
+    "coverage": "One ordinary Z8 source and vanilla NP3. V3 captures50output blocks and94auxiliary snapshots. Original lifecycle/provider checks pass after excluding only stage_taps/stage_pixels. All189recorded input hashes match. Render258x172 has44376covered pixels and zero missing/overlap/rejected pixels.",
+    "observed_formats": "Nr2 output10060205 and later CMS10060203 are captured as raw six-byte pixels; component semantics are not inferred from storage size.",
+    "raw_transfer": "Native encode exactly reproduces262920captured words; native decode133128words,zero differences. Both final258x172tiles establish vignette->encode->decode from actual pixel data.",
+    "highlights": "Candidate min(nr1*4,65535) matches132562of133128final-tile words,with566component2exceptions,max4916. This candidate is not a recovered general highlight algorithm.",
+    "cms_state": "First CMS has state+0x718selector6 in both early667/674 and final1629/1630captures. Both inner pointers720/730 are populated. Later CMS selectors3 and4 are stable across both tiles of each object.",
+    "final_stages": "Edge->Distortion changes131070words,max44013. Distortion->lastCMS differs80147words,max7. LastCMS->cms4 differs58101words,max5; cms4 matches all133128final output words exactly. Final cms4 is CFltLittleCMS,vtableafc308,process1c7ff0.",
+    "repeatability": "All22shared v2/v3captures totaling2928816bytes and final output are identical. This does not override earlier full-render nondeterminism on other source/control runs.",
+    "bounds": "Nlg allocation is0x10f9c0bytes. V3 snapshot contains64extra readable bytes; analysis hashes only the allocation prefix. Subsequent probe corrects the capture extent.",
+    "limit": "Partial sampling,one source/control,process-local vtable patches. Raw format IDs and object IDs are retained. Concurrency can reorder return events; entry indices are not complete graph identity. No full native renderer or Lightroom acceptance."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",
@@ -122,7 +138,7 @@
     "coverage": "GetStdLut(curve0,gamma0/1,input16,output16);131072words compared,0differences. Both hashes also match10LUTsnapshots from actualrenderer execution.",
     "arithmetic": "All arithmetic in float32,including normalized coordinates. Scalar native libm.powf matches; NumPy float32 power differs at62words and doublepow narrowed tofloat32 differs at2words,total across both tables. Final RGB16 conversion truncates. Encoder endpoint is65534,decoder65535.",
     "runtime": "Linux glibc2.41;actual libm provider resolved with dladdr and hashed. Other libm implementations require separate numerical validation.",
-    "verification": "FreshDLLexport run passes provider path,table immutability,exclusive output and release checks;7input hashesstable.12focused tests and834fullpytesttests pass4.73s. Strict C11,scoped Ruff/format,ASCII/JSON/diff checks pass.",
+    "verification": "FreshDLLexport run passes provider path,table immutability,exclusive output and release checks;7input hashesstable.12focused tests and834fullpytesttests pass4.73s. Strict C11,scoped Ruff/format,ASCII/JSON/diff checks pass. Cancellation fix9e25ead adds2regressions preserving partial evidence and exit130;14focused tests pass. Fresh post-fix oracle raw-transfer-cancellation-fix-v1/report.json SHA256e30dc428d325706e1700726310fc2a5e8c2e580dface4f586281fbcac02a6113 again matches131072words exactly.",
     "limit": "Fixed16-bit tables only. Source WB/matrix,Kaiji denoise/highlight stages,Lab/Lch transformations and complete native rendering remain unrecovered."
   }
 }
