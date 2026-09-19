@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-20",
+  "scope": "Native optional chromatic aberration correction within pixel-shift synthesis",
+  "official_option": {
+    "source": "https://nikonimglib.com/nxstdo/onlinehelp/en/merge_pixel_shift_pictures_53.html",
+    "label": "Chromatic aberration correction",
+    "description": "Select On to reduce lateral color aberration."
+  },
+  "implementation": {
+    "module": "src/nx_ctudio/radial.py",
+    "pipeline": "Reconstruct uncropped RGB, sample the final crop through red/blue radial maps, preserve green unchanged.",
+    "coordinates": "Use the uncropped reconstructed plane coordinate system, including taps outside the final crop.",
+    "parameters": "Signed 32-bit Q8 center offsets and two Q20 coefficient triples from source Nikon metadata.",
+    "memory": "Float64 temporaries are limited to 64-row blocks. The uncropped reconstruction and final cropped RGB remain resident during correction.",
+    "boundary": "Truncate source coordinates toward zero, skip out-of-domain taps without renormalization, clamp to 14 bits, then truncate sample values.",
+    "extreme_metadata": "Coordinates outside the cubic kernel's support are set to zero without casting extreme coordinates to int64."
+  },
+  "saved_vendor_comparison": {
+    "report": "/workspaces/LumaForge/nxc-data/scratch/native-radial-core-v1.json",
+    "sha256": "8d0c16b1d99c66ac5c8ba6c75f942f6633de8af92b024e71344bdcfb4297571a",
+    "tool": "tools/verify_native_core.py --radial-correction",
+    "cases": 12,
+    "input_counts": [4, 8, 16, 32],
+    "iso_values": [3200, 3201],
+    "samples_compared": 24117120,
+    "different_samples": 0,
+    "passed": true,
+    "coverage": "Synthetic independently varying RAWs, nonzero ordered sparse selectors, inherited coefficients in all modes and signed centers/all six nonzero coefficients in 4/16-frame modes."
+  },
+  "limitations": [
+    "Synthetic saved vendor agreement is not authentic capture quality or Lightroom acceptance.",
+    "Extreme coefficient behavior is an input-safety contract, not vendor parity evidence for those parameters.",
+    "Full-resolution correction runtime and memory still require measurement.",
+    "The CLI correction option is not yet connected at this checkpoint."
+  ]
+}

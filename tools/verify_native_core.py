@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import io
 import json
 from pathlib import Path
 
 import numpy as np
 import rawpy
-import tifffile
 
 from nx_ctudio.pixel_shift import reconstruct
+from nx_ctudio.radial import RadialCorrection
+from nx_ctudio.raw import read_frame
 
 
 def digest(path: Path) -> str:
@@ -20,7 +20,7 @@ def digest(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def verify(pipeline_report: Path) -> list[dict]:
+def verify(pipeline_report: Path, radial: bool = False) -> list[dict]:
     report = json.loads(pipeline_report.read_text())
     if not report["passed"]:
         raise ValueError("Expected a completed passing vendor pipeline report.")
@@ -31,16 +31,29 @@ def verify(pipeline_report: Path) -> list[dict]:
             path = Path(fixture["path"])
             if digest(path) != fixture["sha256"]:
                 raise ValueError("Fixture hash mismatch.")
-            with rawpy.imread(str(path)) as image:
-                frames.append(image.raw_image.copy())
-        source = Path(case["fixtures"][0]["path"])
-        with tifffile.TiffFile(source) as image:
-            maker = image.pages[0].tags[34665].value["MakerNote"]
-        with tifffile.TiffFile(io.BytesIO(maker[10:])) as image:
-            crop = image.pages[0].tags[0x45].value
-            selector = image.pages[0].tags[0x5E].value
-        native = reconstruct(frames, crop, selector, case["iso"])
-        vendor = next(output for output in case["outputs"] if not output["radial"])
+            samples, metadata = read_frame(path)
+            frames.append(samples)
+            if len(frames) == 1:
+                first = metadata
+        correction = None
+        if radial:
+            parameters = first["radial"]
+            if not parameters["available"]:
+                raise ValueError("Fixture lacks supported radial correction metadata.")
+            correction = RadialCorrection(
+                tuple(parameters["center_q8"]),
+                tuple(tuple(row) for row in parameters["coefficients_q20"]),
+            )
+        native = reconstruct(
+            frames,
+            first["crop"],
+            b"0100" + first["selector"],
+            case["iso"],
+            radial=correction,
+        )
+        vendor = next(
+            output for output in case["outputs"] if output["radial"] == radial
+        )
         path = Path(vendor["path"])
         if digest(path) != vendor["sha256"]:
             raise ValueError("Saved vendor output hash mismatch.")
@@ -67,12 +80,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("pipeline_reports", nargs="+", type=Path)
     parser.add_argument("--report", required=True, type=Path)
+    parser.add_argument("--radial-correction", action="store_true")
     args = parser.parse_args()
     if args.report.exists():
         parser.error("Report already exists.")
     report = {
         "evidence_kind": "native_core_saved_synthetic_vendor_comparison",
         "passed": False,
+        "radial_correction": args.radial_correction,
         "cases": [],
         "pipeline_reports": [
             {"path": str(p), "sha256": digest(p)} for p in args.pipeline_reports
@@ -83,12 +98,14 @@ def main() -> int:
                 Path(__file__),
                 Path("src/nx_ctudio/pixel_shift.py"),
                 Path("src/nx_ctudio/_sparse.py"),
+                Path("src/nx_ctudio/radial.py"),
+                Path("src/nx_ctudio/raw.py"),
             )
         },
     }
     try:
         for path in args.pipeline_reports:
-            report["cases"].extend(verify(path))
+            report["cases"].extend(verify(path, args.radial_correction))
         report["passed"] = bool(report["cases"]) and all(
             case["passed"] for case in report["cases"]
         )

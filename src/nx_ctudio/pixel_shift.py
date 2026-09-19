@@ -12,6 +12,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._sparse import Selection, repair
+from .radial import RadialCorrection, correct_crop
 
 PHASE_X = (0, 1, 1, 0)
 PHASE_Y = (0, 0, 1, 1)
@@ -41,9 +42,13 @@ def reconstruct(
     crop: tuple[int, int, int, int],
     selector: bytes,
     iso: int,
+    *,
+    radial: RadialCorrection | None = None,
 ) -> NDArray[np.uint16]:
-    """Return cropped RGB without mutating any input; radial correction is off."""
-    return reconstruct_from_reader(len(frames), frames.__getitem__, crop, selector, iso)
+    """Return cropped RGB without mutating any input; optional red/blue correction."""
+    return reconstruct_from_reader(
+        len(frames), frames.__getitem__, crop, selector, iso, radial=radial
+    )
 
 
 def reconstruct_from_reader(
@@ -52,6 +57,8 @@ def reconstruct_from_reader(
     crop: tuple[int, int, int, int],
     selector: bytes,
     iso: int,
+    *,
+    radial: RadialCorrection | None = None,
 ) -> NDArray[np.uint16]:
     """Read each zero-based capture index once, retaining at most four source planes.
 
@@ -92,7 +99,10 @@ def reconstruct_from_reader(
     paired = count in (8, 32)
     reduced_count = count // 2 if paired else count
     scale = 2 if reduced_count == 16 else 1
-    output = np.zeros((scale * crop_height, scale * crop_width, 3), dtype=np.uint16)
+    sampling_crop = (1, 1, width - 1, height - 1) if radial is not None else crop
+    output = np.zeros(
+        (scale * sampling_crop[3], scale * sampling_crop[2], 3), dtype=np.uint16
+    )
     for start in range(0, reduced_count, 4):
         if paired:
             reduced = [
@@ -108,8 +118,10 @@ def reconstruct_from_reader(
                         [p.reshape(-1) for p in reduced], width, height, selection
                     )
                 ]
-        _sample_group(output, reduced, crop, scale, start // 4)
+        _sample_group(output, reduced, sampling_crop, scale, start // 4)
         del reduced
+    if radial is not None:
+        return correct_crop(output, shape, scale, crop, radial)
     return output
 
 
