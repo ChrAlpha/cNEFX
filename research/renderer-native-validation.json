@@ -386,6 +386,20 @@
     "verification": "23 focused tests pass, including separate-pass rounding, extrema, leading dimensions, noncontiguous/read-only arrays and bounds. Strict C11 -Wall -Wextra -Werror compilation and scoped Ruff/format pass.",
     "limit": "Pure scalar interpolation leaf only. This does not establish state generation, coarse-grid generation, full Nlg processing or end-to-end native rendering."
   },
+  "native_nlg_final_rows": {
+    "implementation": "tools/renderer_nlg.py; tools/verify_renderer_nlg.py",
+    "report": "nlg-rows-native-v2/report.json",
+    "sha256": "ef52da7390e98e3c7b4d261e76ffc1260955e312719a91c4b5e5063b3fd2262d",
+    "capture": "nlg-rows-v1/report.json",
+    "capture_sha256": "1c5702a58c7b925529237bdbb4c699c37300f88dc469c3dc5a9fdbe5fb2831a7",
+    "evidence_kind": "native_final_rows_from_captured_numeric_state_and_spatial_grids",
+    "arithmetic": "Nonnegative Q10 matrix with separately rounded products, channel LUTs, two-pass three-point spatial interpolation, squared local intensity with saturation before subtracting offset38, chroma-dependent luminance, two distinct difference-curve families with separate shifts, local gain and auxiliary output. State64,2e8d,309a disabled; fixed observed controls and identity tone tables. Never follow captured pointers.",
+    "coverage": "12 AVX captures: widths208/50 and rows0,1,7,8,85,171. All4644 RGB16 and1548 auxiliary words match. Original SDK lifecycle and28provider paths validated;691input hashes stable. The fresh capture preserved the complete RGB16 render byte-for-byte against v11.",
+    "fresh_vendor_replay": "nlg-row-replay-v2/report.json SHA2567cc910458ec4e655e642fd9bed1a214052cf61670cd9351d0f6ec37268979af9:36fresh calls,12each AVX/scalar/SSE,6192words perimplementation exact. Owned remapped job/row pointers,readonly state/inputs,guards,output padding,auxiliary boundaries,MXCSR andcleanup checked.332input and72output hashes stable.",
+    "verification": "188focused tests and1527full-suite tests pass5.58s. Scoped Ruff/format,ASCII anddiff checks pass. Independent review reran100core/interpolation tests and all6192native/18576vendor words. All670capture,404row-oracle and23interpolation hash entries stable;no unresolved defect in corrected branch.",
+    "failed_evidence": "nlg-rows-native-v1 retained: overstrict decoder assumed allfour difference curves equal; realstate has117d0=157d0 and137d0=177d0,with4092entries differing betweenfamilies. Regression failed beforefix. Separate synthetic regression exposed square saturation ordering;also failedbeforefix. Oraclepilot-v1/v1 rejected unusedpadding/ringrotation beforecorrection;reportsretained.",
+    "limit": "One source/control at1/32scale. RGB input, numeric state andcoarse grids remaincaptured. Coreallows boundednumeric arrays butfreshsynthetic final-row validation ispending. Source reconstruction, full-frame Nlg,complete nativerenderer,authentic NEFX andLightroomacceptance remainunverified."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",
