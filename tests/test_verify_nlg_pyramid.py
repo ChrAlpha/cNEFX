@@ -49,6 +49,20 @@ def test_rgb_scale_parameters_require_all_three_enabled_bytes():
             verifier.rgb_parameters(bytes(changed))
 
 
+def test_zero_strength_parameters_require_observed_conversion_branch():
+    raw = bytearray(0xB6)
+    raw[0x80:0x83] = b"\x01\x01\x01"
+    verifier.zero_strength_parameters(bytes(raw))
+    for offset in (0, 0x80, 0x81, 0x82, 0xA9, 0xAA):
+        changed = raw.copy()
+        changed[offset] ^= 1
+        with pytest.raises(ValueError, match="zero-strength"):
+            verifier.zero_strength_parameters(bytes(changed))
+    for changed in (b"", raw[:-1], raw + b"\x00"):
+        with pytest.raises(ValueError, match="zero-strength"):
+            verifier.zero_strength_parameters(bytes(changed))
+
+
 def fixture(channels=3):
     event = dict(
         width=5, height=3, channels=channels, saved=True, bounded=True, valid=True
@@ -127,7 +141,9 @@ def arguments(tmp_path, monkeypatch, output):
 
 
 @pytest.mark.parametrize("error,code", [(ValueError, 1), (KeyboardInterrupt, 130)])
-@pytest.mark.parametrize("group", ["levels", "downsample", "reconstruction"])
+@pytest.mark.parametrize(
+    "group", ["levels", "downsample", "reconstruction", "zero_strength"]
+)
 def test_partial_evidence_survives_failure(
     tmp_path, monkeypatch, capsys, error, code, group
 ):
@@ -163,6 +179,7 @@ def test_no_overwrite_or_repository_output(tmp_path, monkeypatch, location):
 
 
 SMALL_TOTALS = {
+    "zero_strength": (4, 7680),
     "downsample": (10, 8184),
     "reconstruction": (10, 32736),
     "inputs": (20, 5456),
@@ -182,6 +199,12 @@ def small_capture():
             planes[index, "output", 12] = np.full(
                 (width // 2, width // 2, 3), 100 + index, dtype="<u2"
             )
+            if level in (3, 4):
+                planes[index, "input", 7] = np.broadcast_to(
+                    np.array([16383, 0, 0], dtype="<u2"), (width, width, 3)
+                )
+                for slot in (12, 13):
+                    planes[index, "output", slot][...] = [7166, 4095, 1024]
         for level, width in enumerate((2, 4, 8, 16, 32, 64), start=7):
             index = offset + level
             planes[index, "output", 13] = np.full(
@@ -205,6 +228,8 @@ def small_capture():
         for level in range(2, 13):
             raw = bytearray(0xB6)
             raw[0xAC:0xB0] = b"\x01\x01\x01\x01"
+            if level in (3, 4):
+                raw[0x80:0x83] = b"\x01\x01\x01"
             raw[0xB3] = int(level != 7)
             raw[0xB4] = 1
             parameters[offset + level] = bytes(raw)
@@ -228,6 +253,7 @@ def replay_small_capture(monkeypatch):
 
 def test_replay_integrates_both_rgb_sequences_and_recursive_spatial_checks(monkeypatch):
     assert verifier.EXPECTED_TOTALS == {
+        "zero_strength": (4, 1331280),
         "downsample": (10, 1418970),
         "reconstruction": (10, 5674710),
         "inputs": (20, 945980),
@@ -264,6 +290,7 @@ def test_replay_integrates_both_rgb_sequences_and_recursive_spatial_checks(monke
         22,
         23,
     ]
+    assert [r["index"] for r in report["zero_strength"]] == [3, 4, 15, 16]
 
 
 @pytest.mark.parametrize("group", tuple(SMALL_TOTALS))
@@ -314,3 +341,41 @@ def test_rgb_parameter_rejection_keeps_prior_comparisons(index):
     )
     if index > 2:
         assert report["downsample"][0]["index"] == 2
+
+
+@pytest.mark.parametrize("index", [3, 4, 15, 16])
+@pytest.mark.parametrize("offset", [0, 0x80, 0x81, 0x82, 0xA9, 0xAA])
+def test_zero_strength_parameter_rejection_keeps_prior_comparisons(index, offset):
+    planes, parameters, grids = small_capture()
+    raw = bytearray(parameters[index])
+    raw[offset] ^= 1
+    parameters[index] = bytes(raw)
+    report = {key: [] for key in SMALL_TOTALS}
+    with pytest.raises(ValueError, match="zero-strength"):
+        verifier.replay_pyramids(
+            lambda i, phase, slot: planes[i, phase, slot],
+            parameters.__getitem__,
+            grids,
+            report,
+        )
+    assert not any(e["index"] == index for e in report["zero_strength"])
+    assert report["downsample"][0]["index"] == 2
+    if index > 3:
+        assert report["zero_strength"][0]["index"] == 3
+
+
+def test_zero_strength_replay_detects_different_captured_pixels(monkeypatch):
+    planes, parameters, grids = small_capture()
+    planes[3, "input", 7] = np.zeros_like(planes[3, "input", 7])
+    report = {key: [] for key in SMALL_TOTALS}
+    report.update(sources_unchanged=True, capture_providers=list(range(28)))
+    monkeypatch.setattr(verifier, "EXPECTED_TOTALS", SMALL_TOTALS)
+    verifier.replay_pyramids(
+        lambda index, phase, slot: planes[index, phase, slot],
+        parameters.__getitem__,
+        grids,
+        report,
+    )
+    verifier.summarize(report)
+    assert report["zero_strength"][0]["different_words"] == 32 * 32 * 3
+    assert report["passed"] is False

@@ -92,8 +92,37 @@
     "coverage": "Ten reductions compare 1418970 words; ten reconstructions compare 5674710 words; all exact. Level parameter bytes 0xac, 0xad and 0xae must each equal 1. Original spatial recursion still compares 3786044 level, 945980 parent and 2840064 shared-grid words exactly.",
     "verification": "988 hashes reverified and 28 providers validated. 1738 full-suite tests pass in 5.82 seconds. New integration tests require every comparison group, expected word counts, unchanged inputs and complete provider coverage. Scoped Ruff, formatting and diff checks pass.",
     "independent_review": "No defects found in scalar arithmetic, odd/singleton edges, signed residuals, channel bounds, endian validation or input ownership. An independent replay using the repository functions also matched all 7093680 RGB words.",
+    "synthetic_vendor_oracle": {
+      "report": "nlg-rgb-synthetic-v1/report.json",
+      "sha256": "dceabc767a75831dae7fdf8508c48cd2d08c754562e75fd7f29e8f1bff920637",
+      "probe_source": "probe_nlg_rgb.c",
+      "runner": "nlg_rgb_oracle.py",
+      "coverage": "Twelve cases with independent fine/coarse RGB14 inputs. 13935 reduction words and 55035 reconstruction words match exactly. Includes singleton/odd/even axes, all averaging remainders, 3781 half ties, 6842 negative residuals, 5836 lower clips and upper clips in every channel.",
+      "verification": "All 80 hashes independently reverified. Read-only inputs, descriptors, row pointers and contexts; row canaries, page guards, unchanged MXCSR, provider paths and cleanup pass. Strict C11 and scoped Ruff checks pass.",
+      "limits": "Sequential scalar leaves, zero ring cursors, dimensions at most 128; no spatial filtering or full SDK initialization."
+    },
     "bounds": "Little-endian uint16 RGB values 0..16383, dimensions 1..2048. Reconstruction requires ceiling-half coarse dimensions. Initial Bayer conversion and intervening spatial filtering are separate operations.",
     "limits": "Captured inputs from two executions of one source/control. The first reduction and final reconstruction exceed the capture payload bounds and are omitted. This is not a complete source-derived RGB pyramid or a new real photograph."
+  },
+  "native_filter_domain": {
+    "implementation": "tools/nlg_filter_domain.py; tools/verify_nlg_pyramid.py",
+    "report": "nlg-pyramid-domain-native-v1/report.json",
+    "sha256": "a52c476f7f1f3a6eeda36f667028a498ac38c9043ab1c419afeb0543d277561d",
+    "input_chain": "0xaf7ae8 -> 0x109800 -> 0x10a720 -> 0x10cba0 -> scalar 0x06c7e0",
+    "output_chain": "0xaf7a08 -> 0x1097b0 -> 0x10a5b0 -> 0x10c8b0 -> scalar 0x06c540",
+    "domain": "Y=G+((R+B+1)>>1), Cb=2*B-Y, Cr=2*R-Y. Native arrays use explicit int32 numeric values: unsigned 16-bit luma and signed 16-bit chroma. Vendor storage uses unsigned/signed 16-bit words with active row y+2 and word offset 32.",
+    "inverse": "r=round_signed_half(Y+Cr), b=round_signed_half(Y+Cb), g=Y-round_signed_half(r+b). Half ties round away from zero. Green uses unclamped r/b. Final RGB caps are 16383/4095/16383.",
+    "zero_strength": "With both strengths zero, scalar 0x106cc0 still clamps Y to [0,8190] and both chroma channels to [-6143,6142]. The native helper implements only this branch, without the adaptive neighborhood calculation.",
+    "coverage": "Four captured stages, indices 3/4/15/16, compare 1331280 words exactly. Parameter length 0xb6, initial flag 0, conversion bytes 0x80..0x82 all 1 and strengths 0xa9/0xaa both 0 are required. All previous scale/plane comparison groups remain exact.",
+    "verification": "1800 full-suite tests pass in 5.85 seconds. Independent static review found no defects; 203 focused tests and the formal replay were independently run. All 989 recorded hashes independently rechecked, original lifecycle and 28 providers pass.",
+    "limits": "Full-strength spatial filtering, source parameter recovery and initial Bayer handling remain outside this implementation. The captured branch does not establish general scalar/SIMD equivalence."
+  },
+  "adaptive_filter_recovery": {
+    "status": "Static mapping only; nonzero-strength native implementation pending",
+    "chain": "0x103ee0 -> 0x106a30 -> task vtable 0xaf7a48 -> 0x109850 -> 0x10a890 -> 0x10ce90 -> scalar 0x106cc0",
+    "parameters": "Filter block starts at level +0x84. u16 small bases/cutoffs at 0/2/4/6, u8 slopes at 8/9; u16 large bases/cutoffs at 0xa/0xc/0xe/0x10, u8 slopes at 0x12/0x13; impulse modes 0x14/0x15 and u16 thresholds 0x16/0x18; small shifts 0x1a..0x1c; u16 directional blend bounds 0x1e/0x20; large shifts 0x22..0x24; final Y/C strengths 0x25/0x26.",
+    "neighborhood": "Nonlinear 5x5 directional and isotropic responses. Activity uses Y>>2 and chroma>>3; direction scores weight Y by four and diagonals by 35/32. Border helper 0x720b0 reflects without repeating edges. Final strength divisions truncate toward zero.",
+    "limits": "Intermediate signed narrowing and rounding require vendor-oracle validation. Static mapping alone is not native filter correctness or full-render evidence."
   },
   "capture_limits": [
     "At most24calls,8MiB per plane and128MiB aggregate plane budget. Large Bayer and2064x1376RGB payloads are intentionally omitted; descriptor observations distinguish omitted and empty planes.",
