@@ -2,17 +2,22 @@
   "schema_version": 1,
   "project": "NX Ctudio",
   "cli": "nxc",
-  "updated_on": "2026-09-18",
+  "updated_on": "2026-09-20",
+  "objective": "Focused native pixel-shift synthesis, not a CLI clone of NX Studio",
   "user_decisions": {
     "primary_platform": "Native Linux; other platforms follow",
     "vendor_runtime": "Wine and Nikon DLLs are research oracles only, not a product backend",
     "primary_merge_output": "NEFX",
-    "secondary_interchange": "Linear DNG research and downstream compatibility",
+    "secondary_interchange": "Existing Linear DNG research is secondary to NEFX synthesis",
     "public_artifacts": "English only; repository text is ASCII",
     "first_release_features": [
       "Z8 pixel-shift synthesis",
-      "Lightroom Classic workflow compatibility",
-      "Flexible Color / Picture Control"
+      "NEFX output fidelity and downstream workflow compatibility"
+    ],
+    "excluded_from_active_scope": [
+      "Flexible Color / Picture Control",
+      "General RAW rendering and other NX Studio features",
+      "A CLI clone of NX Studio"
     ]
   },
   "current_capabilities": {
@@ -20,14 +25,12 @@
     "merge": "Experimental native complete 4/8/16/32-frame Z8 sequence to one NEFX",
     "sequence_validation": "Explicit capture order, consecutive shot numbers, consistent observed metadata, no duplicate files",
     "nefx_writer": "Native packed14 RGB, Nikon metadata updates and CRCs, private preview, preserved source JPEGs, atomic no-overwrite publication",
-    "dng": "Secondary library/research path with raw-sample and Adobe SDK validation",
-    "flexible_color": "Native NP3 curve extraction via nxc picture-curve; full color processing remains unimplemented"
+    "dng": "Secondary library/research path with raw-sample and Adobe SDK validation"
   },
+  "historical_research": "Existing Picture Control and renderer code and evidence are retained, but are not active work or synthesis release requirements.",
   "acceptance_boundaries": [
     "Synthetic fixture and saved vendor-output agreement is not authentic capture validation.",
     "LibRaw or Adobe SDK decoding is not Lightroom Classic acceptance.",
-    "Preserving Picture Control metadata is not applying Picture Control rendering.",
-    "Predicting Adobe default properties is not reproducing Nikon color transforms.",
     "A readable NEFX with the right samples is not byte-identical Nikon serialization."
   ],
   "release_gaps": [
@@ -35,7 +38,11 @@
     "Native radial correction and 8/32-frame Adobe default updates",
     "Multiple-output merge modes at the CLI boundary",
     "HE/HE* decoding, HLG, non-FX image areas and firmware coverage",
-    "Flexible Color/Picture Control parameter application, processing order and rendering fidelity",
     "Bounded full-resolution memory use and cross-platform packaging"
+  ],
+  "active_priorities": [
+    "Real capture validation of ordered pixel-shift synthesis",
+    "Bounded full-resolution sequence memory use",
+    "Merge correctness and NEFX output fidelity"
   ]
 }

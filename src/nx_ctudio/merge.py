@@ -41,7 +41,7 @@ CONSISTENT = (
 LIMITATIONS = [
     "Experimental: authentic pixel-shift captures and Lightroom are not validated.",
     "Radial correction is disabled; Adobe XMP defaults are preserved without updates.",
-    "HE/HE* decoding and Flexible Color/Picture Control rendering are not implemented.",
+    "HE/HE* decoding is not implemented; use lossless-compressed 14-bit NEF inputs.",
     "Input order must follow consecutive capture numbers in a single sequence.",
 ]
 
