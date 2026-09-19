@@ -412,6 +412,19 @@
     "verification": "443input and128outputhashes stable. Readonly inputs,state androwpointerarrays;guards,jobmutations,outputpadding,auxiliaryboundaries,MXCSR,providerpath andcleanup pass. StrictC11 andscopedRuff pass. Independentreviewer also reproduced original12capturedrows;syntheticrunperformedbythatoracleauthor.",
     "limit": "Freshnumeric inputs expandpixelcoverage,butstate isstill onecapturedcontrol. No native state/table/gridgeneration,nonzerooptionalcorrections,negative matrix coefficients orcomplete renderer acceptance."
   },
+  "native_nlg_spatial_sampling": {
+    "implementation": "tools/renderer_nlg.py:sample_spatial; tools/verify_renderer_nlg.py",
+    "report": "nlg-grids-native-root-v3/report.json",
+    "sha256": "4d486c1cf13c0fb021d6107fe926212c6fc47a3df9a8aadb5d45b163347b78b4",
+    "capture": "nlg-grids-v1/report.json",
+    "capture_sha256": "baf173dd1544774117f037ccedb1449675304329cc04b2980098f2fb966dec43",
+    "arithmetic": "At observed scale32, prepare097a10 samples integer coordinates 32*floor(left/8)-16+32*i and 32*floor(y/8)-16+[0,32,64]. Mirror at shared-grid edges using period2*(extent-1); singleton axes select0. Upstream RGB16 samples shift right one before the native final-row function.",
+    "coverage": "Two shared1032x688planes captured before releasing the vendor's owned borrow. All1332coarse samples,4644upstream input words,4644RGB and1548auxiliary row words match. Full258x172 Nlg output covers133128RGB words across pairs2545->2547 and2546->2548,all exact. Earlier LUT2543/2544are a different branch and must not be substituted.",
+    "verification": "696hashes stable and28providerpaths validated. Original row capture regression also passes with691hashes. Independent reviewer reran132native tests,all675capture hashes,1332coarse and133128tilewords. FinalRGB bytes match passing nlg-rows-v1 baseline794b1706677dc854398c1036bd39e202dea742bd6d4acbc4b93c0a8c08eb2aa8. Fullsuite1597passed5.64s;scopedRuff/format,ASCII,diffchecks pass.",
+    "review_correction": "Reviewer observed an intermediate verifier edit recording only one row. The final verifier restores append inside the row loop; root independently reran both captures, reproducing the author's passing report hashes. Earlier failed reports remain external. V11's original report parser rejected instrumentation,so passing nlg-rows-v1 is the lifecycle baseline.",
+    "fresh_preparation_oracle": "nlg-grid-oracle-v2/report.json SHA256763110b5a206e320e3fc5ec4fa346c04869d433b5519ddc22080ebb8ad606040:8fresh calls,416outputwords exact. Covers negative priming rows,singleton axes,nonpower grid sizes,real1032x688geometry,nonalignedleft,ringcursor0/1/2 andsource-row rotation. Owned/read-only sources,state,rowpointers;guarded outputs,realMSVCP mutexes,borrow1->2->1,jobmutations,padding,providerpaths andcleanup pass;39hashesstable.",
+    "limit": "Grid values and numeric state remain captured; source generation is not recovered. Scale32 only. Canary checks do not prove all intra-allocation reads safe. No complete native renderer,full-resolution parity,authentic pixel-shift NEFX orLightroom acceptance."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",

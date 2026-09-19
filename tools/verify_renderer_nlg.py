@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from renderer_nlg import decode_state, transform_row
+from renderer_nlg import decode_state, sample_spatial, transform_row
 from verify_image_render import SRGB_HASH, validate_render_events
 from verify_image_sdk import PINNED, picture_controls, provider_paths
 from verify_np3_header import digest
@@ -19,7 +19,9 @@ from verify_renderer_lab_rgb import comparison
 from verify_renderer_vignette import auxiliary_events
 
 CAPTURE_HASH = "1c5702a58c7b925529237bdbb4c699c37300f88dc469c3dc5a9fdbe5fb2831a7"
+GRID_CAPTURE_HASH = "baf173dd1544774117f037ccedb1449675304329cc04b2980098f2fb966dec43"
 RECTANGLES = ((0, 0, 208, 172), (208, 0, 258, 172))
+TILE_PAIRS = ((2545, 2547), (2546, 2548))
 ROWS = (0, 1, 7, 8, 85, 171)
 INSTRUMENTATION = TRACE_EVENTS | {"highlight_buffer", "nlg_row"}
 RINGS = (0, 0x88, 0x110, 0x198, 0x220)
@@ -69,9 +71,60 @@ def row_events(events: list) -> list[dict]:
     return sorted(rows, key=lambda event: event["index"])
 
 
-def original_events(events: list) -> list[dict]:
+def original_events(events: list, *, grids: bool = False) -> list[dict]:
     """Exclude only named instrumentation; unknown lifecycle events stay visible."""
-    return [e for e in events if e.get("event") not in INSTRUMENTATION]
+    excluded = INSTRUMENTATION | ({"nlg_grid"} if grids else set())
+    return [e for e in events if e.get("event") not in excluded]
+
+
+def grid_events(events: list) -> None:
+    selected = [e for e in events if e.get("event") == "nlg_grid"]
+    expected = [{"event": "nlg_grid", "index": i, "saved": True} for i in (1, 2)]
+    if sorted(json.dumps(e, sort_keys=True) for e in selected) != sorted(
+        json.dumps(e, sort_keys=True) for e in expected
+    ):
+        raise ValueError("Unexpected, duplicate, missing, or failed Nlg grid capture.")
+
+
+def grid_values(descriptor: bytes, plane: bytes) -> np.ndarray:
+    """Grid snapshots already contain logical rows; do not rotate them again."""
+    if (
+        len(descriptor) != 0x80
+        or struct.unpack_from("<2I", descriptor, 0x60) != (1032, 688)
+        or struct.unpack_from("<I", descriptor, 0x70)[0] >= 688
+        or struct.unpack_from("<I", descriptor, 0x7C)[0] == 0
+        or len(plane) != 1032 * 688 * 2
+    ):
+        raise ValueError("Nlg grid descriptor, borrow count, or plane size mismatch.")
+    grid = np.frombuffer(plane, dtype="<u2").reshape(688, 1032)
+    if np.any(grid > 4095):
+        raise ValueError("Captured Nlg grid values exceed the bounded range.")
+    return grid
+
+
+def grid_scale(state: bytes) -> None:
+    if (
+        len(state) != 0x10F9C0
+        or struct.unpack_from("<2d", state, 0x10F950) != (32.0,) * 2
+    ):
+        raise ValueError("Only scale32 Nlg spatial sampling is verified.")
+
+
+def tile_geometry(stages: dict, source: int, target: int) -> tuple[int, ...]:
+    if (source, target) not in TILE_PAIRS:
+        raise ValueError("Unexpected Nlg upstream tile pair.")
+    rect = RECTANGLES[TILE_PAIRS.index((source, target))]
+    for index, name in ((source, "lut"), (target, "nlg")):
+        event = stages[index]
+        if (
+            event["stage"] != name
+            or event["rect"] != list(rect)
+            or event["format"] != 0x10060201
+        ):
+            raise ValueError(
+                "Nlg upstream stage identity, format, or rectangle mismatch."
+            )
+    return rect
 
 
 def job_geometry(before: bytes, after: bytes, event: dict) -> tuple[int, int]:
@@ -137,7 +190,12 @@ def verify(args: argparse.Namespace, report: dict) -> None:
         report["input_hashes"][key] = actual
         return raw
 
-    captured = json.loads(pinned(args.capture, CAPTURE_HASH))
+    capture_raw = pinned(args.capture)
+    capture_hash = hashlib.sha256(capture_raw).hexdigest()
+    if capture_hash not in (CAPTURE_HASH, GRID_CAPTURE_HASH):
+        raise ValueError("Recorded capture hash drift.")
+    with_grids = capture_hash == GRID_CAPTURE_HASH
+    captured = json.loads(capture_raw)
     if (
         captured.get("passed") is not True
         or captured.get("sources_unchanged") is not True
@@ -162,9 +220,11 @@ def verify(args: argparse.Namespace, report: dict) -> None:
     for field in ("source", "np3"):
         pinned(Path(case[field]), captured["input_hashes"][case[field]])
     rows = row_events(case["events"])
-    stage_events(case["events"])
+    stages = stage_events(case["events"])
     auxiliary_events(case["events"])
-    core = original_events(case["events"])
+    if with_grids:
+        grid_events(case["events"])
+    core = original_events(case["events"], grids=with_grids)
     report["capture_render"] = validate_render_events(
         core, picture_controls(pinned(Path(case["np3"]))), profile
     )
@@ -184,6 +244,35 @@ def verify(args: argparse.Namespace, report: dict) -> None:
     render = snapshot("case0.rgb16.bin", report["capture_render"]["bytes"])
     if hashlib.sha256(render).hexdigest() != case["output_sha256"]:
         raise ValueError("Saved final render differs from capture output hash.")
+    grids, inputs = [], {}
+    if with_grids:
+        report.update(
+            evidence_kind="native_nlg_spatial_sampling_and_tiles_vs_saved_vendor",
+            coarse_replays=[],
+            input_replays=[],
+            tile_replays=[],
+        )
+        report["limits"] = [
+            "One lossless Z8 source, vanilla Flexible Color, two scale1/32 Nlg tiles.",
+            "Saved upstream LUT pixels, numeric state and full spatial grids.",
+            "Grid/state generation and upstream rendering are not reconstructed.",
+            "No fresh vendor call, complete native renderer, or full-size parity.",
+            "No NEFX authenticity or Lightroom acceptance is established.",
+        ]
+        for index in (1, 2):
+            grids.append(
+                grid_values(
+                    snapshot(f"case0.nlg-grid-{index}-descriptor.bin"),
+                    snapshot(f"case0.nlg-grid-{index}-plane.bin"),
+                )
+            )
+        for source, target in TILE_PAIRS:
+            left, top, right, bottom = tile_geometry(stages, source, target)
+            shape = (bottom - top, right - left, 3)
+            raw = snapshot(
+                f"case0.stage-{source}-lut-output.bin", int(np.prod(shape)) * 2
+            )
+            inputs[left] = np.frombuffer(raw, dtype="<u2").reshape(shape) >> 1
     for event in rows:
 
         def part(name: str, size: int | None = None) -> bytes:
@@ -191,7 +280,8 @@ def verify(args: argparse.Namespace, report: dict) -> None:
 
         before, after = part("job-before"), part("job-after")
         width, coarse = job_geometry(before, after, event)
-        parameters = decode_state(part("state", 0x10F9C0))
+        state = part("state", 0x10F9C0)
+        parameters = decode_state(state)
         rings = {
             offset: ring_values(before, part(f"ring{offset:x}"), offset, width, coarse)
             for offset in RINGS
@@ -201,11 +291,30 @@ def verify(args: argparse.Namespace, report: dict) -> None:
             width, 3
         )
         expected_aux = np.frombuffer(part("aux-after", width * 2), dtype="<u2")
+        origin = (event["rect"][0], event["rect"][1] + event["row"])
+        if with_grids:
+            grid_scale(state)
+            for index, offset in enumerate((0x110, 0x198)):
+                report["coarse_replays"].append(
+                    {
+                        "index": event["index"],
+                        "grid": index + 1,
+                        **comparison(
+                            sample_spatial(grids[index], origin, width), rings[offset]
+                        ),
+                    }
+                )
+            report["input_replays"].append(
+                {
+                    "index": event["index"],
+                    **comparison(inputs[origin[0]][event["row"]], rings[0].T),
+                }
+            )
         native, auxiliary = transform_row(
             rings[0].T,
             rings[0x110],
             rings[0x198],
-            (event["rect"][0], event["rect"][1] + event["row"]),
+            origin,
             parameters,
         )
         report["replays"].append(
@@ -217,6 +326,28 @@ def verify(args: argparse.Namespace, report: dict) -> None:
                 "auxiliary": comparison(auxiliary, expected_aux),
             }
         )
+    if with_grids:
+        for source, target in TILE_PAIRS:
+            left, top, right, bottom = tile_geometry(stages, source, target)
+            state = snapshot(f"case0.stage-{target}-nlg-state.bin", 0x10F9C0)
+            grid_scale(state)
+            parameters = decode_state(state)
+            pixels = inputs[left]
+            native = np.empty_like(pixels)
+            raw = snapshot(f"case0.stage-{target}-nlg-output.bin", pixels.size * 2)
+            expected = np.frombuffer(raw, dtype="<u2").reshape(pixels.shape)
+            for row in range(bottom - top):
+                origin = (left, top + row)
+                coarse = [sample_spatial(grid, origin, right - left) for grid in grids]
+                native[row], _ = transform_row(pixels[row], *coarse, origin, parameters)
+            report["tile_replays"].append(
+                {
+                    "source": source,
+                    "target": target,
+                    "rect": [left, top, right, bottom],
+                    **comparison(native, expected),
+                }
+            )
     report["rgb_words"] = sum(r["rgb"]["compared_words"] for r in report["replays"])
     report["auxiliary_words"] = sum(
         r["auxiliary"]["compared_words"] for r in report["replays"]
@@ -234,6 +365,20 @@ def verify(args: argparse.Namespace, report: dict) -> None:
             for k in ("rgb", "auxiliary")
         )
     )
+    if with_grids:
+        for key in ("coarse", "input", "tile"):
+            report[f"{key}_words"] = sum(
+                r["compared_words"] for r in report[f"{key}_replays"]
+            )
+        report["passed"] &= (
+            report["coarse_words"],
+            report["input_words"],
+            report["tile_words"],
+        ) == (1332, 4644, 133128) and all(
+            r["different_words"] == 0
+            for key in ("coarse", "input", "tile")
+            for r in report[f"{key}_replays"]
+        )
 
 
 def main() -> int:

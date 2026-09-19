@@ -107,6 +107,43 @@ def _validate_parameters(parameters: Parameters) -> None:
     _array(parameters.gain_curve, (4096,), 1024)
 
 
+def sample_spatial(grid: np.ndarray, origin: tuple[int, int], width: int) -> np.ndarray:
+    """Sample three coarse rows for the observed scale32 grid branch.
+
+    The vendor's half-cell offsets become integer coordinates at scale32.
+    Reflect indices at the shared grid boundary, including repeated reflections
+    for small dimensions. Grid construction from source pixels is not covered.
+    """
+    if (
+        not isinstance(grid, np.ndarray)
+        or grid.ndim != 2
+        or any(not 1 <= value <= 2048 for value in grid.shape)
+    ):
+        raise ValueError("Expected a spatial grid between 1 and 2048 samples per axis.")
+    _array(grid, grid.shape, 4095)
+    if (
+        type(width) is not int
+        or not 1 <= width <= 1024
+        or type(origin) is not tuple
+        or len(origin) != 2
+        or any(type(v) is not int or not 0 <= v < 16384 for v in origin)
+        or origin[0] + width > 16384
+    ):
+        raise ValueError("Expected a bounded nonnegative row origin and width.")
+
+    def reflect(indices: np.ndarray, extent: int) -> np.ndarray:
+        if extent == 1:
+            return np.zeros_like(indices)
+        period = 2 * (extent - 1)
+        values = indices % period
+        return np.minimum(values, period - values)
+
+    count = ((origin[0] & 7) + width + 7) // 8 + 2
+    x = (origin[0] // 8) * 32 - 16 + np.arange(count) * 32
+    y = (origin[1] // 8) * 32 - 16 + np.arange(3) * 32
+    return grid[reflect(y, grid.shape[0])[:, None], reflect(x, grid.shape[1])]
+
+
 def transform_row(
     pixels: np.ndarray,
     coarse0: np.ndarray,

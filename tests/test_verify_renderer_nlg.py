@@ -262,3 +262,154 @@ def test_output_must_be_new_external_directory(tmp_path, monkeypatch, location):
     with pytest.raises(SystemExit) as exc:
         verifier.main()
     assert exc.value.code == 2
+
+
+def grid_snapshots():
+    descriptor = bytearray(0x80)
+    struct.pack_into("<2I", descriptor, 0x60, 1032, 688)
+    struct.pack_into("<I", descriptor, 0x7C, 1)
+    plane = (np.arange(1032 * 688) % 4096).astype("<u2").reshape(688, 1032)
+    return descriptor, plane
+
+
+def grid_events():
+    return [{"event": "nlg_grid", "index": i, "saved": True} for i in (1, 2)]
+
+
+def test_grid_events_require_exact_complete_capture():
+    verifier.grid_events(grid_events()[::-1])
+    for changed in ([], grid_events()[:1], grid_events() * 2):
+        with pytest.raises(ValueError, match="grid capture"):
+            verifier.grid_events(changed)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("index", True),
+        ("index", 1.0),
+        ("index", 0),
+        ("index", 3),
+        ("saved", 1),
+        ("saved", False),
+        ("extra", 0),
+    ],
+)
+def test_grid_events_reject_wrong_types_fields_and_failures(field, value):
+    rows = grid_events()
+    rows[0][field] = value
+    with pytest.raises(ValueError, match="grid capture"):
+        verifier.grid_events(rows)
+
+
+def test_grid_events_remain_lifecycle_visible_in_original_capture():
+    original = [{"event": "nlg_grid"}, {"event": "unknown"}, {"event": "closed"}]
+    assert verifier.original_events(original) == original
+    assert verifier.original_events(original, grids=True) == original[1:]
+
+
+def test_grid_planes_use_logical_order_without_pointer_access():
+    descriptor, plane = grid_snapshots()
+    struct.pack_into("<Q", descriptor, 0x48, 0xFFFFFFFFFFFFFFFF)
+    struct.pack_into("<I", descriptor, 0x70, 687)
+    actual = verifier.grid_values(descriptor, plane.tobytes())
+    np.testing.assert_array_equal(actual, plane)
+
+
+@pytest.mark.parametrize(
+    "offset,value",
+    [
+        (0x60, 0),
+        (0x60, 1033),
+        (0x64, 0),
+        (0x64, 689),
+        (0x70, 688),
+        (0x70, 0xFFFFFFFF),
+        (0x7C, 0),
+    ],
+)
+def test_grid_rejects_invalid_geometry_or_missing_borrow(offset, value):
+    descriptor, plane = grid_snapshots()
+    struct.pack_into("<I", descriptor, offset, value)
+    with pytest.raises(ValueError, match="descriptor"):
+        verifier.grid_values(descriptor, plane.tobytes())
+
+
+@pytest.mark.parametrize(
+    "kind", ["short_descriptor", "long_descriptor", "short", "long"]
+)
+def test_grid_rejects_incomplete_or_extended_snapshots(kind):
+    descriptor, plane = grid_snapshots()
+    raw = plane.tobytes()
+    if kind == "short_descriptor":
+        descriptor = descriptor[:-1]
+    elif kind == "long_descriptor":
+        descriptor += b"\x00"
+    elif kind == "short":
+        raw = raw[:-2]
+    else:
+        raw += bytes(2)
+    with pytest.raises(ValueError, match="size mismatch"):
+        verifier.grid_values(descriptor, raw)
+
+
+@pytest.mark.parametrize("value", [4096, 65535])
+def test_grid_rejects_out_of_range_value_even_outside_sampled_coordinates(value):
+    descriptor, plane = grid_snapshots()
+    plane[1, 1] = value
+    with pytest.raises(ValueError, match="bounded range"):
+        verifier.grid_values(descriptor, plane.tobytes())
+
+
+def test_grid_scale_requires_both_exact_scale32_values():
+    state = bytearray(0x10F9C0)
+    struct.pack_into("<2d", state, 0x10F950, 32.0, 32.0)
+    verifier.grid_scale(state)
+    with pytest.raises(ValueError, match="scale32"):
+        verifier.grid_scale(state[:-1])
+    for offset in (0x10F950, 0x10F958):
+        for value in (0.0, 31.0, 32.00000001, float("nan"), float("inf")):
+            changed = bytearray(state)
+            struct.pack_into("<d", changed, offset, value)
+            with pytest.raises(ValueError, match="scale32"):
+                verifier.grid_scale(changed)
+
+
+def tile_stages():
+    return {
+        index: {"stage": name, "rect": list(rect), "format": 0x10060201}
+        for (source, target), rect in zip(verifier.TILE_PAIRS, verifier.RECTANGLES)
+        for index, name in ((source, "lut"), (target, "nlg"))
+    }
+
+
+def test_tile_pairs_enforce_actual_upstream_source_and_both_tile_rectangles():
+    stages = tile_stages()
+    for (source, target), rect in zip(verifier.TILE_PAIRS, verifier.RECTANGLES):
+        assert verifier.tile_geometry(stages, source, target) == rect
+    with pytest.raises(ValueError, match="upstream tile pair"):
+        verifier.tile_geometry(stages, 2543, 2547)
+
+
+@pytest.mark.parametrize("index", [2545, 2546, 2547, 2548])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("stage", "nr2"),
+        ("rect", [0, 1, 208, 172]),
+        ("format", 0x10020001),
+    ],
+)
+def test_tile_pairs_reject_stage_identity_or_geometry_mismatch(index, field, value):
+    stages = tile_stages()
+    stages[index][field] = value
+    source, target = next(pair for pair in verifier.TILE_PAIRS if index in pair)
+    with pytest.raises(ValueError, match="upstream stage"):
+        verifier.tile_geometry(stages, source, target)
+
+
+def test_unrecognized_capture_hash_is_rejected_before_artifact_access(tmp_path):
+    path = tmp_path / "capture.json"
+    path.write_text("{}")
+    with pytest.raises(ValueError, match="capture hash drift"):
+        verifier.verify(argparse.Namespace(capture=path), {"input_hashes": {}})
