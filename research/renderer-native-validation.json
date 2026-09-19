@@ -253,6 +253,31 @@
     "ffi": "Independent review confirmed ABI signatures,cleanup on interruption,input bounds and row-width independence across9252additional output words. Direct cancellation injection was promoted to a committed cleanup regression;28FFI/configuration tests pass.",
     "limit": "No fresh vendor calls by the reviewer. Same bounded profiles,configuration and captured upstream-pixel limits."
   },
+  "native_highlight_recovery": {
+    "implementation": "tools/renderer_highlight.py; tools/verify_renderer_highlight.py",
+    "report": "renderer-highlight-native-v2/report.json",
+    "sha256": "fa72c19a190e7f51f372cc8dbc64332b69001341ddb756a2254b91dab51ed418",
+    "evidence_kind": "saved_explicit_halo_highlight_buffers_vs_native",
+    "capture": {
+      "report": "stage-pixels-pilot-v10/report.json",
+      "sha256": "cc56f48dc64e464f2546705a937d155e055f5374b4aa38f43131d380cb984bfc",
+      "probe": "probe-stage-pixels-v10.exe",
+      "probe_sha256": "541dd4fc3c46370dc6d1e5189aa745b33b99008214fed787ecb4fe7cbc839994",
+      "source": "probe_stage_pixels_v9.c",
+      "source_sha256": "717cd9faa98c2cbd7f230a6193b27441f9bcd65ae0dada60af816ea55d5ca264",
+      "header": "highlight_buffer_tap.h",
+      "header_sha256": "7af3956e3a04ebe2f0afd92c85c036f22653fb7259fbd99630d9d33561d12415"
+    },
+    "arithmetic": "Encode with min(floor(sqrt(i)*256+0.5),65535); threshold encode[15974]=32355. Extract red even/even and blue odd/odd excess, smooth on Bayer sites with separable (1,4,6,4,1)/16 and truncate after each pass. Bilinearly fill other sites. For color greater than green use min(max(color-excess,green),threshold). Decode with (i*i+32768)>>16. Select recovery only if all three original channels are at most16384, then apply clipped Q10 gains[4096,4096,4096].",
+    "coverage": "Four direct recovery input/output captures including actual six-pixel halos and forward/inverse arguments, covering two final rectangles twice. Input interiors equal Nr1 captures. Native intermediate recovery and final highlight stages match all compared words.16table comparisons cover1048576words;12pixel comparisons cover798768words, including repeated source/recovery/final checks. Unique final image coverage is133128words.",
+    "unique_final_words": 133128,
+    "different_words": 0,
+    "gain_only_different_words": 566,
+    "verification": "236 input hashes unchanged; original render lifecycle and28providers checked after excluding exactly stage_taps,stage_pixels,inner_pixels,highlight_buffer.69focused tests pass, including integer LUT references, independent scalar spatial neighborhoods, rounding, eligibility, saturation, halo influence, invalid inputs and failed-report preservation.",
+    "independent_review": "No concrete defects found within declared bounds. Reviewer reran69focused tests,scoped Ruff/format,all236input hashes and complete native replay; report SHA256 is identical. Additional tile subdivision,halo consistency,threshold and maximum-dimension checks passed. Full suite1229passed5.48s. No fresh vendor execution by reviewer.",
+    "failed_evidence": "The earlier reversed-LUT pilot differs in120291words,max3188 and is retained externally. V9 capture failed before vendor initialization because compiler TLS required libwinpthread-1.dll; v10 uses Windows TLS. First formal replay rejected an overstrict unused-state assumption; corrected replay pins only observed meaningful fields.",
+    "limit": "One source/control, green reference, Bayer1/0, even origin/dimensions, fixed gain and explicit halos only. Four calls are not four independent photographs. No generic border generation, fresh synthetic vendor spatial oracle, native source decoding, complete renderer or Lightroom acceptance is established."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",
