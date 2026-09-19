@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -12,7 +13,7 @@ import rawpy
 
 from ._atomic import publication
 from .nefx import write_nefx
-from .pixel_shift import reconstruct_from_reader
+from .pixel_shift import output_groups, reconstruct_from_reader
 from .radial import RadialCorrection
 from .raw import read_frame
 
@@ -73,10 +74,58 @@ def validate_sequence(metadata: list[dict[str, Any]]) -> None:
 def merge(
     paths: list[Path], output: Path, *, chromatic_aberration_correction: bool = False
 ) -> dict[str, Any]:
-    if len(paths) not in (4, 8, 16, 32):
-        raise ValueError("Expected a complete 4, 8, 16 or 32-frame sequence.")
     if output.suffix.lower() != ".nefx":
         raise ValueError("Native merge output must have a .nefx extension.")
+    return _merge(paths, output, 1, False, chromatic_aberration_correction)
+
+
+def merge_outputs(
+    paths: list[Path],
+    output_directory: Path,
+    outputs: int,
+    *,
+    chromatic_aberration_correction: bool = False,
+) -> dict[str, Any]:
+    """Publish a complete output set in a new directory, retaining capture identity."""
+    return _merge(
+        paths, output_directory, outputs, True, chromatic_aberration_correction
+    )
+
+
+def _write_verified(
+    candidate: Path,
+    source_path: Path,
+    information: dict[str, Any],
+    pixels: np.ndarray,
+    count: int,
+) -> dict[str, Any]:
+    source = source_path.read_bytes()
+    if hashlib.sha256(source).hexdigest() != information["source_sha256"]:
+        raise ValueError("First input changed before metadata copying.")
+    warnings = write_nefx(candidate, source, pixels, count)
+    with rawpy.imread(str(candidate)) as image:
+        actual = image.raw_image[..., :3]
+        if actual.shape != pixels.shape or any(
+            not np.array_equal(actual[row : row + 128], pixels[row : row + 128])
+            for row in range(0, len(pixels), 128)
+        ):
+            raise ValueError("Written NEFX failed exact pixel verification.")
+    return {
+        "sha256": digest(candidate),
+        "shape": list(pixels.shape),
+        "samples_verified": int(pixels.size),
+        "warnings": warnings,
+    }
+
+
+def _merge(
+    paths: list[Path],
+    output: Path,
+    outputs: int,
+    directory: bool,
+    chromatic_aberration_correction: bool,
+) -> dict[str, Any]:
+    groups = output_groups(len(paths), outputs)
     output = output.absolute()
     if os.path.lexists(output):
         raise FileExistsError("Output already exists; overwriting is not supported.")
@@ -115,57 +164,80 @@ def merge(
         by_index[index] = information
         return samples
 
-    pixels = reconstruct_from_reader(
-        len(paths),
-        load,
-        first["crop"],
-        b"0100" + first["selector"],
-        first["iso"],
-        radial=correction,
-    )
-    metadata = [by_index[i] for i in range(len(paths))]
-    validate_sequence(metadata)
-    source = resolved[0].read_bytes()
-    if hashlib.sha256(source).hexdigest() != first["source_sha256"]:
-        raise ValueError("First input changed before metadata copying.")
-    with publication(output) as pending:
-        candidate = pending.temporary
-        warnings = write_nefx(candidate, source, pixels, len(paths))
-        with rawpy.imread(str(candidate)) as image:
-            actual = image.raw_image[..., :3]
-            if actual.shape != pixels.shape or any(
-                not np.array_equal(actual[row : row + 128], pixels[row : row + 128])
-                for row in range(0, len(pixels), 128)
-            ):
-                raise ValueError("Written NEFX failed exact pixel verification.")
+    results, warnings = [], []
+    with publication(output, directory=directory) as pending:
+        for index, members in enumerate(groups):
+            pixels = reconstruct_from_reader(
+                len(members),
+                lambda i: load(members[i]),
+                first["crop"],
+                b"0100" + first["selector"],
+                first["iso"],
+                radial=correction,
+            )
+            if len(by_index) == len(paths):
+                validate_sequence([by_index[i] for i in range(len(paths))])
+            name = f"merged-{index + 1:02d}.nefx"
+            candidate = pending.temporary / name if directory else pending.temporary
+            result = _write_verified(
+                candidate,
+                resolved[members[0]],
+                by_index[members[0]],
+                pixels,
+                len(members),
+            )
+            del pixels
+            if directory and result["warnings"]:
+                raise OSError(
+                    "Temporary output cleanup failed during batch construction."
+                )
+            warnings.extend(result.pop("warnings"))
+            result.update(output=str(output / name if directory else output))
+            if directory:
+                result["input_indices"] = list(members)
+            results.append(result)
+        metadata = [by_index[i] for i in range(len(paths))]
         for path, information in zip(resolved, metadata, strict=True):
             if digest(path) != information["source_sha256"]:
                 raise ValueError("Input changed during synthesis.")
-        output_hash = digest(candidate)
+        report = {
+            "status": "ok",
+            "backend": "native",
+            "output_format": "NEFX",
+            "sequence_validation": "complete_consecutive_metadata_consistent",
+            "chromatic_aberration_correction": chromatic_aberration_correction,
+            "inputs": [
+                {
+                    "path": str(path),
+                    "sha256": info["source_sha256"],
+                    "shot_number": info["shot_number"],
+                }
+                for path, info in zip(resolved, metadata, strict=True)
+            ],
+            "limitations": LIMITATIONS
+            + (
+                []
+                if chromatic_aberration_correction
+                else ["Chromatic aberration correction is disabled."]
+            ),
+            "warnings": warnings,
+        }
+        if directory:
+            report.update(
+                output_directory=str(output),
+                output_count=len(results),
+                outputs=results,
+                samples_verified=sum(item["samples_verified"] for item in results),
+            )
+            with (pending.temporary / "manifest.json").open(
+                "x", encoding="ascii"
+            ) as stream:
+                json.dump(report, stream, indent=2, ensure_ascii=True)
+                stream.write("\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+        else:
+            report.update(results[0])
         pending.publish()
-    return {
-        "status": "ok",
-        "backend": "native",
-        "output_format": "NEFX",
-        "output": str(output),
-        "sha256": output_hash,
-        "shape": list(pixels.shape),
-        "samples_verified": int(pixels.size),
-        "sequence_validation": "complete_consecutive_metadata_consistent",
-        "chromatic_aberration_correction": chromatic_aberration_correction,
-        "inputs": [
-            {
-                "path": str(path),
-                "sha256": info["source_sha256"],
-                "shot_number": info["shot_number"],
-            }
-            for path, info in zip(resolved, metadata, strict=True)
-        ],
-        "limitations": LIMITATIONS
-        + (
-            []
-            if chromatic_aberration_correction
-            else ["Chromatic aberration correction is disabled."]
-        ),
-        "warnings": warnings + pending.warnings,
-    }
+    report["warnings"] += pending.warnings
+    return report

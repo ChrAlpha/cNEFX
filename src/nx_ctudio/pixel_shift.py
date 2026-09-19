@@ -19,6 +19,24 @@ PHASE_Y = (0, 0, 1, 1)
 CHANNELS = ((2, 1, 0, 1), (1, 2, 1, 0), (0, 1, 2, 1), (1, 0, 1, 2))
 
 
+def output_groups(count: int, outputs: int) -> tuple[tuple[int, ...], ...]:
+    """Map complete capture indices to each supported Nikon merge output."""
+    allowed = {4: (1,), 8: (1, 2), 16: (1, 4), 32: (1, 2, 4, 8)}
+    if (
+        type(count) is not int
+        or type(outputs) is not int
+        or outputs not in allowed.get(count, ())
+    ):
+        raise ValueError("Unsupported capture count and output count combination.")
+    if (count, outputs) == (32, 4):
+        return tuple(
+            tuple(range(i * 4, i * 4 + 4)) + tuple(range(16 + i * 4, 20 + i * 4))
+            for i in range(4)
+        )
+    size = count // outputs
+    return tuple(tuple(range(i * size, (i + 1) * size)) for i in range(outputs))
+
+
 def _average_pair(
     first: NDArray[np.uint16],
     second: NDArray[np.uint16],

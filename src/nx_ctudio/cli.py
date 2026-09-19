@@ -67,7 +67,20 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     merge.add_argument("files", nargs="+", type=Path)
-    merge.add_argument("--output", "-o", type=Path, required=True)
+    destination = merge.add_mutually_exclusive_group(required=True)
+    destination.add_argument("--output", "-o", type=Path, help="Single NEFX output.")
+    destination.add_argument(
+        "--output-directory",
+        type=Path,
+        help="New directory for the complete output set.",
+    )
+    merge.add_argument(
+        "--outputs",
+        type=int,
+        choices=(1, 2, 4, 8),
+        default=1,
+        help="Output count; values above one require --output-directory.",
+    )
     merge.add_argument("--json", action="store_true")
     merge.add_argument(
         "--chromatic-aberration-correction",
@@ -87,13 +100,24 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "merge":
         from .merge import merge as synthesize
+        from .merge import merge_outputs
 
+        if args.outputs != 1 and args.output_directory is None:
+            parser.error("Multiple outputs require --output-directory.")
         try:
-            report = synthesize(
-                args.files,
-                args.output,
-                chromatic_aberration_correction=args.chromatic_aberration_correction,
-            )
+            if args.output_directory is not None:
+                report = merge_outputs(
+                    args.files,
+                    args.output_directory,
+                    args.outputs,
+                    chromatic_aberration_correction=args.chromatic_aberration_correction,
+                )
+            else:
+                report = synthesize(
+                    args.files,
+                    args.output,
+                    chromatic_aberration_correction=args.chromatic_aberration_correction,
+                )
             exit_code = 0
         except (Exception, KeyboardInterrupt) as exc:
             exit_code = 130 if isinstance(exc, KeyboardInterrupt) else 1
@@ -110,8 +134,9 @@ def main(argv: list[str] | None = None) -> int:
         elif exit_code:
             print(f"nxc: {report['error']['message']}", file=sys.stderr)
         else:
-            print(f"ok: {report['output']}")
-            print(f"  SHA-256: {report['sha256']}")
+            for item in report.get("outputs", [report]):
+                print(f"ok: {item['output']}")
+                print(f"  SHA-256: {item['sha256']}")
             print(f"  Samples verified: {report['samples_verified']}")
             for limitation in report["limitations"]:
                 print(f"  {limitation}")

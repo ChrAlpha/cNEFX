@@ -7,9 +7,38 @@ import numpy as np
 import pytest
 
 from nx_ctudio._sparse import Selection
-from nx_ctudio.pixel_shift import reconstruct, reconstruct_from_reader
+from nx_ctudio.pixel_shift import output_groups, reconstruct, reconstruct_from_reader
 
 EMPTY_SELECTOR = b"0100" + bytes(24)
+
+
+@pytest.mark.parametrize(
+    "count, outputs",
+    [(4, 1), (8, 1), (8, 2), (16, 1), (16, 4), (32, 1), (32, 2), (32, 4), (32, 8)],
+)
+def test_output_groups_partition_all_captures(count: int, outputs: int) -> None:
+    groups = output_groups(count, outputs)
+    assert len(groups) == outputs
+    assert all(len(group) == count // outputs for group in groups)
+    assert sorted(index for group in groups for index in group) == list(range(count))
+
+
+def test_thirty_two_to_four_uses_cross_half_groups() -> None:
+    assert output_groups(32, 4) == (
+        (0, 1, 2, 3, 16, 17, 18, 19),
+        (4, 5, 6, 7, 20, 21, 22, 23),
+        (8, 9, 10, 11, 24, 25, 26, 27),
+        (12, 13, 14, 15, 28, 29, 30, 31),
+    )
+
+
+@pytest.mark.parametrize(
+    "count, outputs",
+    [(4, 2), (8, 4), (16, 2), (32, 3), (32, 0), (12, 1), (8, True), (32.0, 4)],
+)
+def test_invalid_output_mode_fails(count: int, outputs: int) -> None:
+    with pytest.raises(ValueError, match="combination"):
+        output_groups(count, outputs)
 
 
 def test_four_frame_color_assignment_and_integer_green_average() -> None:
