@@ -230,6 +230,22 @@
     "verification": "258 input hashes unchanged. 34 focused tests, 1132 full-suite tests, strict C11 probe compilation, scoped Ruff/format, ASCII/JSON and diff checks passed. Independent exploratory recovery also replayed28older blocks/2572608words exactly; that wider pilot is separate from this formal report.",
     "limit": "Pinned Lab294-byte and NKLch2 identity profiles only; no arbitrary profile grids or curves. Tables use host NumPy transcendental math. Fresh export calls are single rows, with counts covering SIMD tails. No final LittleCMS stage, native source preprocessing, full-image or Lightroom acceptance."
   },
+  "native_final_lcms_stage": {
+    "implementation": "tools/renderer_lcms.py; tools/verify_renderer_lcms.py",
+    "report": "renderer-lcms-native-v1/report.json",
+    "sha256": "ec728d68c42c5d261f8f5c47648fdab13aae7bace7968da54e466de0ba41167b",
+    "capture": {"report": "stage-pixels-pilot-v5/report.json", "sha256": "55f06f5d8dfcc2e1200eb5761f2491a3a678aa1ead7425f112dc83a3e23978a4", "probe": "probe-stage-pixels-v5.exe", "probe_sha256": "48d4a8fab372535f39686f7312f089149fe0401a9105e04cef8b2bf364f68bd9", "probe_source": "probe_stage_pixels_v5.c", "probe_source_sha256": "8be6a3365f1fc42f97bd483ce6e72d1b143f99951457852362b8e2c861c043b1"},
+    "evidence_kind": "fresh_instrumented_vendor_final_state_and_native_LittleCMS_saved_tile_replay",
+    "configuration": "Captured state at filter+128 has size2e8. Paths+a8/+1ac both resolve to pinned NKsRGB.icm through C: and Z: aliases. Output bits+2b0=16,intent+2b4=0,format conversion+2b8=1,BPC byte+2bc=0; padding+2bd..2bf is ignored. Nikon formats+2c0/+2c4=0x10060201 map to LittleCMS TYPE_RGB_16=0x4001a. Transform pointer+2d8 is nonnull.",
+    "static_evidence": "image_render1c7090 creates via5832e0;1c7ff0 processes rows via5833d0. Plugin-version checks5850df/585af0 and error585c50 contain2060,matching upstream LCMS_VERSION2.6. Intent0 and BPC0 produce flags0.",
+    "native_library": {"project": "https://github.com/mm2/Little-CMS", "tag": "lcms2.6", "commit": "08bbb31ffe5a9348a764ee00cf1b0486f921b379", "path": "lcms2.6-source/src/.libs/liblcms2.so.2.0.6", "sha256": "14a1fbff2d5897f2e5b05c938a920a0267a65c88a24e0894fc057042afdb26db", "build": "./configure --prefix=/workspaces/LumaForge/nxc-data/scratch/lcms2.6-native --disable-static --without-jpeg --without-tiff; make -j4 -C src. No tracked upstream source modifications. External research artifact only."},
+    "version_comparison": "System LittleCMS2.16 with flags0 differs in58101of133128words,max5. Locally built upstream2.6 with the captured configuration matches all133128words exactly. Version2.6 lacks cmsGetEncodedCMMversion; the native wrapper pins the verified binary instead of assuming system-version equivalence.",
+    "coverage": "Two v5 tiles, widths208/50,height172. Preceding selector4 outputs2528/2529 -> cms42534/2535. Native outputs equal all final image pixels with exactly-once coverage. Core lifecycle and28providers validate after excluding exact instrumentation events; generic original report rejects those extra events while vendor exit is0.",
+    "compared_pixel_words": 133128,
+    "different_words": 0,
+    "verification": "508 input hashes unchanged. 27 FFI/configuration tests,1159 full-suite tests, strictC11 capture build, scopedRuff/format,ASCII/JSON/diff checks passed. Native wrapper guards each row, checks input immutability, closes every profile and transform on errors; mocked failure tests do not claim numerical parity.",
+    "limit": "One source/control and NKsRGB-to-NKsRGB,intent0,flags0 only. Linux2.6 build is hash-pinned and external; other builds/profile pairs require validation. This is saved final-stage pixel replay after fresh state capture, not a complete native source renderer or Lightroom acceptance."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",
