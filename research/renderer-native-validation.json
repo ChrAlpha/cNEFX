@@ -290,6 +290,21 @@
     "independent_review": "No concrete defects.94tests and complete replay independently rerun,all236hashes andreport checksum match.1225additional valid rectangles match whole-image edgepadding over940800words. Fullsuite1254passed5.49s;scopedRuff/format,ASCII,JSON,diffchecks pass.",
     "limit": "Nr1pixels still come fromvendor capture. Direct vendor evidence covers one258x172image withtwoeven-origin tiles;synthetic tile-subdivision tests do not establish other source cases orcomplete native rendering."
   },
+  "native_highlight_fresh_workers": {
+    "report": "highlight-spatial-oracle-v3/report.json",
+    "sha256": "14a1cdcd752148d502dc3126b76f4404c422491638d4c2d8590460667563e62a",
+    "evidence_kind": "fresh_synthetic_vendor_highlight_worker_composition",
+    "source": "probe_highlight_spatial.c",
+    "source_sha256": "42fe3ecccbfdf2feabe420636e63c7cfefdc604086b2223f72ef39a0519bb64f",
+    "probe": "highlight-spatial-oracle-v1.exe",
+    "probe_sha256": "eb6a7bbaaf4232876e9b839654bf93c3099eeead8e0c4274b45b209919f4b69d",
+    "runner": "highlight-spatial-oracle-run.py",
+    "runner_sha256": "63291937c41d355c99816c1afac7286ad92f9947b5c96751cdbd3a4327abd54f",
+    "abi": "Caller-owned descriptors: row pointers+48,width+60,height+64,ring first+70,borrow count+7c,mutex+88. Initial borrow1; actual renderer-imported MSVCP140 mutex type2. Extract2efdc0,horizontal2eef50,vertical2ef0c0,interpolate2ef570,correct2ef7a0. Allstage guards,phase arrays,pointer arrays,descriptor state andborrow counts checked;cleanup passes.",
+    "coverage": "10fresh cases:2x2/16x16interiors,full-range andbright random,threshold grid,red/blue halo/interior impulses andring first0/13/27.6924recovered words,zero differences versus native recover(). StrictC11-Wall-Wextra-Werror build;30s timeout perprocess. No ImageRenderDomain initialization.",
+    "independent_review": "Read the probe and runner; replayed all10cases withstrict ordered event checks. All149distinct source/provider/input/output hashes stable;6924words exact. Independent replay reporthighlight-spatial-oracle-independent-replay.json SHA256a35a8eae8f88a0feee61fa7d1c668108426f7079f7e9c8632edf79fba700b5e0. No newvendor calls inindependentreplay.",
+    "limit": "Fixedgreen/Bayer/even-origin branch. Encode/decode areprobe-owned arithmetic,already separatelychecked againstcaptured LUTs. Doesnotexercise eligibility,gain,borderconstruction orfullrenderer. Canaryguards detectwrites butdonotexcludeout-of-range reads. Runner/probe remainexternalresearch artifacts;failedWindows filenamecasing pilotretained."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",
