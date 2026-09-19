@@ -66,13 +66,40 @@
     "coverage": "24plane comparisons total3786044words,945980previous-plane input words,and2840064finalshared-grid comparison words,all exact. Each of two executions uses its owncapturedRGBpyramid;native previouslevels feedsubsequentlevels withoutsubstitutingcapturedplanes.",
     "verification": "987hashesstable;originalSDKlifecycle and28providers validated.81focusedtests and1678fullsuite tests pass5.64s. ScopedRuff/format,ASCII,JSON,diffchecks pass.",
     "bounds": "RGBandpreviousplanes0..16383,uint16,dimensions1..2048. Chromaandtwoplaneamounts0..255. Previousplanesrequireceil-halfsize withbothdimensions>=2. Onlyobserved smoothing-enabled branch isimplemented.",
-    "limit": "RGBpyramid andparametersremaincaptured. Freshsyntheticvendorplaneoracle andindependentreviewpending. This removes capturedspatialplaneinputs fromtherecursion,butdoesnotyetrecoverBayer/RGBpyramidgeneration orcompleteNlginitialization."
+    "independent_review": {
+      "report": "nlg-pyramid-independent-review-v1/report.json",
+      "sha256": "ab6cf0ade5e72c793fd99d8a5219e56c7ba8dc37180b2f936e84b9cfa2698e14",
+      "result": "No defects found in commits 216c35e and 34f3884. Independent replay is byte-identical to the recorded result. 81 focused tests and 339 combined Nlg tests pass. Explicit big-endian rejection, capture ownership, all 987 hashes and 28 provider paths checked."
+    },
+    "synthetic_vendor_oracle": {
+      "report": "nlg-planes-synthetic-v2/report.json",
+      "sha256": "ff334a6a11946eb7a572a860284fed51033d288172b85c0364f5d5280aaf1493",
+      "probe_source": "probe_nlg_planes.c",
+      "runner": "nlg_planes_oracle.py",
+      "coverage": "Twelve deterministic synthetic RGB/parent cases, 48890 final words, zero differences. Singleton axes, odd/even dimensions, primary colors, rounding boundaries, random parents and saturation are covered. Dimensions are bounded to 128; parent axes are at least 2.",
+      "guards": "Read-only source pixels, row pointers, descriptors, owners and contexts; 16-byte row canaries, guarded buffer allocations, unchanged MXCSR and successful cleanup. All 77 recorded hashes independently checked after the run.",
+      "limits": "Direct sequential calls to scalar workers 0x700a0, 0x70380 and 0x708c0. Intermediate outputs retained; only final planes compared. No full SDK initialization, source parameter recovery or additional real photograph. Windows runtime DLLs are not pinned."
+    },
+    "limit": "RGB pyramid and parameters remain captured. This removes captured spatial-plane inputs from the recursion, but does not yet recover Bayer/RGB pyramid generation or complete Nlg initialization."
+  },
+  "native_rgb_transitions": {
+    "implementation": "tools/nlg_rgb_pyramid.py; tools/verify_nlg_pyramid.py",
+    "report": "nlg-pyramid-rgb-native-v1/report.json",
+    "sha256": "7f1c333408ec4fad8154f49ac459c83613bd595a3fd2e33b6d24c29f7dffa412",
+    "reduction_chain": "0x1098a0 -> 0x10aa00 -> 0x10d180 -> scalar 0x06f460",
+    "reconstruction_chain": "0x1098f0 -> 0x10ab70 -> 0x10d470 -> scalar 0x06f850",
+    "arithmetic": "Reduction computes (sum of four 2x2 samples + 2) >> 2. Odd final coordinates reflect to extent - 2; singleton axes use zero. Reconstruction adds coarse minus the reduced fine image to each original block, then clamps red/blue to 16383 and green to 4095.",
+    "coverage": "Ten reductions compare 1418970 words; ten reconstructions compare 5674710 words; all exact. Level parameter bytes 0xac, 0xad and 0xae must each equal 1. Original spatial recursion still compares 3786044 level, 945980 parent and 2840064 shared-grid words exactly.",
+    "verification": "988 hashes reverified and 28 providers validated. 1738 full-suite tests pass in 5.82 seconds. New integration tests require every comparison group, expected word counts, unchanged inputs and complete provider coverage. Scoped Ruff, formatting and diff checks pass.",
+    "independent_review": "No defects found in scalar arithmetic, odd/singleton edges, signed residuals, channel bounds, endian validation or input ownership. An independent replay using the repository functions also matched all 7093680 RGB words.",
+    "bounds": "Little-endian uint16 RGB values 0..16383, dimensions 1..2048. Reconstruction requires ceiling-half coarse dimensions. Initial Bayer conversion and intervening spatial filtering are separate operations.",
+    "limits": "Captured inputs from two executions of one source/control. The first reduction and final reconstruction exceed the capture payload bounds and are omitted. This is not a complete source-derived RGB pyramid or a new real photograph."
   },
   "capture_limits": [
     "At most24calls,8MiB per plane and128MiB aggregate plane budget. Large Bayer and2064x1376RGB payloads are intentionally omitted; descriptor observations distinguish omitted and empty planes.",
     "Snapshots contain pointer values but no native computation follows them. Inputs are copied before the vendor consumes ownership; outputs after the call returns.",
     "Probe detour prologues are signature checked; strict C11 -Wall -Wextra -Werror compilation passes. Current capture evidence is not a standalone guarded kernel oracle.",
     "One lossless Z8 source and one Flexible Color control. No native pyramid/state generation, complete native renderer, authentic pixel-shift NEFX or Lightroom acceptance is established.",
-    "Independent review of this generator capture and ABI mapping remains pending."
+    "Independent review found no defects in the observed generator capture and spatial-plane ABI mapping. This does not extend coverage beyond the captured branch."
   ]
 }

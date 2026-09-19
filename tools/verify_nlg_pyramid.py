@@ -1,4 +1,4 @@
-"""Replay native Nlg spatial-plane recursion from a pinned RGB pyramid capture."""
+"""Replay native Nlg RGB transitions and spatial recursion from a pinned capture."""
 
 from __future__ import annotations
 
@@ -7,10 +7,12 @@ import hashlib
 import json
 import struct
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
 from nlg_pyramid import spatial_planes
+from nlg_rgb_pyramid import downsample, reconstruct
 from verify_image_render import SRGB_HASH, validate_render_events
 from verify_image_sdk import PINNED, picture_controls, provider_paths
 from verify_np3_header import digest
@@ -21,12 +23,24 @@ from verify_renderer_vignette import auxiliary_events
 
 CAPTURE_HASH = "5f806d02d83a4e93bb4872f2debeebf7f47076c8bdd99160e31b534658496ad4"
 EXTRA_EVENTS = {"nlg_supplier", "nlg_generator", "nlg_pyramid", "nlg_pyramid_plane"}
+EXPECTED_TOTALS = {
+    "downsample": (10, 1418970),
+    "reconstruction": (10, 5674710),
+    "inputs": (20, 945980),
+    "levels": (24, 3786044),
+    "shared_grids": (4, 2840064),
+}
 
 
 def level_parameters(raw: bytes, first: bool) -> tuple[int, int, int]:
     if len(raw) != 0xB6 or raw[0xAF] != 1 or raw[0xB3:] != bytes((not first, 1, 0)):
         raise ValueError("Unsupported spatial-plane level parameters.")
     return raw[0xB0], raw[0xB2], raw[0xB1]
+
+
+def rgb_parameters(raw: bytes) -> None:
+    if len(raw) != 0xB6 or raw[0xAC:0xAF] != b"\x01\x01\x01":
+        raise ValueError("Unsupported RGB pyramid scale-transition parameters.")
 
 
 def pyramid_events(events: list[dict]) -> dict:
@@ -85,6 +99,81 @@ def plane_values(event: dict, descriptor: bytes, raw: bytes) -> np.ndarray:
         .transpose(0, 2, 1)
     )
     return array[:, :, 0] if channels == 1 else array
+
+
+def replay_pyramids(
+    plane: Callable[[int, str, int], np.ndarray],
+    parameters: Callable[[int], bytes],
+    grids: list[np.ndarray],
+    report: dict,
+) -> None:
+    """Replay both captured executions while retaining each comparison result."""
+    for offset in (0, 12):
+        for index in range(offset + 2, offset + 7):
+            rgb_parameters(parameters(index))
+            report["downsample"].append(
+                {
+                    "index": index,
+                    **comparison(
+                        downsample(plane(index, "output", 13)),
+                        plane(index, "output", 12),
+                    ),
+                }
+            )
+        for index in range(offset + 7, offset + 12):
+            rgb_parameters(parameters(index))
+            report["reconstruction"].append(
+                {
+                    "index": index,
+                    **comparison(
+                        reconstruct(plane(index, "input", 6), plane(index, "input", 7)),
+                        plane(index, "output", 11),
+                    ),
+                }
+            )
+        start = offset + 7
+        previous = None
+        for index in range(start, start + 6):
+            amounts = level_parameters(parameters(index), index == start)
+            rgb = plane(index, "output", 13)
+            if previous is not None:
+                for i, slot in enumerate((9, 10)):
+                    report["inputs"].append(
+                        {
+                            "index": index,
+                            "slot": slot,
+                            **comparison(previous[i], plane(index, "input", slot)),
+                        }
+                    )
+            previous = spatial_planes(rgb, amounts, previous)
+            for i, slot in enumerate((14, 15)):
+                report["levels"].append(
+                    {
+                        "index": index,
+                        "slot": slot,
+                        **comparison(previous[i], plane(index, "output", slot)),
+                    }
+                )
+        for i in range(2):
+            report["shared_grids"].append(
+                {"start": start, "grid": i + 1, **comparison(previous[1 - i], grids[i])}
+            )
+
+
+def summarize(report: dict) -> None:
+    """Require complete comparisons as well as unchanged inputs and exact pixels."""
+    for key in EXPECTED_TOTALS:
+        report[key + "_words"] = sum(e["compared_words"] for e in report[key])
+    report["passed"] = (
+        report["sources_unchanged"]
+        and len(report["capture_providers"]) == 28
+        and all(
+            len(report[key]) == count
+            and report[key + "_words"] == words
+            and all(e["different_words"] == 0 for e in report[key])
+            for key, (count, words) in EXPECTED_TOTALS.items()
+        )
+    )
 
 
 def verify(args: argparse.Namespace, report: dict) -> None:
@@ -163,51 +252,16 @@ def verify(args: argparse.Namespace, report: dict) -> None:
         )
         for i in (1, 2)
     ]
-    for start in (7, 19):
-        previous = None
-        for index in range(start, start + 6):
-            first = index == start
-            amounts = level_parameters(
-                snapshot(f"case0.nlg-pyramid-{index}-parameters.bin"), first
-            )
-            rgb = plane(index, "output", 13)
-            if not first:
-                for i, slot in enumerate((9, 10)):
-                    report["inputs"].append(
-                        {
-                            "index": index,
-                            "slot": slot,
-                            **comparison(previous[i], plane(index, "input", slot)),
-                        }
-                    )
-            previous = spatial_planes(rgb, amounts, previous)
-            for i, slot in enumerate((14, 15)):
-                report["levels"].append(
-                    {
-                        "index": index,
-                        "slot": slot,
-                        **comparison(previous[i], plane(index, "output", slot)),
-                    }
-                )
-        for i in range(2):
-            report["shared_grids"].append(
-                {"start": start, "grid": i + 1, **comparison(previous[1 - i], grids[i])}
-            )
+    replay_pyramids(
+        plane,
+        lambda index: snapshot(f"case0.nlg-pyramid-{index}-parameters.bin"),
+        grids,
+        report,
+    )
     report["sources_unchanged"] = all(
         digest(Path(p)) == h for p, h in report["input_hashes"].items()
     )
-    for key in ("inputs", "levels", "shared_grids"):
-        report[key + "_words"] = sum(e["compared_words"] for e in report[key])
-    report["passed"] = (
-        report["sources_unchanged"]
-        and report["levels_words"] == 3786044
-        and report["shared_grids_words"] == 2840064
-        and all(
-            e["different_words"] == 0
-            for key in ("inputs", "levels", "shared_grids")
-            for e in report[key]
-        )
-    )
+    summarize(report)
 
 
 def main() -> int:
@@ -224,14 +278,17 @@ def main() -> int:
         parser.error("Output must be a new external directory.")
     args.output.mkdir(parents=True)
     report = dict(
-        evidence_kind="native_Nlg_spatial_planes_from_saved_RGB_pyramids",
+        evidence_kind="native_Nlg_RGB_transitions_and_spatial_planes_from_saved_pyramids",
         input_hashes={},
+        downsample=[],
+        reconstruction=[],
         inputs=[],
         levels=[],
         shared_grids=[],
         passed=False,
         limits=[
-            "RGB pyramid and numeric parameters remain captured, not source-derived.",
+            "RGB transitions and spatial recursion use saved inputs and parameters.",
+            "Initial Bayer-to-RGB and intervening filtering remain unreconstructed.",
             "Two executions of one Z8 source/control; no additional photograph.",
             "Observed spatial-plane branch only; no full renderer or Lightroom test.",
         ],
