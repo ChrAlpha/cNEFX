@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-20",
+  "scope": "All supported Z8 pixel-shift output modes in the native merger",
+  "interface": {
+    "single_file": "nxc merge <ordered NEF files> --output result.nefx",
+    "output_set": "nxc merge <ordered NEF files> --outputs N --output-directory NEW_DIRECTORY",
+    "files": "merged-01.nefx through merged-NN.nefx, plus manifest.json",
+    "manifest": "Capture paths/hashes/numbers, each output's original zero-based input indices, NEFX hashes, dimensions, sample counts, correction mode and limitations.",
+    "allowed_modes": [[4, 1], [8, 1], [8, 2], [16, 1], [16, 4], [32, 1], [32, 2], [32, 4], [32, 8]],
+    "grouping": "Consecutive equal-sized groups except 32-to-four, which pairs four-frame groups at offsets 0/16, 4/20, 8/24 and 12/28.",
+    "metadata": "Each output inherits its group's first source. Marker 0x0e2d retains source capture mode and records per-output input count separately."
+  },
+  "publication": {
+    "platform": "Linux with libc renameat2 and filesystem RENAME_NOREPLACE support",
+    "algorithm": "Write/verify outputs privately, validate the complete original sequence and source hashes, fsync manifest and staging directory, then publish the directory with one no-replace rename.",
+    "existing_destination": "Rejected even when the destination is an empty directory or dangling symlink, including a concurrent creation.",
+    "failure": "Decode, metadata, write, verification, source mutation and cancellation failures leave no partial output set at the requested destination.",
+    "durability_limit": "Atomic visibility and no replacement are tested. Power-loss durability of the destination parent is not established."
+  },
+  "saved_vendor_matrix": {
+    "report": "/workspaces/LumaForge/nxc-data/scratch/native-modes-v3/report.json",
+    "sha256": "131f6830e2d03b5b17f2886bc418e168dd44734f5c24dd8c5cda077a1d47245d",
+    "tool": "tools/verify_native_modes.py",
+    "cases": 9,
+    "outputs": 24,
+    "samples_compared": 28940544,
+    "different_samples": 0,
+    "capture_marker_private_preview_equal": true,
+    "all_overwrite_checks_passed": true,
+    "source_kind": "Independently varying synthetic packed14 frames with synthetic capture identity. Sparse repair selectors are zero and chromatic correction is disabled."
+  },
+  "single_file_regression": {
+    "report": "/workspaces/LumaForge/nxc-data/scratch/native-modes-single-regression-v1/report.json",
+    "sha256": "765335973b463d95722e330b6872ab4043476ea3af0ac054ee4aeede53b7cef3",
+    "cases": 12,
+    "samples_compared": 24117120,
+    "different_samples": 0,
+    "scope": "Existing single-file merge with sparse repair and chromatic correction remains equal to saved Nikon output."
+  },
+  "live_corrected_vendor_comparison": {
+    "report": "/workspaces/LumaForge/nxc-data/scratch/multi-corrected-v1/report.json",
+    "sha256": "32c873e5afb5ae3a3988bcb368c9ffc05577b10321581003b60fd353c76b0c68",
+    "runner": "/workspaces/LumaForge/nxc-data/scratch/verify_multi_corrected.py",
+    "cases": 12,
+    "outputs": 48,
+    "samples_compared": 48234240,
+    "different_samples": 0,
+    "capture_marker_private_preview_equal": true,
+    "stable_artifact_hashes": 402,
+    "coverage": "All five multiple-output combinations at ISO 3200 and 3201 with nonzero sparse selectors and radial correction enabled. Additional 16-to-four cases exercise signed centers and all six nonzero polynomial coefficients.",
+    "reference": "Fresh execution of the pinned PixelShiftCombine.dll through Wine as an external research oracle; production merger remains native."
+  },
+  "full_resolution_resource_check": {
+    "report": "/workspaces/LumaForge/nxc-data/scratch/fullsize-modes-v1/report.json",
+    "sha256": "bf8c23a9eccd125c459e1a0c75905c3064c93403a3d2dac6678894dbd8471db8",
+    "input_count": 32,
+    "output_count": 4,
+    "output_shape_each": [5504, 8256, 3],
+    "samples_verified_total": 545292288,
+    "nefx_bytes_total": 988377104,
+    "elapsed_seconds": 30.78121493799972,
+    "max_rss_kib": 761864,
+    "address_space_limit_bytes": 2147483648,
+    "overwrite_rejected": true,
+    "passed": true,
+    "limit": "One synthetic repeated-RAW resource run, not authentic capture quality or full-resolution vendor equality. Correction is disabled."
+  },
+  "review": {
+    "result": "Independent reviewer found no actionable defects in publication, grouping, sequence validation or per-output source selection.",
+    "independent_tests_passed": 165,
+    "root_tests_passed": 221,
+    "root_command": "uv run pytest -q tests/test_pixel_shift.py tests/test_merge.py tests/test_merge_outputs.py tests/test_atomic.py tests/test_radial.py tests/test_nefx.py tests/test_tiff_stream.py tests/test_raw_metadata.py tests/test_inspect.py"
+  },
+  "limits": [
+    "No authentic pixel-shift capture or Lightroom acceptance is established.",
+    "Adobe default metadata updates for per-output 8/32 inputs remain unimplemented.",
+    "Other firmware, compression and image-area variants remain outside validated coverage."
+  ]
+}

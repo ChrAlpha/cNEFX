@@ -22,7 +22,8 @@
   },
   "current_capabilities": {
     "inspect": "Metadata and file hashes via ExifTool",
-    "merge": "Experimental native complete 4/8/16/32-frame Z8 sequence to one NEFX",
+    "merge": "Experimental native complete 4/8/16/32-frame Z8 sequence to one NEFX or a complete output directory; all nine supported input/output combinations",
+    "output_set_publication": "Linux no-replace atomic directory publication after all outputs and the full sequence pass validation",
     "chromatic_aberration_correction": "Optional native source-metadata red/blue radial correction before crop; disabled by default",
     "sequence_validation": "Explicit capture order, consecutive shot numbers, consistent observed metadata, no duplicate files",
     "nefx_writer": "Native packed14 RGB, Nikon metadata updates and CRCs, private preview, preserved source JPEGs, atomic no-overwrite publication",
@@ -37,7 +38,6 @@
   "release_gaps": [
     "Authentic pixel-shift capture and downstream application references",
     "8/32-frame Adobe default updates and broader correction-parameter coverage",
-    "Multiple-output merge modes at the CLI boundary",
     "HE/HE* decoding, HLG, non-FX image areas and firmware coverage",
     "Broader full-resolution resource coverage and cross-platform packaging"
   ],
