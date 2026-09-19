@@ -400,6 +400,18 @@
     "failed_evidence": "nlg-rows-native-v1 retained: overstrict decoder assumed allfour difference curves equal; realstate has117d0=157d0 and137d0=177d0,with4092entries differing betweenfamilies. Regression failed beforefix. Separate synthetic regression exposed square saturation ordering;also failedbeforefix. Oraclepilot-v1/v1 rejected unusedpadding/ringrotation beforecorrection;reportsretained.",
     "limit": "One source/control at1/32scale. RGB input, numeric state andcoarse grids remaincaptured. Coreallows boundednumeric arrays butfreshsynthetic final-row validation ispending. Source reconstruction, full-frame Nlg,complete nativerenderer,authentic NEFX andLightroomacceptance remainunverified."
   },
+  "native_nlg_fresh_rows": {
+    "report": "nlg-row-synthetic-v1/report.json",
+    "sha256": "1c3ddb76418ab1b3e8684e5ad78d4c4284a0cf125c8a3d4deb83cc9f3ce86e28",
+    "source": "nlg-row-synthetic-v1.c",
+    "source_sha256": "849b6ac5e9ca4be3cf951384dc66278d4cfdef0cc211568bcd1ab88efc5214bb",
+    "runner": "nlg-row-synthetic-v1.py",
+    "runner_sha256": "24b24a47ee5911e4417b86e7ad70bb438b8278a9be1ac48da04d5788ed9c70e7",
+    "evidence_kind": "fresh_synthetic_Nlg_final_rows_against_native",
+    "coverage": "16 configurations,48vendor calls. AVX,scalar andSSE eachmatch8256RGB/auxiliarywords exactly. RGBextrema,thresholds,seededfull-range inputs;coarsezero,4095,random andimpulses;bothwidths208/50androws0/7/8/171. Realstate remainsunchanged;expected outputscomefromnative processing,notcapturedpixels.",
+    "verification": "443input and128outputhashes stable. Readonly inputs,state androwpointerarrays;guards,jobmutations,outputpadding,auxiliaryboundaries,MXCSR,providerpath andcleanup pass. StrictC11 andscopedRuff pass. Independentreviewer also reproduced original12capturedrows;syntheticrunperformedbythatoracleauthor.",
+    "limit": "Freshnumeric inputs expandpixelcoverage,butstate isstill onecapturedcontrol. No native state/table/gridgeneration,nonzerooptionalcorrections,negative matrix coefficients orcomplete renderer acceptance."
+  },
   "native_raw_transfer_tables": {
     "implementation": "tools/raw_transfer.py; tools/probe_raw_transfer.c; tools/verify_raw_transfer.py",
     "report": "raw-transfer-native-v1/report.json",
