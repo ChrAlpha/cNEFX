@@ -22,7 +22,7 @@
   },
   "current_capabilities": {
     "inspect": "Metadata and file hashes via ExifTool",
-    "merge": "Experimental native complete 4/8/16/32-frame Z8 sequence to one NEFX or a complete output directory; all nine supported input/output combinations",
+    "merge": "Experimental native complete 4/8/16/32-frame Nikon Z8, Zf, Z6III or Z5II sequence to one NEFX or a complete output directory; all nine supported input/output combinations",
     "output_set_publication": "Linux no-replace atomic directory publication after all outputs and the full sequence pass validation",
     "chromatic_aberration_correction": "Optional native source-metadata red/blue radial correction before crop; disabled by default",
     "sequence_validation": "Explicit capture order, consecutive shot numbers, consistent observed metadata, no duplicate files",
@@ -42,14 +42,15 @@
   "compatibility_limits": [
     "Source Adobe XMP defaults are preserved; vendor-equivalent default sharpening and noise reduction are not established. This is an appearance limitation, not evidence of different merged RAW samples.",
     "HE/HE* decoding is unsupported. HLG, non-FX image areas, other firmware and broader correction parameters remain unvalidated.",
-    "Full-resolution resource measurements cover synthetic repeated-RAW cases, not authentic capture quality or a universal memory bound."
+    "Full-resolution resource measurements cover synthetic repeated-RAW cases, not authentic capture quality or a universal memory bound.",
+    "LibRaw 0.22.1 has no XYZ-to-camera matrix for Z5II. Native NEFX aggregation preserves source color metadata and reports the missing matrix; it does not substitute calibration or implement rendering."
   ],
   "deferred_work": [
     "Exact vendor Adobe-default calibration is ancillary compatibility work and does not authorize Picture Control or general renderer development.",
     "Cross-platform packaging follows native Linux synthesis."
   ],
   "active_priorities": [
-    "Expand the strict native input path to Zf, Z6III and Z5II using the evidence in pixel-shift-camera-support.json; preserve Z8 behavior and all nine merge modes.",
+    "Maintain strict four-model native aggregation and per-model acceptance records in pixel-shift-camera-support.json; preserve all nine merge modes.",
     "Validate ordered synthesis against authentic capture and matching reference files when they become available.",
     "Resolve concrete merge, NEFX serialization or resource defects demonstrated by capture validation.",
     "Retain experimental status until authentic capture and downstream acceptance are established."

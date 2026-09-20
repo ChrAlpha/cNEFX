@@ -73,6 +73,7 @@ def inspect(path: Path) -> dict:
             "black_levels": decoded.black_level_per_channel,
             "white_level": decoded.white_level,
             "gains": decoded.camera_whitebalance,
+            "xyz_to_camera_matrix": decoded.rgb_xyz_matrix[:3].tolist(),
         }
     with path.open("rb") as stream:
         after_digest = hashlib.file_digest(stream, "sha256").hexdigest()

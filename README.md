@@ -6,18 +6,19 @@ The package is `nx-ctudio`, the import namespace is `nx_ctudio`, and the CLI is
 
 ## Scope and acceptance state
 
-The active product path merges complete ordered Z8 sequences into NEFX. It is
-experimental: authentic capture/reference validation and Lightroom acceptance
+The active product path merges complete ordered Nikon Z8, Zf, Z6III and Z5II
+sequences into NEFX. It is experimental: authentic capture/reference validation
+and Lightroom acceptance
 remain open. Passing fixtures or decoding a generated NEFX does not close them.
 The recorded scope is [research/project-scope.json](research/project-scope.json).
-The current expansion targets Z8, Zf, Z6III and Z5II, with model and file-format
-evidence in [pixel-shift-camera-support.json](research/pixel-shift-camera-support.json).
+Model and file-format evidence is recorded in
+[pixel-shift-camera-support.json](research/pixel-shift-camera-support.json).
 Other NX Studio functionality remains outside the active scope.
 
 | Implemented path | Boundary |
 | --- | --- |
 | Native merge | Complete 4, 8, 16, or 32-frame sequences; nine output modes below. No Wine, Nikon DLL, or ExifTool dependency in this path. |
-| Source decoding | Observed lossless-compressed 14-bit Z8 NEF layout, strict metadata and geometry checks, rawpy/LibRaw decoding. HE/HE* is unsupported. |
+| Source decoding | Observed lossless-compressed 14-bit Nikon NEF layouts, strict model/metadata/geometry checks, rawpy/LibRaw decoding. HE/HE* is unsupported. |
 | NEFX writing | Packed14 RGB, selected Nikon metadata/CRC updates, private RGB preview, retained source JPEGs, exact decoded-sample verification. |
 | Lateral chromatic correction | Optional source-metadata radial correction before crop; disabled by default; requires supported matching parameters. |
 | Inspection | ExifTool metadata and SHA-256 only; no RAW decoding or sequence validation. |
@@ -27,6 +28,20 @@ HLG, non-FX image areas, other firmware, and broader correction parameters remai
 unvalidated. Source Adobe XMP defaults are preserved without vendor-equivalent
 updates; default rendered appearance is a separate limitation from merged samples.
 This repository is not a CLI clone of NX Studio.
+
+| Camera | Exact source TIFF Model | Evidence boundary |
+| --- | --- | --- |
+| Z8 | `NIKON Z 8` | Synthetic vendor-output replays and authored native tests; authentic acceptance open. |
+| Zf | `NIKON Z f` | Unmodified ordinary-RAW layout/decode and authored native tests; authentic acceptance open. |
+| Z6III | `NIKON Z6_3` | Unmodified ordinary-RAW layout/decode and authored native tests; authentic acceptance open. |
+| Z5II | `NIKON Z5_2` | Same format/test coverage; LibRaw 0.22.1 lacks its XYZ-to-camera matrix. |
+
+All four models use the nine merge modes below, tested with authored fixtures and
+real LibRaw decoding. These tests do not establish authentic capture or per-model
+NX Studio parity. The merger retains source white-balance and ColorBalance tags;
+it does not render RAW data or substitute a camera color matrix. For Z5II, the
+known missing LibRaw matrix is reported as a limitation. Unsupported models and
+metadata versions still fail; there is no camera-identity override.
 
 ## Environment
 
@@ -72,7 +87,7 @@ across output groups in `merge.py`.
 | Read or change | Source | Focused tests |
 | --- | --- | --- |
 | CLI/report orchestration and sequence identity | [cli.py](src/nx_ctudio/cli.py), [merge.py](src/nx_ctudio/merge.py) | `tests/test_merge.py`, `tests/test_merge_outputs.py` |
-| Nikon source metadata and decoding | [raw.py](src/nx_ctudio/raw.py) | `tests/test_raw_metadata.py`, `tests/test_merge.py` |
+| Nikon source metadata and decoding | [raw.py](src/nx_ctudio/raw.py) | `tests/test_raw_metadata.py`, `tests/test_merge.py`, `tests/test_camera_merge.py` |
 | Output grouping, phase mapping, integer reconstruction | [pixel_shift.py](src/nx_ctudio/pixel_shift.py), [_sparse.py](src/nx_ctudio/_sparse.py) | `tests/test_pixel_shift.py` |
 | Source-metadata radial correction | [radial.py](src/nx_ctudio/radial.py) | `tests/test_radial.py` |
 | NEFX tags, packing, preview, TIFF layout | [nefx.py](src/nx_ctudio/nefx.py), [_tiff.py](src/nx_ctudio/_tiff.py) | `tests/test_nefx.py`, `tests/test_tiff_stream.py` |
@@ -135,7 +150,7 @@ With `--json`, merge writes its report to stdout:
 
 - Success: `status`, `backend`, `output_format`, `sequence_validation`, ordered
   `inputs` with hashes and shot numbers, correction setting, `limitations`, and
-  `warnings`.
+  `warnings`. `camera` contains source `make` and exact TIFF `model`.
 - Single output: `output`, `sha256`, `shape` in height/width/channels order, and
   `samples_verified`.
 - Output set: `output_directory`, `output_count`, `outputs`, total
@@ -174,7 +189,8 @@ without capture datasets or vendor binaries; the inspection tests need ExifTool:
 uv run --locked pytest -q \
   tests/test_pixel_shift.py tests/test_merge.py tests/test_merge_outputs.py \
   tests/test_atomic.py tests/test_radial.py tests/test_nefx.py \
-  tests/test_tiff_stream.py tests/test_raw_metadata.py tests/test_inspect.py
+  tests/test_tiff_stream.py tests/test_raw_metadata.py tests/test_inspect.py \
+  tests/test_nefx_roundtrip.py tests/test_camera_merge.py
 ```
 
 For a narrow edit, select the relevant files from the routing table. Run Ruff only
@@ -220,8 +236,8 @@ synthetic resource observations, not authentic image-quality results or universa
 memory bounds.
 
 The next acceptance work requires authentic ordered lossless 14-bit FX captures
-for each enabled camera model
-and matching NX Studio NEFX references across the supported modes and correction
+for each enabled camera model and matching NX Studio NEFX references across the
+supported modes and correction
 settings, followed by version-pinned Lightroom import, Develop, and export checks.
 Preserve original files and record their provenance and hashes. Run the native
 merger without metadata patching; compare decoded samples, dimensions, selected
