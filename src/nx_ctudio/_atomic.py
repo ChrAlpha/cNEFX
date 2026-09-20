@@ -47,7 +47,8 @@ class Publication:
 
     def publish(self) -> None:
         if self.directory_rename is None:
-            with self.temporary.open("rb") as stream:
+            # Windows fsync requires a writable handle, even after writes close.
+            with self.temporary.open("rb+") as stream:
                 os.fsync(stream.fileno())
             os.link(self.temporary, self.destination)
         else:
