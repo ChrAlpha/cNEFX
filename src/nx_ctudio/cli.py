@@ -35,7 +35,7 @@ def emit(report: dict[str, Any], as_json: bool) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="nxc", description="NX Ctudio: native Nikon Z8 pixel-shift synthesis."
+        prog="nxc", description="NX Ctudio: native Nikon pixel-shift synthesis."
     )
     parser.add_argument(
         "--version", action="version", version=f"NX Ctudio {__version__}"
@@ -59,9 +59,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     merge = commands.add_parser(
         "merge",
-        help="Experimentally synthesize ordered Z8 frames into native NEFX.",
+        help="Experimentally synthesize ordered Nikon pixel-shift frames into NEFX.",
         description=(
-            "Native experimental Z8 pixel-shift synthesis. Supply a complete sequence "
+            "Native experimental pixel-shift synthesis for Nikon Z8, Zf, Z6III "
+            "and Z5II with supported lossless 14-bit metadata. "
+            "Authentic captures and downstream applications remain unvalidated. "
+            "Supply a complete sequence "
             "in capture order. HE/HE* and "
             "Adobe default updates are not supported. Output is never overwritten."
         ),

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "nx-ctudio"
 version = "0.1.0"
-description = "Native Nikon Z8 pixel-shift synthesis with NEFX output."
+description = "Native Nikon pixel-shift synthesis with NEFX output."
 requires-python = ">=3.12"
 dependencies = [
     "numpy==2.4.6",

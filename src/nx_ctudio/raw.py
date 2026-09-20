@@ -1,4 +1,4 @@
-"""Strict native decoding of the observed Z8 pixel-shift NEF formats."""
+"""Strict native decoding of the observed Nikon pixel-shift NEF formats."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from numpy.typing import NDArray
 
 _MAKER_HEADER = b"Nikon\0\x02\x11\0\0"
 _NEFINFO_HEADER = b"Nikon\0\x01\x03\0\0"
+SUPPORTED_MODELS = ("NIKON Z 8", "NIKON Z f", "NIKON Z6_3", "NIKON Z5_2")
 
 
 def _require(condition: bool, message: str) -> None:
@@ -144,8 +145,9 @@ def _metadata(path: Path) -> dict[str, Any]:
         _require(50706 not in root.tags, "Expected a source NEF, not DNG.")
         make, model = (root.tags[code].value for code in (271, 272))
         _require(
-            (make, model) == ("NIKON CORPORATION", "NIKON Z 8"),
-            "Only Nikon Z8 source frames are supported.",
+            make == "NIKON CORPORATION" and model in SUPPORTED_MODELS,
+            f"Unsupported camera model {make!r} / {model!r}; "
+            "native pixel-shift inputs must be Nikon Z8, Zf, Z6III or Z5II.",
         )
         orientation = int(root.tags[274].value)
         _require(orientation in range(1, 9), "Unsupported TIFF orientation.")
@@ -296,10 +298,20 @@ def read_frame(path: Path) -> tuple[NDArray[np.uint16], dict[str, Any]]:
                 and gains[1] == gains[3],
                 "Missing white balance or unequal green gains are unsupported.",
             )
+            # LibRaw 0.22.1 decodes Z5II but has no color-table entry for it.
+            # NEFX synthesis uses sensor samples and preserves source color tags.
+            missing_matrix = (
+                metadata["model"] == "NIKON Z5_2"
+                and matrix.shape == (3, 3)
+                and np.all(matrix == 0)
+            )
             _require(
-                matrix.shape == (3, 3)
-                and np.all(np.isfinite(matrix))
-                and abs(np.linalg.det(matrix)) >= 1e-6,
+                missing_matrix
+                or (
+                    matrix.shape == (3, 3)
+                    and np.all(np.isfinite(matrix))
+                    and abs(np.linalg.det(matrix)) >= 1e-6
+                ),
                 "Missing or singular XYZ-to-camera matrix.",
             )
             samples = image.raw_image.copy()
@@ -312,7 +324,7 @@ def read_frame(path: Path) -> tuple[NDArray[np.uint16], dict[str, Any]]:
                 camera_gains=gains[:3].tolist(),
                 green_gains=[float(gains[1]), float(gains[3])],
                 as_shot_neutral=(gains[1] / gains[:3]).tolist(),
-                color_matrix_xyz_to_camera=matrix.tolist(),
+                color_matrix_xyz_to_camera=None if missing_matrix else matrix.tolist(),
                 calibration_illuminant=0,
                 source_sha256=source_hash,
                 source_size_bytes=before.st_size,

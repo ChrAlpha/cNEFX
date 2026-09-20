@@ -202,6 +202,7 @@ def _merge(
             "status": "ok",
             "backend": "native",
             "output_format": "NEFX",
+            "camera": {"make": first["make"], "model": first["model"]},
             "sequence_validation": "complete_consecutive_metadata_consistent",
             "chromatic_aberration_correction": chromatic_aberration_correction,
             "inputs": [
@@ -213,6 +214,14 @@ def _merge(
                 for path, info in zip(resolved, metadata, strict=True)
             ],
             "limitations": LIMITATIONS
+            + (
+                [
+                    "LibRaw has no XYZ-to-camera matrix for this input; NEFX "
+                    "preserves source color metadata. Color rendering is unvalidated."
+                ]
+                if first["color_matrix_xyz_to_camera"] is None
+                else []
+            )
             + (
                 []
                 if chromatic_aberration_correction

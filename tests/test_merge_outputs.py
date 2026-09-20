@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import sys
 import weakref
 from contextlib import contextmanager
 from pathlib import Path
@@ -10,9 +11,17 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+import rawpy
 
+from nx_ctudio._tiff import read as read_tiff
+from nx_ctudio._tiff import serialize
 from nx_ctudio.cli import main
 from nx_ctudio.merge import CONSISTENT, merge_outputs
+from nx_ctudio.pixel_shift import output_groups, reconstruct
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+from ci_fixture import pixels
+from ci_fixture import sequence as camera_sequence
 
 
 def inputs(tmp_path: Path, count: int) -> list[Path]:
@@ -20,6 +29,49 @@ def inputs(tmp_path: Path, count: int) -> list[Path]:
     for i, path in enumerate(paths):
         path.write_bytes(f"source-{i}".encode("ascii"))
     return paths
+
+
+@pytest.mark.parametrize(
+    "model", ["NIKON Z 8", "NIKON Z f", "NIKON Z6_3", "NIKON Z5_2"]
+)
+@pytest.mark.parametrize("count, outputs", [(8, 2), (16, 4), (32, 2), (32, 4), (32, 8)])
+@pytest.mark.parametrize("corrected", [False, True])
+def test_camera_output_sets(
+    tmp_path: Path, model: str, count: int, outputs: int, corrected: bool
+) -> None:
+    sources = camera_sequence(tmp_path, count, model=model)
+    target = tmp_path / "result"
+    report = merge_outputs(
+        sources, target, outputs, chromatic_aberration_correction=corrected
+    )
+    assert report["camera"]["model"] == model
+    assert json.loads((target / "manifest.json").read_text()) == report
+    groups = output_groups(count, outputs)
+    for output, group in zip(report["outputs"], groups, strict=True):
+        assert output["input_indices"] == list(group)
+        expected = reconstruct(
+            [pixels(i) for i in group], (4, 4, 56, 40), b"0100" + bytes(24), 100
+        )
+        with rawpy.imread(output["output"]) as decoded:
+            np.testing.assert_array_equal(decoded.raw_image[..., :3], expected)
+        tree = read_tiff(Path(output["output"]).read_bytes())
+        maker = tree.tags[34665].children[0].tags[37500].children[0]
+        assert maker.tags[0xA7].integers() == (group[0] + 101,)
+        assert tree.tags[272].payload == model.encode("ascii") + b"\0"
+    assert report["samples_verified"] == sum(
+        item["samples_verified"] for item in report["outputs"]
+    )
+    assert set(tmp_path.iterdir()) == {*sources, target}
+
+
+def test_late_mixed_camera_never_publishes_partial_set(tmp_path: Path) -> None:
+    sources = camera_sequence(tmp_path, 8, model="NIKON Z f")
+    tree = read_tiff(sources[-1].read_bytes())
+    tree.set(272, 2, b"NIKON Z6_3\0")
+    sources[-1].write_bytes(serialize(tree))
+    with pytest.raises(ValueError, match="Sequence metadata differs: model"):
+        merge_outputs(sources, tmp_path / "result", 2)
+    assert set(tmp_path.iterdir()) == set(sources)
 
 
 @contextmanager
