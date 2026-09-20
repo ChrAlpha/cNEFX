@@ -204,6 +204,9 @@ def smoke(executable: Path) -> None:
 
 def build(target: str) -> None:
     expected = version()
+    lock = (ROOT / "uv.lock").read_bytes()
+    if lock != run("git", "show", "HEAD:uv.lock", capture_output=True).stdout:
+        raise ValueError("Build dependency lock must match the committed bytes.")
     machine = {"aarch64": "arm64", "AMD64": "x86_64"}.get(
         platform.machine(), platform.machine()
     )
@@ -254,7 +257,7 @@ def build(target: str) -> None:
             name: importlib.metadata.version(name)
             for name in ("numpy", "rawpy", "tifffile", "pyinstaller")
         },
-        "lock_sha256": hashlib.sha256((ROOT / "uv.lock").read_bytes()).hexdigest(),
+        "lock_sha256": hashlib.sha256(lock).hexdigest(),
         "limitations": [
             "Experimental; authentic capture and downstream application "
             "acceptance remain open.",

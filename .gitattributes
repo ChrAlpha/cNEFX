@@ -1,0 +1,2 @@
+# Preserve the exact dependency-lock digest across native build runners.
+uv.lock text eol=lf
