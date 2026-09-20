@@ -11,7 +11,7 @@
     "secondary_interchange": "Existing Linear DNG research is secondary to NEFX synthesis",
     "public_artifacts": "English only; repository text is ASCII",
     "first_release_features": [
-      "Z8 pixel-shift synthesis",
+      "Pixel-shift synthesis for most Nikon cameras with official pixel-shift shooting; initial model set: Z8, Zf, Z6III and Z5II",
       "NEFX output fidelity and downstream workflow compatibility"
     ],
     "excluded_from_active_scope": [
@@ -36,7 +36,7 @@
     "A readable NEFX with the right samples is not byte-identical Nikon serialization."
   ],
   "release_gaps": [
-    "Authentic complete Z8 pixel-shift sequences and matching NX Studio NEFX references",
+    "Authentic complete pixel-shift sequences and matching NX Studio NEFX references for each enabled Nikon model",
     "Downstream application acceptance of native NEFX outputs, including Lightroom"
   ],
   "compatibility_limits": [
@@ -49,6 +49,7 @@
     "Cross-platform packaging follows native Linux synthesis."
   ],
   "active_priorities": [
+    "Expand the strict native input path to Zf, Z6III and Z5II using the evidence in pixel-shift-camera-support.json; preserve Z8 behavior and all nine merge modes.",
     "Validate ordered synthesis against authentic capture and matching reference files when they become available.",
     "Resolve concrete merge, NEFX serialization or resource defects demonstrated by capture validation.",
     "Retain experimental status until authentic capture and downstream acceptance are established."

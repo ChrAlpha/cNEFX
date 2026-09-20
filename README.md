@@ -1,6 +1,6 @@
 # NX Ctudio
 
-Agent-oriented repository map for native Linux Nikon Z8 pixel-shift synthesis.
+Agent-oriented repository map for native Nikon pixel-shift synthesis.
 The package is `nx-ctudio`, the import namespace is `nx_ctudio`, and the CLI is
 `nxc`. Read [AGENTS.md](AGENTS.md) before editing.
 
@@ -10,6 +10,9 @@ The active product path merges complete ordered Z8 sequences into NEFX. It is
 experimental: authentic capture/reference validation and Lightroom acceptance
 remain open. Passing fixtures or decoding a generated NEFX does not close them.
 The recorded scope is [research/project-scope.json](research/project-scope.json).
+The current expansion targets Z8, Zf, Z6III and Z5II, with model and file-format
+evidence in [pixel-shift-camera-support.json](research/pixel-shift-camera-support.json).
+Other NX Studio functionality remains outside the active scope.
 
 | Implemented path | Boundary |
 | --- | --- |
@@ -203,6 +206,7 @@ before execution.
 | Question | Start here |
 | --- | --- |
 | Current scope and release gaps | [project-scope.json](research/project-scope.json) |
+| Nikon model coverage and ordinary-RAW format evidence | [pixel-shift-camera-support.json](research/pixel-shift-camera-support.json), [inspect_camera_source.py](tools/inspect_camera_source.py) |
 | Nine-mode replay, publication, isolated wheel, resource measurements | [pixel-shift-native-modes.json](research/pixel-shift-native-modes.json) |
 | Reconstruction and sparse repair | [pixel-shift-algorithm.json](research/pixel-shift-algorithm.json), [pixel-shift-sparse-pipeline.json](research/pixel-shift-sparse-pipeline.json) |
 | NEFX layout, metadata, and writer evidence | [pixel-shift-nefx-writer.json](research/pixel-shift-nefx-writer.json), [pixel-shift-serialization.json](research/pixel-shift-serialization.json) |
@@ -215,7 +219,8 @@ and the native-modes record. Full-resolution repeated-RAW measurements are
 synthetic resource observations, not authentic image-quality results or universal
 memory bounds.
 
-The next acceptance work requires authentic ordered lossless 14-bit FX Z8 captures
+The next acceptance work requires authentic ordered lossless 14-bit FX captures
+for each enabled camera model
 and matching NX Studio NEFX references across the supported modes and correction
 settings, followed by version-pinned Lightroom import, Develop, and export checks.
 Preserve original files and record their provenance and hashes. Run the native

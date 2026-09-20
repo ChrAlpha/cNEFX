@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-09-20",
+  "objective": "Expand native pixel-shift aggregation to the Nikon models confirmed below; no other NX Studio features.",
+  "status": "format_research_complete_runtime_extension_pending",
+  "evidence_boundaries": [
+    "An official shooting feature does not establish native merger compatibility.",
+    "Ordinary NEF layout and LibRaw decode evidence do not validate a pixel-shift sequence.",
+    "Authored fixtures do not establish authentic sensor movement or NX Studio sample parity.",
+    "Every model remains experimental until authentic capture/reference and downstream application acceptance."
+  ],
+  "official_merge_contract": {
+    "url": "https://nikonimglib.com/nxstdo/onlinehelp/en/merge_pixel_shift_pictures_53.html",
+    "retrieved_on": "2026-09-20",
+    "output": "NEFX",
+    "capture_to_output_counts": {"4": [1], "8": [1, 2], "16": [1, 4], "32": [1, 2, 4, 8]},
+    "note": "The shared NX Studio table defines nine merge modes. Camera manuals confirm the shooting feature; per-camera authentic sequences are still required."
+  },
+  "models": [
+    {
+      "name": "Nikon Z8",
+      "tiff_model": "NIKON Z 8",
+      "manual": "https://onlinemanual.nikonimglib.com/z8/en/psm_pixel_shift_shooting_156.html",
+      "runtime_status": "experimental_existing",
+      "evidence": "Existing synthetic vendor-output replays and native nine-mode tests; see pixel-shift-native-modes.json.",
+      "authentic_sequence_acceptance": "not_established"
+    },
+    {
+      "name": "Nikon Zf",
+      "tiff_model": "NIKON Z f",
+      "manual": "https://onlinemanual.nikonimglib.com/zf/en/psm_pixel_shift_shooting_155.html",
+      "runtime_status": "pending",
+      "ordinary_source": {
+        "url": "https://raw.pixls.us/getfile.php/6885/nice/Nikon%20-%20Z%20f%20-%2014bit%2014bit%20compressed%20(3%3A2).NEF",
+        "sha256": "83c82be0be8865d796096dfbcc8ef2abf5af1bd37db44dfad6715070b0c99d15",
+        "path": "/workspaces/LumaForge/nxc-data/camera-coverage-20260920/zf-6885.NEF",
+        "license": "CC0, raw.pixls.us catalog",
+        "pixel_shift_mode": 0
+      },
+      "authentic_sequence_acceptance": "not_established"
+    },
+    {
+      "name": "Nikon Z6III",
+      "tiff_model": "NIKON Z6_3",
+      "manual": "https://onlinemanual.nikonimglib.com/z6III/en/psm_pixel_shift_shooting_167.html",
+      "runtime_status": "pending",
+      "ordinary_source": {
+        "url": "https://raw.pixls.us/getfile.php/7819/nice/Nikon%20-%20Z6_3%20-%208bit%20compressed%20(3%3A2).NEF",
+        "sha256": "17180e80555c149c5954a8a2f09459ede593b49731f1941f7094be105f3520e2",
+        "path": "/workspaces/LumaForge/nxc-data/camera-coverage-20260920/z6iii-7819.NEF",
+        "license": "CC0, raw.pixls.us catalog",
+        "pixel_shift_mode": 0,
+        "note": "Catalog says 8bit; the original TIFF and LibRaw establish 14-bit lossless compression code 3."
+      },
+      "authentic_sequence_acceptance": "not_established"
+    },
+    {
+      "name": "Nikon Z5II",
+      "tiff_model": "NIKON Z5_2",
+      "manual": "https://onlinemanual.nikonimglib.com/z5II/en/psm_pixel_shift_shooting_162.html",
+      "runtime_status": "pending",
+      "ordinary_source": {
+        "url": "https://raw.pixls.us/getfile.php/7745/nice/Nikon%20-%20Z5_2%20-%208bit%20compressed%20(3%3A2).NEF",
+        "sha256": "387d613e1f81e43a704bc349d7c64ef297880a8f306b001baf8be39856c532de",
+        "path": "/workspaces/LumaForge/nxc-data/camera-coverage-20260920/z5ii-7745.NEF",
+        "license": "CC0, raw.pixls.us catalog",
+        "pixel_shift_mode": 0,
+        "note": "Catalog says 8bit; the original TIFF and LibRaw establish 14-bit lossless compression code 3."
+      },
+      "authentic_sequence_acceptance": "not_established"
+    }
+  ],
+  "new_model_observations": {
+    "evidence_kind": "unmodified_ordinary_nef_and_real_libraw_decode",
+    "sample_count": 3,
+    "source_hashes_match_catalog": true,
+    "layout": "Classic little-endian TIFF; six SubIFDs; single-strip 14-bit RGGB Nikon Bayer RAW at index 1.",
+    "raw_height_width": [4040, 6064],
+    "crop_left_top_width_height": [8, 4, 6048, 4032],
+    "maker_blocks": {"0x0051": ["0102", 24], "0x0054": ["0100", 20], "0x0056": ["0100", 16], "0x005e": ["0100", 28], "0x0097": ["0803", 166]},
+    "nefinfo_blocks": {"0x0007": ["0100", 104], "0x0008": ["0100", 24], "0x000b": ["0100", 14], "0x000d": ["0100", 8]},
+    "decode": "All three decode at full raw geometry with matching crop, equal black levels, equal green gains and white level 16383.",
+    "rawpy": "0.27.1",
+    "libraw": "0.22.1",
+    "probe": "uv run --locked python tools/inspect_camera_source.py SOURCE.NEF [SOURCE.NEF ...]",
+    "run": {
+      "command": "timeout 60s uv run --locked python tools/inspect_camera_source.py /workspaces/LumaForge/nxc-data/camera-coverage-20260920/zf-6885.NEF /workspaces/LumaForge/nxc-data/camera-coverage-20260920/z6iii-7819.NEF /workspaces/LumaForge/nxc-data/camera-coverage-20260920/z5ii-7745.NEF",
+      "base_revision": "e07d0fdc5eb9faac8d38b589b2227eca188726d0",
+      "probe_sha256": "7da91cbd0180baac67ac73b324e6cfef6d834ca8f4478b36d13c4f9d804688a1",
+      "revision_note": "Probe was new and uncommitted at this base revision; its exact bytes are identified by probe_sha256.",
+      "report": "/workspaces/LumaForge/nxc-data/camera-coverage-20260920/source-layout.json",
+      "report_sha256": "71ab83cf1745d0c82b3d4d1bef1f1283ceeb97c2ae5e6c3e04208f09287083b2",
+      "exit_code": 0,
+      "diagnostic": "tifffile logs missing image-offset/byte-count tags while inspecting metadata-only nested IFDs; all three RAW images decoded successfully."
+    },
+    "limits": "Sequential source decoding; 60 second external timeout; no full-resolution synthesis or vendor run."
+  },
+  "coverage_limits": [
+    "This is the four-model set confirmed from official manuals, not a promise to cover future firmware or every Nikon model.",
+    "Z9, Z6II, Z5, Zfc, Z50II and ZR manual indexes did not expose a pixel-shift shooting entry in this bounded check; they are not allowlisted. Z7II manual URL returned 404, so no negative support claim is inferred.",
+    "HE/HE*, HLG, non-FX image areas and unobserved metadata versions remain unsupported or unvalidated as documented in project-scope.json."
+  ]
+}

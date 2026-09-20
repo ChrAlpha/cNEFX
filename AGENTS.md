@@ -6,7 +6,10 @@ commit messages, and new documentation must be English ASCII.
 
 ## Mission and scope
 
-- Build native Linux Nikon Z8 pixel-shift synthesis with NEFX as the primary output.
+- Build native Nikon pixel-shift synthesis with NEFX as the primary output,
+  prioritizing Linux. Target Z8, Zf, Z6III and Z5II; add models only with official
+  shooting support and recorded file-format evidence. Keep per-model acceptance
+  distinct from synthetic coverage.
 - Treat [research/project-scope.json](research/project-scope.json) as the recorded
   scope decision. The current user request takes precedence over recorded scope.
 - Keep Wine and Nikon DLLs outside the product runtime. They are external research
