@@ -145,60 +145,77 @@ def smoke(executable: Path) -> None:
         )
         assert report["error"]["code"] == "merge_failed"
         assert set(work.iterdir()) == {source, *files}
-        inputs = sequence(work)
-        original_hashes = [
-            hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs
-        ]
         expected_pixels = reconstruct(
             [pixels(i) for i in range(4)],
             (4, 4, 56, 40),
             b"0100\x01" + bytes(23),
             100,
         )
-        for corrected in (False, True):
-            target = work / f"merged-{corrected}.nefx"
-            args = ["merge", *map(str, inputs), "-o", str(target), "--json"]
-            if corrected:
-                args.append("--chromatic-aberration-correction")
-            report = json.loads(invoke(*args).stdout)
-            assert report["status"] == "ok"
-            assert report["samples_verified"] == expected_pixels.size
-            assert report["chromatic_aberration_correction"] is corrected
-            assert [item["sha256"] for item in report["inputs"]] == original_hashes
-            with rawpy.imread(str(target)) as decoded:
-                np.testing.assert_array_equal(
-                    decoded.raw_image[..., :3], expected_pixels
+        models = ("NIKON Z 8", "NIKON Z f", "NIKON Z6_3", "NIKON Z5_2")
+        for model in models:
+            camera_work = work / model.replace(" ", "-")
+            camera_work.mkdir()
+            inputs = sequence(camera_work, model=model)
+            original_hashes = [
+                hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs
+            ]
+            for corrected in (False, True):
+                target = camera_work / f"merged-{corrected}.nefx"
+                args = ["merge", *map(str, inputs), "-o", str(target), "--json"]
+                if corrected:
+                    args.append("--chromatic-aberration-correction")
+                report = json.loads(invoke(*args).stdout)
+                assert report["status"] == "ok"
+                assert report["camera"]["model"] == model
+                assert report["samples_verified"] == expected_pixels.size
+                assert report["chromatic_aberration_correction"] is corrected
+                assert [item["sha256"] for item in report["inputs"]] == original_hashes
+                with rawpy.imread(str(target)) as decoded:
+                    np.testing.assert_array_equal(
+                        decoded.raw_image[..., :3], expected_pixels
+                    )
+                digest = hashlib.sha256(target.read_bytes()).hexdigest()
+                assert digest == report["sha256"]
+                rejected = json.loads(invoke(*args, code=1).stdout)
+                assert "already exists" in rejected["error"]["message"]
+                assert hashlib.sha256(target.read_bytes()).hexdigest() == digest
+            assert [
+                hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs
+            ] == original_hashes
+            target_directory = camera_work / "batch"
+            batch_args = [
+                "merge",
+                *map(str, inputs),
+                "--output-directory",
+                str(target_directory),
+                "--json",
+            ]
+            if sys.platform == "linux":
+                batch = json.loads(invoke(*batch_args).stdout)
+                assert batch["status"] == "ok" and batch["output_count"] == 1
+                assert batch["camera"]["model"] == model
+                assert (
+                    json.loads((target_directory / "manifest.json").read_text())
+                    == batch
                 )
-            digest = hashlib.sha256(target.read_bytes()).hexdigest()
-            assert digest == report["sha256"]
-            rejected = json.loads(invoke(*args, code=1).stdout)
-            assert "already exists" in rejected["error"]["message"]
-            assert hashlib.sha256(target.read_bytes()).hexdigest() == digest
-        assert [
-            hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs
-        ] == original_hashes
-        batch_args = [
-            "merge",
-            *map(str, inputs),
-            "--output-directory",
-            "batch",
-            "--json",
-        ]
-        if sys.platform == "linux":
-            batch = json.loads(invoke(*batch_args).stdout)
-            assert batch["status"] == "ok" and batch["output_count"] == 1
-            assert json.loads((work / "batch/manifest.json").read_text()) == batch
-            with rawpy.imread(str(work / "batch/merged-01.nefx")) as decoded:
-                np.testing.assert_array_equal(
-                    decoded.raw_image[..., :3], expected_pixels
-                )
-        else:
-            batch = json.loads(invoke(*batch_args, code=1).stdout)
-            assert "currently require Linux" in batch["error"]["message"]
-            assert not (work / "batch").exists()
-        assert not list(work.glob(".nxc-*"))
+                with rawpy.imread(str(target_directory / "merged-01.nefx")) as decoded:
+                    np.testing.assert_array_equal(
+                        decoded.raw_image[..., :3], expected_pixels
+                    )
+            else:
+                batch = json.loads(invoke(*batch_args, code=1).stdout)
+                assert "currently require Linux" in batch["error"]["message"]
+                assert not target_directory.exists()
+        assert not list(work.rglob(".nxc-*"))
     print(
-        json.dumps({"status": "ok", "executable": str(executable), "version": expected})
+        json.dumps(
+            {
+                "status": "ok",
+                "executable": str(executable),
+                "version": expected,
+                "camera_models": models,
+            }
+        )
     )
 
 
