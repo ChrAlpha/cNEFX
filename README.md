@@ -1,8 +1,44 @@
 # NX Ctudio
 
-Agent-oriented repository map for native Nikon pixel-shift synthesis.
+Native Nikon pixel-shift synthesis with NEFX output.
 The package is `nx-ctudio`, the import namespace is `nx_ctudio`, and the CLI is
-`nxc`. Read [AGENTS.md](AGENTS.md) before editing.
+`nxc`.
+
+## Install and run
+
+For normal use, download a CI-built standalone archive from
+[GitHub Releases](https://github.com/ChrAlpha/nx-ctudio/releases/latest).
+No Python, `uv`, or source checkout is needed. Choose the archive for your system
+and architecture, not GitHub's automatically generated source-code archive:
+
+| Platform | Standalone archive (`<version>` is the release version) | CI build/test system |
+| --- | --- | --- |
+| Linux x86_64 | `nxc-<version>-linux-x86_64.tar.gz` | Ubuntu 22.04 |
+| Linux ARM64 | `nxc-<version>-linux-arm64.tar.gz` | Ubuntu 24.04 |
+| macOS Apple silicon | `nxc-<version>-macos-arm64.tar.gz` | macOS 15 |
+| Windows x86_64 | `nxc-<version>-windows-x86_64.zip` | Windows Server 2022 |
+
+Extract the entire archive and keep the `nxc` directory intact, including
+`_internal` and `build-info.json`. For example, on Linux x86_64 with version 0.0.1:
+
+```sh
+tar -xzf nxc-0.0.1-linux-x86_64.tar.gz
+./nxc/nxc --version
+./nxc/nxc merge --help
+```
+
+On macOS, use `./nxc/nxc` after extracting its archive. On Windows PowerShell,
+use `.\nxc\nxc.exe`. The examples below use `nxc` on `PATH`; either add the
+extracted directory to `PATH` or substitute the executable's full path.
+Release assets include `SHA256SUMS` for checksum verification. Builds are unsigned
+and macOS notarization is not provided; compatibility with older systems is not
+established by the CI matrix.
+
+Single-file NEFX output is tested on all four build targets. Output-directory
+publication requires Linux libc `renameat2` and filesystem support for
+`RENAME_NOREPLACE`. `nxc inspect` additionally requires ExifTool on `PATH`;
+Debian/Ubuntu provide it as `libimage-exiftool-perl`. The merge command does not
+require ExifTool. All builds remain experimental, with the acceptance gaps below.
 
 ## Scope and acceptance state
 
@@ -43,9 +79,12 @@ it does not render RAW data or substitute a camera color matrix. For Z5II, the
 known missing LibRaw matrix is reported as a limitation. Unsupported models and
 metadata versions still fail; there is no camera-identity override.
 
-## Environment
+## Development environment
 
-Run commands from the repository root on Linux with Python 3.12+ and `uv`.
+Use `uv run` when developing or testing from source. For normal use, prefer the
+standalone Release builds above. Read [AGENTS.md](AGENTS.md) before editing.
+Run development commands from the repository root on Linux with Python 3.12+
+and `uv`.
 [pyproject.toml](pyproject.toml) defines the package and tools;
 [uv.lock](uv.lock) pins dependency resolution.
 
@@ -55,11 +94,10 @@ uv run --locked nxc --version
 uv run --locked nxc merge --help
 ```
 
-Runtime dependencies are NumPy, rawpy, and tifffile. The default development group
-adds pytest and Ruff. ExifTool must be on `PATH` for `nxc inspect` and
-`tests/test_inspect.py`; Debian/Ubuntu provide it as `libimage-exiftool-perl`.
-Output-directory publication requires Linux libc `renameat2` and filesystem
-support for `RENAME_NOREPLACE`.
+Runtime dependencies are NumPy, rawpy, and tifffile; standalone builds bundle them.
+The default development group adds pytest and Ruff. The inspection tests
+(`tests/test_inspect.py`) also need ExifTool on `PATH`. To run the CLI examples
+below from a source checkout, replace `nxc` with `uv run --locked nxc`.
 
 RAW datasets and vendor assets are not bundled. Historical reports commonly point
 to `/workspaces/LumaForge/nxc-data/`, a workstation-local external artifact tree.
@@ -113,16 +151,16 @@ empty directory or dangling symlink.
 Four frames to one NEFX:
 
 ```sh
-uv run --locked nxc merge \
+nxc merge \
   /data/capture4/shot-01.NEF /data/capture4/shot-02.NEF \
   /data/capture4/shot-03.NEF /data/capture4/shot-04.NEF \
   --output /data/results/merged.nefx --json
 ```
 
-Eight frames to a complete two-file output set:
+Eight frames to a complete two-file output set (Linux only):
 
 ```sh
-uv run --locked nxc merge \
+nxc merge \
   /data/capture8/shot-01.NEF /data/capture8/shot-02.NEF \
   /data/capture8/shot-03.NEF /data/capture8/shot-04.NEF \
   /data/capture8/shot-05.NEF /data/capture8/shot-06.NEF \
@@ -172,7 +210,7 @@ include warnings raised afterward; the final stdout report includes them.
 Metadata inspection is a separate command:
 
 ```sh
-uv run --locked nxc inspect /data/capture4/shot-01.NEF --json
+nxc inspect /data/capture4/shot-01.NEF --json
 ```
 
 Its report has `schema_version: 1`, a `files` array with per-file status, and
@@ -182,8 +220,9 @@ and `130` for caught cancellation. Inspection success is not merge eligibility.
 
 ## Verification routing
 
-After environment setup, this focused suite covers the active synthesis path
-without capture datasets or vendor binaries; the inspection tests need ExifTool:
+After development environment setup, this focused suite covers the active
+synthesis path without capture datasets or vendor binaries; the inspection tests
+need ExifTool:
 
 ```sh
 uv run --locked pytest -q \
