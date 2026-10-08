@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +52,19 @@ LIMITATIONS = [
 def digest(path: Path) -> str:
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def _source_state(path: Path) -> tuple[int, int, int, int, int]:
+    state = path.stat()
+    if not stat.S_ISREG(state.st_mode):
+        raise ValueError("Input must be a regular file.")
+    return (
+        state.st_dev,
+        state.st_ino,
+        state.st_size,
+        state.st_mtime_ns,
+        state.st_ctime_ns,
+    )
 
 
 def validate_sequence(metadata: list[dict[str, Any]]) -> None:
@@ -131,14 +145,28 @@ def _merge(
         raise FileExistsError("Output already exists; overwriting is not supported.")
     identities = set()
     resolved = []
+    source_states = []
     for path in paths:
         path = path.resolve(strict=True)
-        identity = (path.stat().st_dev, path.stat().st_ino)
+        state = _source_state(path)
+        identity = state[:2]
         if identity in identities:
             raise ValueError("Duplicate input file or hard link.")
         identities.add(identity)
         resolved.append(path)
-    samples, first = read_frame(resolved[0])
+        source_states.append(state)
+
+    def check_source(index: int) -> None:
+        if _source_state(resolved[index]) != source_states[index]:
+            raise ValueError("Input changed during synthesis.")
+
+    def read_unchanged(index: int) -> tuple[np.ndarray, dict[str, Any]]:
+        check_source(index)
+        result = read_frame(resolved[index])
+        check_source(index)
+        return result
+
+    samples, first = read_unchanged(0)
     initial = [samples]
     del samples
     by_index = {0: first}
@@ -158,7 +186,7 @@ def _merge(
     def load(index: int) -> np.ndarray:
         if index == 0:
             return initial.pop()
-        samples, information = read_frame(resolved[index])
+        samples, information = read_unchanged(index)
         if correction is not None and information["radial"] != first["radial"]:
             raise ValueError("Sequence metadata differs: radial correction parameters.")
         by_index[index] = information
@@ -195,8 +223,13 @@ def _merge(
                 result["input_indices"] = list(members)
             results.append(result)
         metadata = [by_index[i] for i in range(len(paths))]
-        for path, information in zip(resolved, metadata, strict=True):
-            if digest(path) != information["source_sha256"]:
+        for index, (path, information) in enumerate(
+            zip(resolved, metadata, strict=True)
+        ):
+            check_source(index)
+            source_hash = digest(path)
+            check_source(index)
+            if source_hash != information["source_sha256"]:
                 raise ValueError("Input changed during synthesis.")
         report = {
             "status": "ok",
@@ -245,6 +278,8 @@ def _merge(
                 os.fsync(stream.fileno())
         else:
             report.update(results[0])
+        for index in range(len(resolved)):
+            check_source(index)
         pending.publish()
     report["warnings"] += pending.warnings
     return report

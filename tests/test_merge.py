@@ -55,13 +55,35 @@ def test_existing_output_prevents_any_decode(tmp_path: Path) -> None:
     assert output.read_bytes() == b"existing"
 
 
-def test_duplicate_file_prevents_any_decode(tmp_path: Path) -> None:
+@pytest.mark.parametrize("hard_link", [False, True])
+def test_duplicate_file_prevents_any_decode(tmp_path: Path, hard_link: bool) -> None:
     source = tmp_path / "input.NEF"
     source.write_bytes(b"input")
+    alias = source
+    if hard_link:
+        alias = tmp_path / "alias.NEF"
+        alias.hardlink_to(source)
+    sources = [source, alias]
+    for index in range(2):
+        other = tmp_path / f"other-{index}.NEF"
+        other.write_bytes(b"other source")
+        sources.append(other)
     with patch("nx_ctudio.merge.read_frame") as read:
         with pytest.raises(ValueError, match="Duplicate"):
-            merge([source] * 4, tmp_path / "output.nefx")
+            merge(sources, tmp_path / "output.nefx")
         read.assert_not_called()
+
+
+def test_later_nonregular_input_prevents_any_decode(tmp_path: Path) -> None:
+    sources = [tmp_path / f"{index}.NEF" for index in range(4)]
+    for path in sources[:-1]:
+        path.write_bytes(b"source")
+    sources[-1].mkdir()
+    with patch("nx_ctudio.merge.read_frame", side_effect=AssertionError) as read:
+        with pytest.raises(ValueError, match="regular file"):
+            merge(sources, tmp_path / "output.nefx")
+    read.assert_not_called()
+    assert set(tmp_path.iterdir()) == set(sources)
 
 
 def test_capture_timestamps_cannot_move_backwards() -> None:

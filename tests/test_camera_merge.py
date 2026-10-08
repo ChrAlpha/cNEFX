@@ -16,7 +16,9 @@ import rawpy
 
 from nx_ctudio._tiff import read, serialize
 from nx_ctudio.cli import main
+from nx_ctudio.merge import digest as merge_digest
 from nx_ctudio.merge import merge
+from nx_ctudio.nefx import write_nefx
 from nx_ctudio.pixel_shift import reconstruct
 from nx_ctudio.raw import read_frame
 
@@ -75,6 +77,97 @@ def test_camera_geometry_is_read_from_source(tmp_path: Path, model: str) -> None
     assert metadata["crop"] == (4, 4, 72, 48)
     report = merge(inputs, tmp_path / "result.nefx")
     assert report["shape"] == [48, 72, 3]
+
+
+@pytest.mark.parametrize("change", ["pixels", "replacement"])
+@pytest.mark.parametrize("corrected", [False, True])
+def test_later_input_change_is_rejected_before_its_first_decode(
+    tmp_path: Path, change: str, corrected: bool
+) -> None:
+    inputs = sequence(tmp_path)
+    source = inputs[-1]
+    before = source.stat()
+    calls = []
+
+    def decode(path: Path):
+        calls.append(path)
+        result = read_frame(path)
+        if path == inputs[0]:
+            if change == "pixels":
+                tree = read(source.read_bytes())
+                raw = tree.tags[330].children[1]
+                payload = bytearray(raw.images[273][0])
+                payload[0] ^= 1
+                raw.images[273] = [bytes(payload)]
+                source.write_bytes(serialize(tree))
+                os.utime(source, ns=(before.st_atime_ns, before.st_mtime_ns + 10**9))
+                assert source.stat().st_ino == before.st_ino
+            else:
+                replacement = tmp_path / "replacement.NEF"
+                replacement.write_bytes(source.read_bytes())
+                os.utime(replacement, ns=(before.st_atime_ns, before.st_mtime_ns))
+                replacement.replace(source)
+                assert source.stat().st_ino != before.st_ino
+        return result
+
+    with patch("nx_ctudio.merge.read_frame", side_effect=decode):
+        with pytest.raises(ValueError, match="Input changed"):
+            merge(
+                inputs,
+                tmp_path / "result.nefx",
+                chromatic_aberration_correction=corrected,
+            )
+    assert source not in calls
+    assert len(calls) == len(set(calls))
+    assert set(tmp_path.iterdir()) == set(inputs)
+
+
+@pytest.mark.parametrize("timing", ["decode", "write", "final_hash", "later_hash"])
+def test_restored_input_bytes_do_not_hide_a_source_change(
+    tmp_path: Path, timing: str
+) -> None:
+    inputs = sequence(tmp_path)
+    source = inputs[0]
+    before = source.stat()
+    original_bytes = source.read_bytes()
+    changes = []
+
+    def change_and_restore() -> None:
+        source.write_bytes(b"changed")
+        source.write_bytes(original_bytes)
+        os.utime(source, ns=(before.st_atime_ns, before.st_mtime_ns + 10**9))
+        changes.append(source)
+
+    def decode(path: Path):
+        result = read_frame(path)
+        if path == source and timing == "decode":
+            change_and_restore()
+        return result
+
+    def write(*args):
+        result = write_nefx(*args)
+        if timing == "write":
+            change_and_restore()
+        return result
+
+    def hash_input(path: Path):
+        result = merge_digest(path)
+        if (path == source and timing == "final_hash") or (
+            path == inputs[-1] and timing == "later_hash"
+        ):
+            change_and_restore()
+        return result
+
+    with (
+        patch("nx_ctudio.merge.read_frame", side_effect=decode),
+        patch("nx_ctudio.merge.write_nefx", side_effect=write),
+        patch("nx_ctudio.merge.digest", side_effect=hash_input),
+        pytest.raises(ValueError, match="Input changed"),
+    ):
+        merge(inputs, tmp_path / "result.nefx")
+    assert changes == [source]
+    assert source.read_bytes() == original_bytes
+    assert set(tmp_path.iterdir()) == set(inputs)
 
 
 @pytest.mark.parametrize("model", ["NIKON Z 6", "NIKON Z 9", "NIKON Z fc"])
