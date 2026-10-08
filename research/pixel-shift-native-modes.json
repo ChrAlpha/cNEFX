@@ -146,6 +146,78 @@
     "inputs_unchanged": true,
     "limit": "Synthetic uncorrected inputs on host CPython 3.13.5; not authentic capture, Python 3.12 or Lightroom acceptance."
   },
+  "continuation_audit_20261008": {
+    "checked_on": "2026-10-08",
+    "baseline_revision": "92820dd893e7bf16d6eb64f35d4c8fecacafdbde",
+    "verified_code_revision": "a11708bb973280c963b123e4a85031bf9ff68c2f",
+    "scope": "Native synthesis source identity and publication; no other NX Studio features.",
+    "publication_fix": {
+      "revision": "821e900d5c3a7afc887c6b6cc98cac74475aece6",
+      "defect": "An interrupt after successful link or rename but before the published flag could return cancellation despite a complete visible output.",
+      "behavior": "Reconcile destination device, inode and file type with the staging identity; retain the published result with a warning and attempt parent sync. Pre-publication failures and competing destinations remain failures.",
+      "tests": "Original implementation: three regression failures. Fixed implementation: real SIGINT before and after flag assignment for files and directories, plus exact-decoded single-file CLI output.",
+      "evidence": "/workspaces/LumaForge/nxc-data/scratch/continuation-20261008-r1/publication-evidence.json",
+      "evidence_sha256": "7960aad672dad45cbe7761cfa413a9a15380f5316bcd1778c30688337a45c9a8",
+      "independent_review": "/workspaces/LumaForge/nxc-data/scratch/continuation-20261008-r1/publication-independent-review.json",
+      "independent_review_sha256": "8ab853eda3747f2012a7e213ea53508ba3604a0bbe12a2f4b330f90ab86f690c",
+      "independent_result": "110 focused tests passed. Real SIGINT immediately after output-directory rename: 8-to-two CLI returned success with warning; 13440 decoded samples matched and staging was cleaned."
+    },
+    "source_identity_fix": {
+      "revision": "a11708bb973280c963b123e4a85031bf9ff68c2f",
+      "defect": "An unconsumed input could change after preflight and establish a new accepted hash on its first decode.",
+      "behavior": "Record regular-file identity, size, mtime and ctime at preflight; verify before/after each decode and final hash, then check all source states immediately before publication. Retain source SHA-256 checks and one decode per capture index.",
+      "tests": "Nine failing regressions became passing; 11 focused cases cover unconsumed mutations, identical-content replacements, restored bytes, hard links and nonregular inputs.",
+      "evidence": "/workspaces/LumaForge/nxc-data/scratch/continuation-20261008-r1/source-checks.json",
+      "evidence_sha256": "f364e378a78ac17615ec448915020290ef60b18b0bf075e0d80cfa49c5e1eb03",
+      "independent_review": "/workspaces/LumaForge/nxc-data/scratch/continuation-20261008-r1/source-independent-review.json",
+      "independent_review_sha256": "63181fab7f8b9714a39847bcb1f94ea40b9aaf57f0d70339a719f37d7e4e5d12",
+      "independent_result": "237 focused tests and five additional Linux probes passed, including ctime-only changes during decode, later hashing and manifest fsync, and FIFO rejection before any decode."
+    },
+    "synthesis_suite": {
+      "command": "uv run --locked pytest -q tests/test_pixel_shift.py tests/test_merge.py tests/test_merge_outputs.py tests/test_atomic.py tests/test_radial.py tests/test_nefx.py tests/test_tiff_stream.py tests/test_raw_metadata.py tests/test_inspect.py tests/test_nefx_roundtrip.py tests/test_camera_merge.py --junitxml=/workspaces/LumaForge/nxc-data/scratch/continuation-20261008-r1/synthesis-tests.xml",
+      "passed": 373,
+      "failed": 0,
+      "skipped": 0,
+      "elapsed_seconds": 11.04,
+      "report_sha256": "ec8fe4c360e8917e14543c992e7d2ad491af2f355ad2bd07f38c38601e75e561",
+      "additional_checks": "Scoped Ruff lint/format and git diff --check passed. Final hardlink regression rerun: two passed."
+    },
+    "saved_vendor_core_replay": {
+      "revision": "92820dd893e7bf16d6eb64f35d4c8fecacafdbde",
+      "report": "/workspaces/LumaForge/nxc-data/scratch/continuation-20261008-r1/core-replay.json",
+      "sha256": "7a4d431688afd1ccfa18ff681fe939775aae44fde4e6ff29fe7ba5aa1f124490",
+      "cases": 24,
+      "samples_compared": 48234240,
+      "different_samples": 0,
+      "coverage": "4/8/16/32 inputs, ISO 3200/3201, correction off/on, hash-pinned synthetic sparse-repair corpora. Numerical core and raw decoder were unchanged by both fixes.",
+      "budget": "Serial, 2 GiB address space, 120 seconds; actual 10.85 seconds."
+    },
+    "saved_vendor_cli_replay": {
+      "revision": "a11708bb973280c963b123e4a85031bf9ff68c2f",
+      "source_kind": "Synthetic packed14 frames with synthetic capture identity.",
+      "chromatic_aberration_correction": false,
+      "report": "/workspaces/LumaForge/nxc-data/scratch/continuation-20261008-r1/modes/report.json",
+      "sha256": "a945ad63abcab201d210485f10c897e80fc2de83411302090d929f30c59c85a2",
+      "execution": "/workspaces/LumaForge/nxc-data/scratch/continuation-20261008-r1/modes-execution-2.json",
+      "execution_sha256": "5da75b967799006bd1eaf687bb6719398eb28ecf374ec7d62344c35bb437095f",
+      "cases": 9,
+      "outputs": 24,
+      "samples_compared": 28940544,
+      "different_samples": 0,
+      "capture_marker_private_preview_equal": true,
+      "all_overwrite_checks_passed": true,
+      "elapsed_seconds": 11.002844536036719,
+      "budget": "Serial, 2 GiB address space, 180 seconds plus five-second termination grace.",
+      "prior_attempt": "The first launcher failed before replay because /usr/bin/time was unavailable; modes-execution.json retains that failure. The second launcher used Python timing and resource measurements.",
+      "diagnostics": "tifffile emitted 108 missing-data-offset and 108 missing-ByteCounts messages while reading nested metadata IFDs. Unfiltered stderr is retained in modes-stderr-2.txt; replay exited zero."
+    },
+    "limits": [
+      "Linux runtime verification only; Windows and macOS were not executed in this continuation.",
+      "Source state and hash checks are not a filesystem snapshot against hostile ABA substitutions.",
+      "Saved synthetic vendor replay is distinct from live vendor execution; no live Nikon DLL run occurred.",
+      "Authentic complete captures and matching NX Studio references for all four models, and version-pinned Lightroom import/Develop/export acceptance, remain open."
+    ]
+  },
   "limits": [
     "No authentic pixel-shift capture or Lightroom acceptance is established.",
     "Adobe default metadata updates for per-output 8/32 inputs remain unimplemented.",
