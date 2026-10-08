@@ -205,3 +205,75 @@ def test_parent_sync_failure_retains_published_result_with_warning(
     assert len(pending.warnings) == 1
     assert "Output published" in pending.warnings[0]
     assert "parent directory" in pending.warnings[0]
+
+
+@pytest.mark.parametrize("directory", [False, True])
+@pytest.mark.parametrize(
+    "error", [OSError("interrupted transfer"), KeyboardInterrupt()]
+)
+def test_completed_transfer_error_retains_published_result(
+    tmp_path: Path, directory: bool, error: BaseException
+) -> None:
+    target = tmp_path / "result"
+    with publication(target, directory=directory) as pending:
+        payload = pending.temporary / "first.nefx" if directory else pending.temporary
+        payload.write_bytes(b"complete")
+        transfer = pending.directory_rename if directory else os.link
+
+        def interrupted(source: Path, destination: Path) -> None:
+            transfer(source, destination)
+            raise error
+
+        if directory:
+            pending.directory_rename = interrupted
+            pending.publish()
+        else:
+            with patch("nx_ctudio._atomic.os.link", side_effect=interrupted):
+                pending.publish()
+    assert pending.published
+    result = target / "first.nefx" if directory else target
+    assert result.read_bytes() == b"complete"
+    assert list(tmp_path.iterdir()) == [target]
+    assert len(pending.warnings) == 1
+    assert "Output published" in pending.warnings[0]
+    assert (str(error) or type(error).__name__) in pending.warnings[0]
+
+
+@pytest.mark.parametrize("directory", [False, True])
+@pytest.mark.parametrize("racing", [None, "other", "symlink"])
+def test_incomplete_transfer_cancellation_does_not_claim_publication(
+    tmp_path: Path, directory: bool, racing: str | None
+) -> None:
+    target = tmp_path / "result"
+    with pytest.raises(KeyboardInterrupt):
+        with publication(target, directory=directory) as pending:
+            payload = (
+                pending.temporary / "first.nefx" if directory else pending.temporary
+            )
+            payload.write_bytes(b"unpublished")
+
+            def interrupted(source: Path, destination: Path) -> None:
+                if racing == "other":
+                    if directory:
+                        destination.mkdir()
+                        (destination / "other.nefx").write_bytes(b"other writer")
+                    else:
+                        destination.write_bytes(b"other writer")
+                elif racing == "symlink":
+                    destination.symlink_to(source, target_is_directory=directory)
+                raise KeyboardInterrupt
+
+            if directory:
+                pending.directory_rename = interrupted
+                pending.publish()
+            else:
+                with patch("nx_ctudio._atomic.os.link", side_effect=interrupted):
+                    pending.publish()
+    assert not pending.published
+    assert pending.warnings == []
+    if racing == "other":
+        result = target / "other.nefx" if directory else target
+        assert result.read_bytes() == b"other writer"
+    elif racing == "symlink":
+        assert target.is_symlink()
+    assert list(tmp_path.iterdir()) == ([] if racing is None else [target])

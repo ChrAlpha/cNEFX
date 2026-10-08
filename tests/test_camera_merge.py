@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+import os
+import signal
 import struct
 import sys
 from contextlib import contextmanager
@@ -139,6 +141,47 @@ def test_cli_reports_camera(tmp_path: Path, capsys, model: str) -> None:
     report = json.loads(capsys.readouterr().out)
     assert report["camera"]["model"] == model
     assert report["status"] == "ok"
+
+
+def test_cli_retains_verified_nefx_after_final_publication_signal(
+    tmp_path: Path, capsys
+) -> None:
+    inputs = sequence(tmp_path)
+    output = tmp_path / "result.nefx"
+    link = os.link
+    interrupted = []
+
+    def publish_and_interrupt(source: Path, destination: Path) -> None:
+        link(source, destination)
+        if destination == output:
+            interrupted.append(destination)
+            signal.raise_signal(signal.SIGINT)
+
+    with patch("nx_ctudio._atomic.os.link", side_effect=publish_and_interrupt):
+        result = main(["merge", *map(str, inputs), "-o", str(output), "--json"])
+    report = json.loads(capsys.readouterr().out)
+    assert result == 0
+    assert report["status"] == "ok"
+    assert interrupted == [output]
+    completion_warnings = [
+        warning
+        for warning in report["warnings"]
+        if "publication completion failed" in warning
+    ]
+    assert len(completion_warnings) == 1
+    assert "Output published" in completion_warnings[0]
+    assert "KeyboardInterrupt" in completion_warnings[0]
+    expected = reconstruct(
+        [pixels(i) for i in range(4)],
+        (4, 4, 56, 40),
+        b"0100\x01" + bytes(23),
+        100,
+    )
+    with rawpy.imread(str(output)) as decoded:
+        np.testing.assert_array_equal(decoded.raw_image[..., :3], expected)
+    assert report["sha256"] == digest(output)
+    assert report["samples_verified"] == expected.size
+    assert set(tmp_path.iterdir()) == {*inputs, output}
 
 
 @pytest.mark.parametrize("model", MODELS)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ctypes
 import os
+import stat
 import sys
 import tempfile
 from collections.abc import Callable, Iterator
@@ -46,19 +47,49 @@ class Publication:
     directory_rename: Callable[[Path, Path], None] | None = None
 
     def publish(self) -> None:
-        if self.directory_rename is None:
-            # Windows fsync requires a writable handle, even after writes close.
-            with self.temporary.open("rb+") as stream:
-                os.fsync(stream.fileno())
-            os.link(self.temporary, self.destination)
-        else:
-            descriptor = os.open(self.temporary, os.O_RDONLY | os.O_DIRECTORY)
-            try:
-                os.fsync(descriptor)
-            finally:
-                os.close(descriptor)
-            self.directory_rename(self.temporary, self.destination)
-        self.published = True
+        staging = self.temporary.lstat()
+        expected_type = stat.S_IFDIR if self.directory_rename else stat.S_IFREG
+        identity = (staging.st_dev, staging.st_ino, stat.S_IFMT(staging.st_mode))
+        if identity[2] != expected_type:
+            raise ValueError("Publication staging must be a regular file or directory.")
+        try:
+            if self.directory_rename is None:
+                # Windows fsync requires a writable handle, even after writes close.
+                with self.temporary.open("rb+") as stream:
+                    os.fsync(stream.fileno())
+                os.link(self.temporary, self.destination)
+            else:
+                descriptor = os.open(self.temporary, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+                self.directory_rename(self.temporary, self.destination)
+            self.published = True
+            self._sync_parent()
+        except (OSError, KeyboardInterrupt) as exc:
+            if not self.published:
+                try:
+                    destination = self.destination.lstat()
+                except OSError:
+                    raise exc from None
+                actual = (
+                    destination.st_dev,
+                    destination.st_ino,
+                    stat.S_IFMT(destination.st_mode),
+                )
+                if actual != identity:
+                    raise
+                # A transfer can commit before Python observes an interrupt/error.
+                self.published = True
+            reason = str(exc) or type(exc).__name__
+            self.warnings.append(
+                "Output published; publication completion failed at "
+                f"{self.destination}: {reason}"
+            )
+            self._sync_parent()
+
+    def _sync_parent(self) -> None:
         try:
             descriptor = os.open(
                 self.destination.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
