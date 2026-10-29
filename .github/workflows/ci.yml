@@ -1,4 +1,4 @@
-name: CI
+name: Native CI
 
 on:
   push:
@@ -38,11 +38,11 @@ jobs:
           python-version: "3.12"
           enable-cache: true
       - run: uv sync --locked
-      - name: Check changed Python files and version
+      - name: Check changed files and native version
         env:
           CI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: uv run --no-sync python tools/ci.py check
-      - name: Validate GitHub Actions workflow
+      - name: Validate workflow
         run: |
           curl --fail --silent --show-error --location \
             https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
@@ -53,68 +53,10 @@ jobs:
           tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
           "$RUNNER_TEMP/actionlint" .github/workflows/ci.yml
 
-  test:
-    name: Test (${{ matrix.os }}, Python ${{ matrix.python }})
+  native:
+    name: Build and verify (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      max-parallel: 4
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            python: "3.12"
-          - os: ubuntu-24.04
-            python: "3.13"
-          - os: ubuntu-24.04
-            python: "3.14"
-          - os: ubuntu-24.04-arm
-            python: "3.12"
-          - os: macos-15
-            python: "3.12"
-          - os: windows-2022
-            python: "3.12"
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
-        with:
-          version: "0.12.16"
-          python-version: ${{ matrix.python }}
-          enable-cache: true
-      - name: Install inspection dependency
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y libimage-exiftool-perl
-      - run: uv sync --locked
-      - name: Full suite including Linux publication and ExifTool
-        if: runner.os == 'Linux'
-        run: uv run --no-sync pytest -q --junitxml=reports/pytest.xml
-      - name: Portable synthesis suite
-        if: runner.os != 'Linux'
-        # Output-directory publication is explicitly Linux-only in the runtime.
-        run: >-
-          uv run --no-sync pytest -q --junitxml=reports/pytest.xml
-          tests/test_pixel_shift.py tests/test_merge.py tests/test_radial.py
-          tests/test_nefx.py tests/test_nefx_roundtrip.py
-          tests/test_tiff_stream.py tests/test_raw_metadata.py
-          tests/test_camera_merge.py
-      - name: Preserve test results
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: tests-${{ matrix.os }}-py${{ matrix.python }}
-          path: reports/*.xml
-          if-no-files-found: warn
-          retention-days: 14
-
-  build:
-    name: Build (${{ matrix.target }})
-    needs: [checks, test]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -137,28 +79,68 @@ jobs:
           version: "0.12.16"
           python-version: "3.12"
           enable-cache: true
-      - run: uv sync --locked --group build --no-editable
-      - name: Build source and wheel distributions
-        run: uv build --no-sources
-      - name: Install the built wheel
-        run: |
-          uv pip install --no-deps --reinstall dist/*.whl
-          uv pip check
-      - name: Test installed wheel serialization and CLI
-        run: |
-          uv run --no-sync pytest -q tests/test_nefx_roundtrip.py tests/test_camera_merge.py
-          uv run --no-sync python tools/ci.py smoke
-      - name: Freeze, archive, extract, and test standalone CLI
-        run: uv run --no-sync python tools/ci.py build --target '${{ matrix.target }}'
-      - name: Upload verified distributions
+      - name: Configure pinned native build
+        run: >-
+          cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release
+          -DCNEFX_PACKAGE_TARGET=${{ matrix.target }}
+      - run: cmake --build build/release --config Release --parallel 2
+      - run: ctest --test-dir build/release -C Release --output-on-failure --output-junit native-tests.xml
+      - run: uv sync --locked
+      - name: Independent core, container and CLI checks
+        run: uv run --no-sync python tools/ci.py verify
+      - name: Package and run extracted binary with empty PATH
+        run: uv run --no-sync python tools/ci.py package
+      - name: Upload verified native package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: nxc-${{ matrix.target }}
+          name: cnefx-${{ matrix.target }}
           path: |
-            dist/*.whl
-            dist/*.tar.gz
-            dist/*.zip
-            dist/SHA256SUMS
+            build/release/packages/*.tar.gz
+            build/release/packages/*.zip
+            build/release/packages/*.sha256
+            build/release/packages/verification.json
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+      - name: Preserve validation reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: validation-${{ matrix.target }}
+          path: |
+            build/release/native-tests.xml
+            build/release/verification/*/report.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  sanitize:
+    name: Address and undefined behavior sanitizers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      ASAN_OPTIONS: detect_leaks=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.16"
+          python-version: "3.12"
+          enable-cache: true
+      - run: cmake --preset sanitize
+      - run: cmake --build --preset sanitize
+      - run: ctest --preset sanitize --output-junit native-tests.xml
+      - run: uv sync --locked
+      - run: uv run --no-sync python tools/ci.py verify --build-dir build/sanitize --config Debug
+      - name: Preserve sanitizer reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: validation-sanitize
+          path: |
+            build/sanitize/native-tests.xml
+            build/sanitize/verification/*/report.json
+          if-no-files-found: warn
+          retention-days: 14

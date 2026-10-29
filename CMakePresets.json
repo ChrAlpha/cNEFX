@@ -1,0 +1,27 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {"major": 3, "minor": 21, "patch": 0},
+  "configurePresets": [
+    {
+      "name": "release",
+      "displayName": "Native release with pinned LibRaw",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {"CMAKE_BUILD_TYPE": "Release"}
+    },
+    {
+      "name": "sanitize",
+      "inherits": "release",
+      "displayName": "Address and undefined behavior sanitizers",
+      "binaryDir": "${sourceDir}/build/sanitize",
+      "cacheVariables": {"CMAKE_BUILD_TYPE": "Debug", "CNEFX_SANITIZE": "ON"}
+    }
+  ],
+  "buildPresets": [
+    {"name": "release", "configurePreset": "release", "configuration": "Release", "jobs": 2},
+    {"name": "sanitize", "configurePreset": "sanitize", "configuration": "Debug", "jobs": 2}
+  ],
+  "testPresets": [
+    {"name": "release", "configurePreset": "release", "configuration": "Release", "output": {"outputOnFailure": true}},
+    {"name": "sanitize", "configurePreset": "sanitize", "configuration": "Debug", "output": {"outputOnFailure": true}}
+  ]
+}
