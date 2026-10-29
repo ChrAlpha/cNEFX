@@ -219,18 +219,18 @@
     ]
   },
   "cpp_refactor_20261029": {
-    "status": "Refactor in progress; native numerical, format and CLI implementation committed.",
+    "status": "C++20 NEFX-only refactor complete; clean-revision native packages, four-platform CI, sanitizers, differential checks and bounded resource comparisons passed. Product remains experimental.",
     "portability_regression": {
       "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/arm13-audit.json",
       "sha256": "72c96272a85378cd3478c27d059ca3571f1e29fa14e453b8222ab2d204c5323c",
       "before_exit_code": 134,
       "after_exit_code": 1,
       "libraw_object_bytes": 768512,
-      "result": "QEMU GCC13.3 AArch64 Release-LTO: 32 format cases and 14 rejections pass after moving decoder state off the stack; native CI pending."
+      "result": "QEMU GCC13.3 AArch64 Release-LTO: 32 format cases and 14 rejections pass with heap-owned decoder state. Subsequent real ARM64 CI passes."
     },
     "baseline_revision": "3464cdb4a5b97f33a521c129f238430a6be326ae",
-    "native_runtime_revision": "52b259af591d4c46bed8d3d2ddd80d51d6c644b9",
-    "native_build_revision": "8af3d068c2caa7cee97b391f4bbeb952f1a2ae7b",
+    "native_runtime_revision": "ec04a2d096d146773a929d8f26fdf9dc5d9f6e06",
+    "native_build_revision": "ec04a2d096d146773a929d8f26fdf9dc5d9f6e06",
     "dependency": {
       "name": "LibRaw",
       "version": "0.22.3",
@@ -304,9 +304,24 @@
       }
     ],
     "limits": [
-      "These are authored fixtures and saved synthetic Nikon outputs; authentic capture/reference and version-pinned downstream application acceptance remain open.",
-      "Initial native CI at 8af3d06 passed Linux x86_64, macOS ARM64 and sanitizers; ARM64 exception propagation and a Windows-invalid test filename are under investigation."
-    ]
+      "Authored fixtures and saved synthetic Nikon outputs are distinct from authentic capture/reference and version-pinned downstream application acceptance, which remain open.",
+      "Initial 8af3d06 CI found ARM64 exception propagation and a Windows-invalid test filename; both are fixed. 8905ae5 passed all runtime jobs but failed moved-package lint; ec04a2d passes every job.",
+      "The indexed clean code revision precedes the evidence-only closeout commit; final-head CI is linked by the branch and handoff."
+    ],
+    "closeout": {
+      "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/closeout-ec04a2d.json",
+      "sha256": "36e7edca227b9e9419a15a5fc30ddb9b00896f35ebf6331d51416cde8fabe67a",
+      "code_revision": "ec04a2d096d146773a929d8f26fdf9dc5d9f6e06",
+      "ci": "https://github.com/ChrAlpha/cNEFX/actions/runs/40944994283",
+      "result": "Release and ASan/UBSan: four CTest executables, 128 core cases, 32 format roundtrips, 14 rejections, 36 CLI cases and ten lifecycle injections pass. Fresh final vendor replay: 77174784 matching samples; external firmware arithmetic: 201600 matching samples.",
+      "package": "Linux x86_64: 1692464-byte executable, 748413-byte archive, exact clean-revision provenance; empty-PATH 4-to-1 and 32-to-4 smoke passes.",
+      "benchmark_32_to_4": "Two alternating pairs, 545292288 samples per comparison: C++ 32.261/31.508 seconds and 626664/626568 KiB peak RSS; Python 49.854/48.214 seconds and 819520/819660 KiB. Zero differing samples.",
+      "benchmark_32_to_1_radial": "One pair, 545292288 samples: C++ 43.513 seconds and 2491456 KiB peak RSS; Python 150.756 seconds and 2617940 KiB. Zero differing samples.",
+      "resource_boundary": "Synthetic repeated ordinary RAW; warm file cache; serial targets; 300 seconds and 4 GiB address space per run. GNU time excludes parent RSS.",
+      "measurement_correction": "Early direct-wait4 RSS values inherited the runner peak and are superseded; raw reports and the instrumentation regression are retained in the closeout index.",
+      "reference_archive": "14 Python implementation modules are byte-identical to baseline 3464cdb and now reside in reference/nx_ctudio. The product uses C++20 and static pinned LibRaw, with no Python, ExifTool, Wine or vendor DLL runtime.",
+      "review": "Fresh manual source/diff review with source hashes is recorded; this is primary-agent review, not an independent reviewer."
+    }
   },
   "limits": [
     "No authentic pixel-shift capture or Lightroom acceptance is established.",
