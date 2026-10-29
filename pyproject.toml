@@ -3,9 +3,9 @@ requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 
 [project]
-name = "nx-ctudio"
+name = "cnefx-reference"
 version = "0.0.1"
-description = "Native Nikon pixel-shift synthesis with NEFX output."
+description = "Python reference and research harness for native cNEFX verification."
 requires-python = ">=3.12"
 dependencies = [
     "numpy==2.4.6",
@@ -13,15 +13,11 @@ dependencies = [
     "tifffile==2026.9.15",
 ]
 
-[project.scripts]
-nxc = "nx_ctudio.cli:main"
-
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.12,<1"]
-build = ["pyinstaller==6.22.3"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/nx_ctudio"]
+packages = ["reference/nx_ctudio"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
