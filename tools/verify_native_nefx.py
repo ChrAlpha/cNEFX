@@ -10,11 +10,11 @@ from pathlib import Path
 import numpy as np
 import rawpy
 from inspect_nefx_layout import compare, digest
-from nx_ctudio.nefx import write_nefx
 from verify_nefx_metadata import validate
 from verify_nefx_preview import verify as verify_preview
 
 from nx_ctudio import __version__
+from nx_ctudio.nefx import write_nefx
 
 
 def main() -> int:

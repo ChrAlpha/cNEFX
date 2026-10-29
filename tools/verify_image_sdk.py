@@ -20,11 +20,11 @@ from kaiji_mix import CALIBRATION_HASH
 from kaiji_oracle import MOON_HASH, dependency_hashes
 from kaiji_profile import build_profile
 from np3_parameters import normalize_flexible, parameter_blocks
-from nx_ctudio.picture_curve import generate_curve
 from verify_colorbalance import ASTEROID_HASH, STRATO_HASH
 from verify_np3_header import DLL_HASH, digest, windows
 
 from nx_ctudio import _tiff
+from nx_ctudio.picture_curve import generate_curve
 
 PINNED = {
     "Rome2.dll": DLL_HASH,

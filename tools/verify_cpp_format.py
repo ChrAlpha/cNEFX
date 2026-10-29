@@ -13,6 +13,7 @@ from pathlib import Path
 import ci_fixture
 import numpy as np
 import rawpy
+
 from nx_ctudio._tiff import read, serialize
 from nx_ctudio.nefx import encode
 from nx_ctudio.pixel_shift import reconstruct

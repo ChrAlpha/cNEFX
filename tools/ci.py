@@ -70,8 +70,17 @@ def check() -> None:
     )
     python = [p for p in paths if p.endswith(".py") and Path(p).is_file()]
     if python:
-        run(sys.executable, "-m", "ruff", "check", "--", *python)
-        run(sys.executable, "-m", "ruff", "format", "--check", "--", *python)
+        run(sys.executable, "-m", "ruff", "check", "--no-cache", "--", *python)
+        run(
+            sys.executable,
+            "-m",
+            "ruff",
+            "format",
+            "--no-cache",
+            "--check",
+            "--",
+            *python,
+        )
     for name in paths:
         path = Path(name)
         if path.is_file() and path.suffix in {

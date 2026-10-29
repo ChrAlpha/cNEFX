@@ -14,10 +14,11 @@ from pathlib import Path
 import ci_fixture
 import numpy as np
 import rawpy
+from verify_cpp_format import compare_tree, pixels
+
 from nx_ctudio._tiff import read
 from nx_ctudio.nefx import encode
 from nx_ctudio.pixel_shift import output_groups, reconstruct
-from verify_cpp_format import compare_tree, pixels
 
 
 def command(argv: list[str], code: int = 0) -> subprocess.CompletedProcess:
