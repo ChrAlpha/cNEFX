@@ -8,18 +8,14 @@ import json
 import os
 import struct
 import subprocess
-import sys
 from pathlib import Path
 
+import ci_fixture
 import numpy as np
 import rawpy
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-import ci_fixture  # noqa: E402
-
-from nx_ctudio._tiff import read, serialize  # noqa: E402
-from nx_ctudio.nefx import encode  # noqa: E402
-from nx_ctudio.pixel_shift import reconstruct  # noqa: E402
+from nx_ctudio._tiff import read, serialize
+from nx_ctudio.nefx import encode
+from nx_ctudio.pixel_shift import reconstruct
 
 
 def pixels(index: int, shape: tuple[int, int] = (48, 64)) -> np.ndarray:

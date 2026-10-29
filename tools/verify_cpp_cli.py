@@ -8,20 +8,16 @@ import json
 import os
 import signal
 import subprocess
-import sys
 import time
 from pathlib import Path
 
+import ci_fixture
 import numpy as np
 import rawpy
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-import ci_fixture  # noqa: E402
-from verify_cpp_format import compare_tree, pixels  # noqa: E402
-
-from nx_ctudio._tiff import read  # noqa: E402
-from nx_ctudio.nefx import encode  # noqa: E402
-from nx_ctudio.pixel_shift import output_groups, reconstruct  # noqa: E402
+from nx_ctudio._tiff import read
+from nx_ctudio.nefx import encode
+from nx_ctudio.pixel_shift import output_groups, reconstruct
+from verify_cpp_format import compare_tree, pixels
 
 
 def command(argv: list[str], code: int = 0) -> subprocess.CompletedProcess:

@@ -7,15 +7,12 @@ import hashlib
 import json
 import struct
 import subprocess
-import sys
 from pathlib import Path
 
 import numpy as np
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from nx_ctudio._sparse import Selection  # noqa: E402
-from nx_ctudio.pixel_shift import reconstruct  # noqa: E402
-from nx_ctudio.radial import RadialCorrection  # noqa: E402
+from nx_ctudio._sparse import Selection
+from nx_ctudio.pixel_shift import reconstruct
+from nx_ctudio.radial import RadialCorrection
 
 
 def run(executable: Path, directory: Path) -> dict:

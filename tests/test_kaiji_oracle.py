@@ -107,4 +107,4 @@ def test_curve_runner_hashes_imported_implementation(monkeypatch, tmp_path) -> N
     with pytest.raises(StopAfterHashes):
         module.main()
     assert installed_path in seen
-    assert (TOOLS.parent / "src/nx_ctudio/picture_curve.py") not in seen
+    assert (TOOLS.parent / "reference/nx_ctudio/picture_curve.py") not in seen
