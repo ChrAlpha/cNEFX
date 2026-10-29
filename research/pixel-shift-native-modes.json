@@ -218,6 +218,88 @@
       "Authentic complete captures and matching NX Studio references for all four models, and version-pinned Lightroom import/Develop/export acceptance, remain open."
     ]
   },
+  "cpp_refactor_20261029": {
+    "status": "Refactor in progress; native numerical, format and CLI implementation committed.",
+    "baseline_revision": "3464cdb4a5b97f33a521c129f238430a6be326ae",
+    "native_runtime_revision": "52b259af591d4c46bed8d3d2ddd80d51d6c644b9",
+    "native_build_revision": "8af3d068c2caa7cee97b391f4bbeb952f1a2ae7b",
+    "dependency": {
+      "name": "LibRaw",
+      "version": "0.22.3",
+      "archive_sha256": "789f3c33466210a1a0907f747a97c715d21bbf4af712f257fcbbd90111b227e4",
+      "configuration": "Static, no optional external codecs, LCMS, OpenMP or vendor SDK."
+    },
+    "reference": {
+      "url": "https://github.com/XinmiaoZhao/NikonFirmwarePatch/tree/13c3709a35c58f9cf6fc9c1043705712074651eb/z8pixelshift",
+      "revision": "13c3709a35c58f9cf6fc9c1043705712074651eb",
+      "scope": "External source oracle for pair averaging, phase mapping and integer green truncation; not product runtime code.",
+      "initial_failure": "Reference plan validation rejects a top=3 crop in 32-frame mode; the corrected harness uses crops supported by both implementations. Initial failure and nine completed fixtures retained in firmware-reference/failure.json."
+    },
+    "baseline_tests": {
+      "result": "358 passed in 7.17s",
+      "evidence": "Ten existing Python synthesis test files at baseline; no authentic inputs."
+    },
+    "authored_checks": {
+      "core": "128 cases and 2284800 samples, zero differences against Python, in Release and ASan/UBSan.",
+      "format": "32 four-model/count/correction roundtrips; full metadata/payload comparison and exact LibRaw readback; 14 rejection cases.",
+      "cli": "36 four-model/nine-mode cases, ten lifecycle injections, unicode JSON, manifests and SIGINT cancellation.",
+      "sanitizers": "Project and pinned LibRaw are instrumented with ASan/UBSan and -fno-sanitize-recover=all; all authored checks passed locally."
+    },
+    "saved_vendor_commands": [
+      "timeout --kill-after=5s 180s prlimit --as=2147483648 -- env OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run --locked python tools/verify_native_modes.py --executable build/release/cnefx --matrix /workspaces/LumaForge/nxc-data/scratch/matrix-distinct-v2/report.json --manifest /workspaces/LumaForge/nxc-data/scratch/packed14-distinct-v2/manifest.json --output /workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/vendor-modes-v2",
+      "tools/verify_native_cli.py: same 180s/2GiB budget, sparse-pipeline-v1, sparse-pipeline-scale2 and sparse-pipeline-radial reports, with and without --chromatic-aberration-correction."
+    ],
+    "concurrency": "At most two saved-output replays; each is serial with a 2 GiB address-space and 180 second wall limit. External C oracle: serial, 2 GiB, 60 seconds.",
+    "artifacts": [
+      {
+        "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/vendor-modes/report.json",
+        "sha256": "83feb5ea1462ad2893d61e9756d596cdf5040d71efc042a72ece4f7a2696624c",
+        "passed": false,
+        "cases": 1,
+        "samples": 803904,
+        "error": {
+          "type": "TypeError",
+          "message": "Value after * must be an iterable, not PosixPath"
+        }
+      },
+      {
+        "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/vendor-modes-v2/report.json",
+        "sha256": "7db938d81eb8465927801da5e1f81d5191550eae9cda70315b90da38d644e6cd",
+        "passed": true,
+        "cases": 9,
+        "samples": 28940544,
+        "error": null
+      },
+      {
+        "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/vendor-uncorrected/report.json",
+        "sha256": "67b927390536c862dc8ce88ba32be4be0459c73d45c46028f502d2a124f71f53",
+        "passed": true,
+        "cases": 12,
+        "samples": 24117120,
+        "error": null
+      },
+      {
+        "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/vendor-radial/report.json",
+        "sha256": "2fe8118691509699fbec6990718f3ef4cd6b65f6920fd94eb0bb0f6777be5670",
+        "passed": true,
+        "cases": 12,
+        "samples": 24117120,
+        "error": null
+      },
+      {
+        "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/firmware-reference-v2/report.json",
+        "sha256": "d5df52d8fb52ac78a0098d1cde932d749a7e8c446a11b438832f75466cf9721e",
+        "passed": true,
+        "cases": 12,
+        "samples": 201600,
+        "error": null
+      }
+    ],
+    "limits": [
+      "These are authored fixtures and saved synthetic Nikon outputs; authentic capture/reference and version-pinned downstream application acceptance remain open.",
+      "Initial native CI at 8af3d06 passed Linux x86_64, macOS ARM64 and sanitizers; ARM64 exception propagation and a Windows-invalid test filename are under investigation."
+    ]
+  },
   "limits": [
     "No authentic pixel-shift capture or Lightroom acceptance is established.",
     "Adobe default metadata updates for per-output 8/32 inputs remain unimplemented.",

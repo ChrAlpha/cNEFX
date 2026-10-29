@@ -42,23 +42,36 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("pipeline_reports", nargs="+", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--executable", type=Path, help="Native cnefx executable.")
     parser.add_argument("--chromatic-aberration-correction", action="store_true")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     if args.output.resolve().is_relative_to(root):
         parser.error("Research output must be outside the repository.")
     args.output.mkdir(exist_ok=False)
+    prefix = (
+        [str(args.executable.resolve())]
+        if args.executable
+        else [sys.executable, "-m", "nx_ctudio.cli"]
+    )
     report = {
         "evidence_kind": "native_cli_saved_synthetic_vendor_comparison",
         "passed": False,
         "cases": [],
+        "runtime": "cnefx" if args.executable else "python_reference",
         "chromatic_aberration_correction": args.chromatic_aberration_correction,
         "pipeline_reports": [
             {"path": str(p), "sha256": digest(p)} for p in args.pipeline_reports
         ],
         "code_sha256": {
             str(p.relative_to(root)): digest(p)
-            for p in sorted((root / "src/nx_ctudio").glob("*.py"))
+            for p in [
+                *sorted((root / "src/nx_ctudio").glob("*.py")),
+                *sorted((root / "src").glob("*.cpp")),
+                *sorted((root / "src").glob("*.hpp")),
+                *sorted((root / "include/cnefx").glob("*.hpp")),
+                root / "CMakeLists.txt",
+            ]
         },
         "runner_sha256": digest(Path(__file__)),
         "limitations": (
@@ -67,6 +80,15 @@ def main() -> int:
     }
     expected_cases = 0
     try:
+        if args.executable:
+            report["executable_sha256"] = digest(args.executable)
+            report["executable_version"] = subprocess.run(
+                [*prefix, "--version"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10,
+            ).stdout.strip()
         for corpus, source_report in enumerate(args.pipeline_reports):
             source = json.loads(source_report.read_text())
             if (
@@ -107,9 +129,7 @@ def main() -> int:
                     )
                 output = args.output / f"merge-{name}.nefx"
                 command = [
-                    sys.executable,
-                    "-m",
-                    "nx_ctudio.cli",
+                    *prefix,
                     "merge",
                     *files,
                     "--output",
