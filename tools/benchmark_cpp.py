@@ -26,6 +26,7 @@ def digest(path: Path) -> str:
 def measured(command: list[str], directory: Path, timeout: int, memory: int) -> dict:
     directory.mkdir()
     stdout, stderr = directory / "stdout.json", directory / "stderr.txt"
+    usage_path = directory / "usage.json"
     env = dict(os.environ, OPENBLAS_NUM_THREADS="1", OMP_NUM_THREADS="1")
     bounded = [
         "timeout",
@@ -34,20 +35,29 @@ def measured(command: list[str], directory: Path, timeout: int, memory: int) -> 
         "prlimit",
         f"--as={memory}",
         "--",
+        "/usr/bin/time",
+        "-o",
+        str(usage_path),
+        "-f",
+        '{"max_rss_kib":%M,"user_seconds":%U,"system_seconds":%S}',
         *command,
     ]
     start = time.monotonic()
     with stdout.open("x") as out, stderr.open("x") as err:
-        process = subprocess.Popen(bounded, stdout=out, stderr=err, env=env)
-        _, status, usage = os.wait4(process.pid, 0)
-        process.returncode = os.waitstatus_to_exitcode(status)
+        process = subprocess.run(bounded, stdout=out, stderr=err, env=env)
+    usage = {}
+    if usage_path.exists():
+        lines = usage_path.read_text().splitlines()
+        if lines and lines[-1].startswith("{"):
+            usage = json.loads(lines[-1])
     result = {
         "command": bounded,
         "returncode": process.returncode,
         "elapsed_seconds": time.monotonic() - start,
-        "user_seconds": usage.ru_utime,
-        "system_seconds": usage.ru_stime,
-        "max_rss_kib": usage.ru_maxrss,
+        "user_seconds": usage.get("user_seconds"),
+        "system_seconds": usage.get("system_seconds"),
+        "max_rss_kib": usage.get("max_rss_kib"),
+        "measurement": "GNU time on the target process; parent RSS excluded",
         "stdout": str(stdout),
         "stderr": str(stderr),
     }
@@ -202,7 +212,9 @@ def main() -> int:
     parser.add_argument("--memory-mib", type=int, default=4096)
     args = parser.parse_args()
     if platform.system() != "Linux":
-        parser.error("This resource runner uses Linux wait4 and prlimit.")
+        parser.error("This resource runner uses Linux GNU time and prlimit.")
+    if not Path("/usr/bin/time").is_file():
+        parser.error("Install GNU time for target-process RSS measurements.")
     root = Path(__file__).resolve().parents[1]
     args.output, args.executable = args.output.resolve(), args.executable.resolve()
     if args.output.is_relative_to(root):
