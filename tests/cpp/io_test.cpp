@@ -30,11 +30,28 @@ Payload payload(Bytes bytes) {
           [bytes = std::move(bytes)](const Sink &sink, const Check &) { sink(bytes); }};
 }
 void hashing(const fs::path &root) {
+  std::cout << "SHA-256 hardware rounds available: " << sha256_hardware_available() << '\n';
   CHECK(sha256(Bytes{}) == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
   CHECK(sha256(Bytes{'a', 'b', 'c'}) ==
         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
   Bytes million(1000000, 'a');
   CHECK(sha256(million) == "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0");
+  CHECK(sha256(million, false) ==
+        "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0");
+  Bytes boundary(129);
+  for (unsigned i = 0; i < boundary.size(); ++i)
+    boundary[i] = (i * 131 + i / 7) & 255;
+  for (unsigned size = 0; size <= boundary.size(); ++size) {
+    const auto data = std::span(boundary).first(size);
+    CHECK(sha256(data) == sha256(data, false));
+  }
+  Bytes multiple_chunks(2 * 1024 * 1024 + 37);
+  for (unsigned i = 0; i < multiple_chunks.size(); ++i)
+    multiple_chunks[i] = (i * 131 + i / 7) & 255;
+  create(root / "chunks.bin", multiple_chunks);
+  File chunks(root / "chunks.bin");
+  CHECK(sha256(chunks) == sha256(multiple_chunks, false));
+  CHECK(sha256(chunks, {}, false) == sha256(multiple_chunks));
   const auto path = root / "hash.bin";
   create(path, million);
   File file(path);

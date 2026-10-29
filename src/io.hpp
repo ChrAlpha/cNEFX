@@ -38,8 +38,9 @@ private:
 };
 FileState file_state(const fs::path &path);
 bool path_exists(const fs::path &path);
-std::string sha256(std::span<const std::uint8_t> bytes);
-std::string sha256(File &file, const Check &check = {});
+bool sha256_hardware_available();
+std::string sha256(std::span<const std::uint8_t> bytes, bool accelerate = true);
+std::string sha256(File &file, const Check &check = {}, bool accelerate = true);
 
 class Publication {
 public:
