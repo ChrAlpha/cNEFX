@@ -63,7 +63,7 @@ def main() -> int:
         "code_sha256": {
             str(p): pin(p)
             for p in [
-                *sorted((root / "src/nx_ctudio").glob("*.py")),
+                *sorted((root / "reference/nx_ctudio").glob("*.py")),
                 *sorted((root / "src").glob("*.cpp")),
                 *sorted((root / "src").glob("*.hpp")),
                 *sorted((root / "include/cnefx").glob("*.hpp")),

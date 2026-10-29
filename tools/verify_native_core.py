@@ -9,7 +9,6 @@ from pathlib import Path
 
 import numpy as np
 import rawpy
-
 from nx_ctudio.pixel_shift import reconstruct
 from nx_ctudio.radial import RadialCorrection
 from nx_ctudio.raw import read_frame
@@ -96,10 +95,10 @@ def main() -> int:
             str(p): digest(p)
             for p in (
                 Path(__file__),
-                Path("src/nx_ctudio/pixel_shift.py"),
-                Path("src/nx_ctudio/_sparse.py"),
-                Path("src/nx_ctudio/radial.py"),
-                Path("src/nx_ctudio/raw.py"),
+                Path("reference/nx_ctudio/pixel_shift.py"),
+                Path("reference/nx_ctudio/_sparse.py"),
+                Path("reference/nx_ctudio/radial.py"),
+                Path("reference/nx_ctudio/raw.py"),
             )
         },
     }
