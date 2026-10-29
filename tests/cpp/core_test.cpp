@@ -32,8 +32,7 @@ unsigned read32(std::istream &input) {
 }
 void replay(const char *source, const char *destination) {
   std::ifstream input(source, std::ios::binary);
-  const auto count = read32(input), width = read32(input),
-             height = read32(input);
+  const auto count = read32(input), width = read32(input), height = read32(input);
   const Crop crop{read32(input), read32(input), read32(input), read32(input)};
   const auto iso = read32(input), corrected = read32(input);
   std::array<std::uint8_t, 28> selector{};
@@ -50,8 +49,7 @@ void replay(const char *source, const char *destination) {
       count,
       [&](unsigned index) {
         require(reads.at(index)++ == 0);
-        Plane plane{width, height,
-                    std::vector<Sample>(sample_count(width, height, 1))};
+        Plane plane{width, height, std::vector<Sample>(sample_count(width, height, 1))};
         input.seekg(offset + std::streamoff(index * plane.pixels.size() * 2));
         for (auto &v : plane.pixels) {
           const int a = input.get(), b = input.get();
@@ -61,10 +59,8 @@ void replay(const char *source, const char *destination) {
         }
         return plane;
       },
-      crop, Selection::parse(selector), iso,
-      corrected ? std::optional(radial) : std::nullopt);
-  require(
-      std::all_of(reads.begin(), reads.end(), [](auto n) { return n == 1; }));
+      crop, Selection::parse(selector), iso, corrected ? std::optional(radial) : std::nullopt);
+  require(std::all_of(reads.begin(), reads.end(), [](auto n) { return n == 1; }));
   std::ofstream output(destination, std::ios::binary);
   for (auto v : result.pixels) {
     output.put(char(v & 255));
@@ -74,47 +70,32 @@ void replay(const char *source, const char *destination) {
   require(bool(output));
 }
 void tests() {
-  for (const auto [count, outputs] :
-       std::vector<std::pair<unsigned, unsigned>>{{4, 1},
-                                                  {8, 1},
-                                                  {8, 2},
-                                                  {16, 1},
-                                                  {16, 4},
-                                                  {32, 1},
-                                                  {32, 2},
-                                                  {32, 4},
-                                                  {32, 8}}) {
+  for (const auto [count, outputs] : std::vector<std::pair<unsigned, unsigned>>{
+           {4, 1}, {8, 1}, {8, 2}, {16, 1}, {16, 4}, {32, 1}, {32, 2}, {32, 4}, {32, 8}}) {
     auto groups = output_groups(count, outputs);
     std::vector<unsigned> visited(count);
     for (const auto &group : groups)
       for (auto index : group)
         ++visited.at(index);
-    require(std::all_of(visited.begin(), visited.end(),
-                        [](auto n) { return n == 1; }));
+    require(std::all_of(visited.begin(), visited.end(), [](auto n) { return n == 1; }));
   }
-  require(output_groups(32, 4)[1] ==
-          std::vector<unsigned>({4, 5, 6, 7, 20, 21, 22, 23}));
+  require(output_groups(32, 4)[1] == std::vector<unsigned>({4, 5, 6, 7, 20, 21, 22, 23}));
   rejects([] { output_groups(16, 2); });
   Selection empty;
   empty.outer_count = 0;
   auto result = reconstruct(
       4,
       [](unsigned i) {
-        return Plane{8, 8,
-                     std::vector<Sample>(
-                         64, std::array<Sample, 4>{100, 201, 300, 400}[i])};
+        return Plane{8, 8, std::vector<Sample>(64, std::array<Sample, 4>{100, 201, 300, 400}[i])};
       },
       {2, 2, 2, 2}, empty, 3201);
-  require(result.pixels == std::vector<Sample>({100, 300, 300, 201, 200, 400,
-                                                400, 200, 201, 300, 300, 100}));
+  require(result.pixels ==
+          std::vector<Sample>({100, 300, 300, 201, 200, 400, 400, 200, 201, 300, 300, 100}));
   result = reconstruct(
-      16,
-      [](unsigned i) {
-        return Plane{8, 8, std::vector<Sample>(64, 100 * (i / 4 + 1))};
-      },
+      16, [](unsigned i) { return Plane{8, 8, std::vector<Sample>(64, 100 * (i / 4 + 1))}; },
       {2, 2, 1, 1}, empty, 3201);
-  require(result.pixels == std::vector<Sample>({100, 100, 100, 200, 200, 200,
-                                                400, 400, 400, 300, 300, 300}));
+  require(result.pixels ==
+          std::vector<Sample>({100, 100, 100, 200, 200, 200, 400, 400, 400, 300, 300, 300}));
   result = reconstruct(
       8,
       [](unsigned i) {
@@ -127,13 +108,13 @@ void tests() {
   require(result.pixels == std::vector<Sample>({150, 150, 150}));
   rejects([&] {
     reconstruct(
-        4, [](unsigned) { return Plane{9, 8, std::vector<Sample>(72)}; },
-        {1, 1, 4, 4}, empty, 3201);
+        4, [](unsigned) { return Plane{9, 8, std::vector<Sample>(72)}; }, {1, 1, 4, 4}, empty,
+        3201);
   });
   rejects([&] {
     reconstruct(
-        4, [](unsigned) { return Plane{8, 8, std::vector<Sample>(64, 16384)}; },
-        {1, 1, 4, 4}, empty, 3201);
+        4, [](unsigned) { return Plane{8, 8, std::vector<Sample>(64, 16384)}; }, {1, 1, 4, 4},
+        empty, 3201);
   });
   Selection unsafe{8, 8, 2, 1};
   rejects([&] { unsafe.coordinates(8, 8); });
