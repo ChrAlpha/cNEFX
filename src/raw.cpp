@@ -7,6 +7,7 @@
 #include <cstring>
 #include <exception>
 #include <limits>
+#include <memory>
 
 namespace cnefx::detail {
 namespace {
@@ -149,8 +150,11 @@ std::pair<Plane, Metadata> read_frame(Source &source, const Check &check) {
   auto metadata = read_metadata(read_tiff(source.file));
   auto &m = metadata.sequence;
   Stream stream(*source.file);
-  LibRaw raw;
   Control control{check, {}};
+  // LibRaw owns a large decoder state. Keep it off the caller's thread stack;
+  // the stream and callback control must outlive its destructor.
+  auto decoder = std::make_unique<LibRaw>();
+  auto &raw = *decoder;
   decode(raw, stream, control);
   const auto &sizes = raw.imgdata.sizes;
   if (!raw.imgdata.rawdata.raw_image || raw.imgdata.idata.colors != 3 ||
@@ -182,8 +186,9 @@ std::pair<Plane, Metadata> read_frame(Source &source, const Check &check) {
 void verify_rgb(const fs::path &path, const Rgb &expected, const Check &check) {
   File file(path);
   Stream stream(file);
-  LibRaw raw;
   Control control{check, {}};
+  auto decoder = std::make_unique<LibRaw>();
+  auto &raw = *decoder;
   decode(raw, stream, control);
   const auto &sizes = raw.imgdata.sizes;
   const auto &data = raw.imgdata.rawdata;

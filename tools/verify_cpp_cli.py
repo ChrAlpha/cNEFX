@@ -102,12 +102,31 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
     folder = directory / "single"
     folder.mkdir()
     sources = ci_fixture.sequence(folder)
-    target = folder / 'quoted-"-\u6d4b\u8bd5.nefx'
+    target = folder / "unicode space-\u6d4b\u8bd5.nefx"
     args = [str(executable), "merge", *map(str, sources), "-o", str(target), "--json"]
     report = json.loads(command(args).stdout)
     assert report["output"] == str(target)
     failure = json.loads(command(args, 1).stdout)
     assert failure["error"]["code"] == "merge_failed"
+    quoted_target = folder / 'quoted-".nefx'
+    quoted = json.loads(
+        command(
+            [
+                str(executable),
+                "merge",
+                *map(str, sources),
+                "-o",
+                str(quoted_target),
+                "--json",
+            ],
+            1 if os.name == "nt" else 0,
+        ).stdout
+    )
+    if os.name == "nt":
+        assert quoted["error"]["code"] == "merge_failed"
+        assert not quoted_target.exists()
+    else:
+        assert quoted["output"] == str(quoted_target)
     for extra in (
         [],
         ["--json"],

@@ -220,6 +220,14 @@
   },
   "cpp_refactor_20261029": {
     "status": "Refactor in progress; native numerical, format and CLI implementation committed.",
+    "portability_regression": {
+      "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/arm13-audit.json",
+      "sha256": "72c96272a85378cd3478c27d059ca3571f1e29fa14e453b8222ab2d204c5323c",
+      "before_exit_code": 134,
+      "after_exit_code": 1,
+      "libraw_object_bytes": 768512,
+      "result": "QEMU GCC13.3 AArch64 Release-LTO: 32 format cases and 14 rejections pass after moving decoder state off the stack; native CI pending."
+    },
     "baseline_revision": "3464cdb4a5b97f33a521c129f238430a6be326ae",
     "native_runtime_revision": "52b259af591d4c46bed8d3d2ddd80d51d6c644b9",
     "native_build_revision": "8af3d068c2caa7cee97b391f4bbeb952f1a2ae7b",
