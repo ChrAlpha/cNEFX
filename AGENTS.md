@@ -178,6 +178,11 @@ npm publish build/npm/cnefx-cli-0.1.0.tgz
 npm trust github cnefx-cli --file release.yml --repo ChrAlpha/cNEFX --allow-publish
 ```
 
+A new trusted publisher expires unless a workflow publish succeeds within two
+days. Before tagging after such a lapse, replace it: find its ID with
+`npm trust list cnefx-cli`, run `npm trust revoke cnefx-cli --id=<id>`, then
+repeat the `npm trust github` command above.
+
 ## Source routing and API
 
 The public API is [core.hpp](include/cnefx/core.hpp) and
