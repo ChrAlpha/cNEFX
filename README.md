@@ -42,40 +42,46 @@ Check the accompanying `.sha256` file, extract the archive, and add its `bin`
 directory to `PATH`. Builds are unsigned and not notarized; older-system
 compatibility is not established.
 
-## Merge a sequence
+## Merge pixel-shift captures
 
-Use **lossless-compressed, 14-bit FX NEF files** from one complete pixel-shift
-sequence. Pass every file explicitly in capture order, with consecutive shot
-numbers. Directory inputs and shell glob ordering are not a substitute for
-capture order. HE/HE* is unsupported; HLG, other image areas and untested
-firmware/settings remain unvalidated.
-
-The destination must not exist, and its parent directory must already exist.
-Four captures to one NEFX:
+Use **lossless-compressed, 14-bit FX NEF files**. Pass a card folder, a shoot
+folder or individual files; no other option is needed:
 
 ```sh
-cnefx merge \
-  shot-01.NEF shot-02.NEF shot-03.NEF shot-04.NEF \
-  --output merged.nefx
+cnefx merge /path/to/DCIM/100NZ_8
 ```
 
-Eight captures to two NEFX files in a new directory:
+A directory contributes the `.NEF` files directly inside it. Photos without
+pixel-shift metadata are skipped. The remaining captures are grouped into
+sequences by the camera's burst identity and ordered by shot number, as NX Studio
+does, so file order does not matter. Every complete sequence is merged and
+written beside its first capture, for example `SGL_6243_merged.NEFX`. Pixel shift
+with AE bracketing records each exposure as its own sequence: a 3-exposure shoot
+produces three NEFX files for downstream HDR merging.
+
+Every sequence must be complete and one run accepts one camera model; a missing
+or inconsistent capture stops the run before any decode. Destinations are never replaced, so a second run in the same
+folder fails until the earlier outputs are moved. All outputs are verified
+before the first is published. If a later file cannot be published, the earlier
+ones remain valid and the error says how many were written. HE/HE* is
+unsupported; HLG, other image areas and untested firmware/settings remain
+unvalidated.
+
+To choose the destination instead:
 
 ```sh
-cnefx merge \
-  shot-01.NEF shot-02.NEF shot-03.NEF shot-04.NEF \
-  shot-05.NEF shot-06.NEF shot-07.NEF shot-08.NEF \
-  --outputs 2 --output-directory merged-set
+cnefx merge shot-*.NEF --output merged.nefx         # exactly one sequence
+cnefx merge /path/to/folder --output-directory set  # all outputs at once
 ```
 
-The directory contains the NEFX files and a `manifest.json` report. cNEFX checks
-the output samples before publishing and never replaces an existing destination,
-including an empty directory. A successful merge can still report cleanup or
-sync warnings; keep the published output and read the warning before retrying.
+`--output-directory` publishes every NEFX and a `manifest.json` report together
+in a new directory. A successful merge can still report cleanup or sync
+warnings; keep the published output and read the warning before retrying.
 
 ### Output modes
 
-`--outputs` defaults to `1`. Use `--output-directory` for multiple outputs.
+`--outputs N` sets the outputs per sequence and defaults to `1`. Several outputs
+are named `NAME_merged_01.NEFX` onward; `--output` accepts only one.
 
 | Captures | Allowed outputs | Dimensions per output, relative to the source crop |
 | --- | --- | --- |

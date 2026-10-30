@@ -45,5 +45,11 @@ Metadata read_metadata(const Directory &root);
 std::pair<Plane, Metadata> read_frame(Source &source, const Check &check = {});
 void verify_rgb(const fs::path &path, const Rgb &expected, const Check &check = {});
 const char *decoder_version();
-void validate_sequence(const std::vector<Metadata> &metadata, bool radial);
+void validate_sequence(std::span<const Metadata> metadata, bool radial);
+// Null for a source capture with active pixel-shift metadata, else the reason to
+// skip the file.
+const char *skip_reason(const Directory &root);
+// Indices grouped by camera and burst identity in first-appearance order, each
+// ordered by shot number. Callers validate every group with validate_sequence.
+std::vector<std::vector<unsigned>> group_sequences(std::span<const Metadata> metadata);
 } // namespace cnefx::detail

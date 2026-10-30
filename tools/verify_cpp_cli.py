@@ -14,6 +14,7 @@ from pathlib import Path
 import rawpy
 
 import ci_fixture
+import verify_cpp_sequences
 from tiff_fixture import tree_digest
 from verify_cpp_format import pixels
 
@@ -59,7 +60,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
             )
             report = json.loads(result.stdout)
             assert report == json.loads((output / "manifest.json").read_text())
-            assert report["status"] == "ok" and report["schema_version"] == 1
+            assert report["status"] == "ok" and report["schema_version"] == 2
             assert report["camera"]["model"] == model
             assert report["output_count"] == outputs
             assert report["warnings"] == []
@@ -126,7 +127,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
     target = folder / "unicode space-\u6d4b\u8bd5.nefx"
     args = [str(executable), "merge", *map(str, sources), "-o", str(target), "--json"]
     report = json.loads(command(args).stdout)
-    assert report["output"] == str(target)
+    assert report["outputs"][0]["output"] == str(target)
     failure = json.loads(command(args, 1).stdout)
     assert failure["error"]["code"] == "merge_failed"
     quoted_target = folder / 'quoted-".nefx'
@@ -147,7 +148,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
         assert quoted["error"]["code"] == "merge_failed"
         assert not quoted_target.exists()
     else:
-        assert quoted["output"] == str(quoted_target)
+        assert quoted["outputs"][0]["output"] == str(quoted_target)
     for extra in (
         [],
         ["--json"],
@@ -163,7 +164,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
     assert "Usage:" in command([str(executable), "--help"]).stdout
     injected = []
     for mode in (
-        "order",
+        "incomplete",
         "preflight",
         "unread",
         "replacement",
@@ -184,6 +185,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
                 "--inject",
                 mode,
                 str(folder / "result"),
+                "2",
                 *map(str, sources),
             ]
         )
@@ -230,6 +232,9 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
         "injected_failures": injected,
         "cancellation": cancellation,
         "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+        "sequences": verify_cpp_sequences.run(
+            executable, injector, directory / "sequences"
+        ),
     }
     (directory / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     return report

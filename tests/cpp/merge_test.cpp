@@ -2,6 +2,7 @@
 #include "io.hpp"
 
 #include <iostream>
+#include <set>
 #include <utility>
 
 using namespace cnefx;
@@ -23,14 +24,22 @@ void mutate(const fs::path &path, bool restore) {
     fs::last_write_time(path, time);
   }
 }
+// TARGET "-" writes each output beside its first capture; race_last then expects
+// 4-frame sequences and claims the last sequence's destination during publication.
 void inject(int argc, char **argv) {
-  const std::string mode = argv[2];
-  MergeOptions options{argv[3], 2, true, false};
-  std::vector<fs::path> paths(argv + 4, argv + argc);
+  const std::string mode = argv[2], target = argv[3];
+  const bool beside = target == "-";
+  MergeOptions options{beside ? fs::path() : fs::path(target),
+                       static_cast<unsigned>(std::stoul(argv[4])), !beside, false};
+  std::vector<fs::path> paths(argv + 5, argv + argc);
+  const auto folder = paths.front().parent_path();
+  const auto last =
+      paths.back().parent_path() / (paths[paths.size() - 4].stem().string() + "_merged.NEFX");
   bool fired = false, cancel = false, rejected = false, progressed = false;
-  if (mode == "order") {
+  std::string message;
+  if (mode == "incomplete") {
     fired = true;
-    std::swap(paths[0], paths[1]);
+    paths.pop_back();
   }
   try {
     merge(
@@ -96,41 +105,70 @@ void inject(int argc, char **argv) {
             fired = true;
             fs::create_directory(options.output);
           }
+          if (stage == Stage::publish && mode == "race_last") {
+            fired = true;
+            File(last, FileMode::create).sync();
+          }
         });
   } catch (const Cancelled &) {
     require(mode == "cancel" || mode == "cancel_decode");
     rejected = true;
-  } catch (const std::exception &) {
+  } catch (const std::exception &e) {
     require(mode != "cancel" && mode != "cancel_decode");
     rejected = true;
+    message = e.what();
   }
   require(fired && rejected);
-  // Capture order is metadata-only; it must fail before preflight completes.
-  require(mode != "order" || !progressed);
-  require(mode == "target_race" ? fs::is_directory(options.output) && fs::is_empty(options.output)
-                                : !path_exists(options.output));
-  for (const auto &entry : fs::directory_iterator(options.output.parent_path()))
-    require(!entry.path().filename().string().starts_with(".cnefx-"));
+  // Sequence completeness is metadata-only; it must fail before preflight completes.
+  require(mode != "incomplete" || !progressed);
+  const auto beside_output = [](const fs::path &first) {
+    return first.parent_path() / (first.stem().string() + "_merged.NEFX");
+  };
+  if (mode == "race_last")
+    // Earlier outputs stay published and valid; the claimed name is untouched.
+    require(path_exists(beside_output(paths[0])) && path_exists(beside_output(paths[4])) &&
+            fs::file_size(last) == 0 &&
+            message.find("2 of 3 outputs were published") != std::string::npos);
+  else if (beside)
+    for (const auto &path : paths)
+      require(!path_exists(beside_output(path)));
+  else
+    require(mode == "target_race" ? fs::is_directory(options.output) && fs::is_empty(options.output)
+                                  : !path_exists(options.output));
+  std::set<fs::path> folders{beside ? folder : options.output.parent_path()};
+  for (const auto &path : paths)
+    if (beside)
+      folders.insert(path.parent_path());
+  for (const auto &directory : folders)
+    for (const auto &entry : fs::directory_iterator(directory))
+      require(!entry.path().filename().string().starts_with(".cnefx-"));
 }
 void tests() {
   require(error_json("a\"b", "a\nb").find("a\\u000ab") != std::string::npos);
   require(error_json("error", "\xf0\x9f\x98\x80").find("\\ud83d\\ude00") != std::string::npos);
   require(error_json("error", "\xff").find("\\udcff") != std::string::npos);
-  MergeOptions options{"output.nefx", 1, false, false};
-  bool rejected = false;
-  try {
-    merge(std::vector<fs::path>{"a", "b", "c"}, options);
-  } catch (const std::invalid_argument &) {
-    rejected = true;
+  // Option and input errors precede any file access.
+  for (const auto &[inputs, options] : std::vector<std::pair<std::vector<fs::path>, MergeOptions>>{
+           {{}, {}},
+           {{"absent.NEF"}, {"output.nefx", 2, false, false}},
+           {{"absent.NEF"}, {"output.tif", 1, false, false}},
+           {{"absent.NEF"}, {"", 1, true, false}},
+           {{"absent.NEF"}, {"", 0, false, false}}}) {
+    bool rejected = false;
+    try {
+      merge(inputs, options);
+    } catch (const std::invalid_argument &) {
+      rejected = true;
+    }
+    require(rejected);
   }
-  require(rejected);
 }
 } // namespace
 int main(int argc, char **argv) {
   try {
     if (argc == 1)
       tests();
-    else if (argc == 12 && std::string(argv[1]) == "--inject")
+    else if (argc >= 9 && std::string(argv[1]) == "--inject")
       inject(argc, argv);
     else
       return 2;

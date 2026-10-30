@@ -6,32 +6,60 @@
 #include <iostream>
 #include <string_view>
 
+#ifdef _WIN32
+#include <cstdio>
+#else
+#include <algorithm>
+#include <climits>
+#include <sys/resource.h>
+#endif
+
 namespace {
 // Worker threads may receive the signal; a lock-free atomic is safe in a
 // handler and visible to the caller's thread.
 std::atomic<bool> interrupted{false};
 static_assert(std::atomic<bool>::is_always_lock_free);
 extern "C" void signal_handler(int) { interrupted.store(true, std::memory_order_relaxed); }
+// Every capture of a run stays open until publication, so a folder of several
+// sequences needs more descriptors than the default soft limit on some systems.
+void raise_file_limit() {
+#ifdef _WIN32
+  _setmaxstdio(8192);
+#else
+  rlimit limit{};
+  if (getrlimit(RLIMIT_NOFILE, &limit) || limit.rlim_cur >= limit.rlim_max)
+    return;
+  limit.rlim_cur = limit.rlim_max;
+#ifdef __APPLE__
+  limit.rlim_cur = std::min<rlim_t>(limit.rlim_max, OPEN_MAX);
+#endif
+  setrlimit(RLIMIT_NOFILE, &limit);
+#endif
+}
 std::filesystem::path from_utf8(const std::string &text) {
   return std::filesystem::path(std::u8string(text.begin(), text.end()));
 }
 void help() {
   std::cout << "cNEFX " << cnefx::version()
             << " - native Nikon pixel-shift NEFX synthesis\n\n"
-               "Usage: cnefx merge FILE... --output FILE.nefx [--json]\n"
-               "       cnefx merge FILE... --outputs N --output-directory DIR [--json]\n\n"
-               "Pass a complete sequence in explicit capture order. Destinations must not exist.\n"
+               "Usage: cnefx merge PATH... [--outputs N] [--output FILE.nefx | --output-directory "
+               "DIR]\n\n"
+               "PATH is a NEF file or a directory whose immediate .NEF files are used. Captures\n"
+               "without pixel-shift metadata are skipped; the rest are grouped into sequences by\n"
+               "burst identity and ordered by shot number. Each complete sequence is merged;\n"
+               "AE-bracketed exposures are separate sequences. By default each output is written\n"
+               "beside its first capture as NAME_merged.NEFX. Destinations must not exist.\n"
                "Modes: 4->1, 8->1/2, 16->1/4, 32->1/2/4/8.\n\n"
                "Options:\n"
-               "  -o, --output FILE.nefx             Write one verified NEFX\n"
-               "  --output-directory DIR            Publish a complete output set\n"
-               "  --outputs N                       Number of outputs (default 1)\n"
-               "  --jobs N                          Worker threads, 1-256 (default: all cores)\n"
+               "  -o, --output FILE.nefx             Write the only output to this file\n"
+               "  --output-directory DIR             Publish all outputs and a manifest together\n"
+               "  --outputs N                        Outputs per sequence (default 1)\n"
+               "  --jobs N                           Worker threads, 1-256 (default: all cores)\n"
                "  --chromatic-aberration-correction  Apply supported source radial correction\n"
-               "  --json                            Write a JSON report to stdout\n"
-               "  --                                Treat remaining arguments as input paths\n"
-               "  -h, --help                        Show this help\n"
-               "  --version                         Show the version\n\n"
+               "  --json                             Write a JSON report to stdout\n"
+               "  --                                 Treat remaining arguments as input paths\n"
+               "  -h, --help                         Show this help\n"
+               "  --version                          Show the version\n\n"
                "Experimental: authentic capture/reference and Lightroom acceptance remain open.\n";
 }
 int run(const std::vector<std::string> &args) {
@@ -110,14 +138,15 @@ int run(const std::vector<std::string> &args) {
         throw std::invalid_argument("Unknown option: " + arg);
       inputs.push_back(from_utf8(arg));
     }
-    if (!have_output || inputs.empty())
-      throw std::invalid_argument("Input files and an output destination are required.");
-    if (!options.directory && options.outputs != 1)
-      throw std::invalid_argument("Multiple outputs require --output-directory.");
+    if (inputs.empty())
+      throw std::invalid_argument("Input files or directories are required.");
+    if (have_output && !options.directory && options.outputs != 1)
+      throw std::invalid_argument("--output writes one file; use --output-directory or omit it.");
   } catch (const std::exception &e) {
     std::cerr << "cnefx: " << e.what() << '\n';
     return 2;
   }
+  raise_file_limit();
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
   try {
@@ -131,6 +160,8 @@ int run(const std::vector<std::string> &args) {
       for (const auto &output : report.outputs)
         std::cout << cnefx::path_utf8(output.path) << " (" << output.samples_verified
                   << " samples verified)\n";
+      for (const auto &skipped : report.skipped)
+        std::cerr << "Skipped " << cnefx::path_utf8(skipped.path) << ": " << skipped.reason << '\n';
       for (const auto &limitation : report.limitations)
         std::cerr << limitation << '\n';
       for (const auto &warning : report.warnings)

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <charconv>
 #include <chrono>
+#include <map>
 #include <numeric>
 #include <string_view>
 
@@ -172,7 +173,7 @@ Metadata read_metadata(const Directory &root) {
   }
   return result;
 }
-void validate_sequence(const std::vector<Metadata> &metadata, bool radial) {
+void validate_sequence(std::span<const Metadata> metadata, bool radial) {
   output_groups(metadata.size(), 1);
   const auto &first = metadata.front();
   if (first.sequence.count != metadata.size())
@@ -191,5 +192,43 @@ void validate_sequence(const std::vector<Metadata> &metadata, bool radial) {
     if (radial && item.radial->coefficients != first.radial->coefficients)
       throw std::invalid_argument("Sequence radial correction coefficients differ.");
   }
+}
+const char *skip_reason(const Directory &root) {
+  // Classification only; read_metadata strictly validates every accepted capture.
+  const auto find = [](const Directory &directory, unsigned code) -> const Tag * {
+    const auto tag = directory.tags.find(code);
+    return tag == directory.tags.end() ? nullptr : &tag->second;
+  };
+  const auto *exif = find(root, 34665);
+  const auto *note =
+      exif && exif->children.size() == 1 ? find(exif->children.front(), 37500) : nullptr;
+  const auto *maker = note && note->children.size() == 1 ? &note->children.front() : nullptr;
+  const auto *capture = maker ? find(*maker, 0x56) : nullptr;
+  const auto *shift = maker ? find(*maker, 0x5e) : nullptr;
+  if (!capture || !shift || capture->data.size() <= 12 || capture->data[12] != 1 ||
+      shift->data.size() <= 4 || shift->data[4] < 1 || shift->data[4] > 4)
+    return "No active pixel-shift metadata.";
+  return maker->tags.contains(0x0e2d) ? "Already merged NEFX." : nullptr;
+}
+std::vector<std::vector<unsigned>> group_sequences(std::span<const Metadata> metadata) {
+  // NX Studio keys sequences by burst identity and orders captures by shot number;
+  // the camera serial keeps equal burst identities from two bodies apart.
+  std::vector<std::vector<unsigned>> sequences;
+  std::map<std::pair<std::string, std::uint32_t>, std::size_t> bursts;
+  for (unsigned i = 0; i < metadata.size(); ++i) {
+    const auto &item = metadata[i].sequence;
+    require(item.make == metadata.front().sequence.make &&
+                item.model == metadata.front().sequence.model,
+            "Inputs must come from one camera model.");
+    const auto [position, inserted] =
+        bursts.emplace(std::pair(item.identity_hash, item.burst), sequences.size());
+    if (inserted)
+      sequences.emplace_back();
+    sequences[position->second].push_back(i);
+  }
+  for (auto &sequence : sequences)
+    std::stable_sort(sequence.begin(), sequence.end(),
+                     [&](unsigned a, unsigned b) { return metadata[a].shot < metadata[b].shot; });
+  return sequences;
 }
 } // namespace cnefx::detail
