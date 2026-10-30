@@ -1,9 +1,13 @@
 #include "cnefx/core.hpp"
+#include "parallel.hpp"
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <thread>
 
 using namespace cnefx;
 namespace {
@@ -178,6 +182,39 @@ void tests() {
     stopped = std::string(e.what()) == "cancelled";
   }
   require(stopped);
+  // Cancellation must reach a worker after the caller has finished its task.
+  using namespace std::chrono_literals;
+  const auto caller = std::this_thread::get_id();
+  std::atomic<bool> worker_started{false}, worker_completed{false};
+  unsigned checks = 0;
+  bool interrupted = false;
+  const auto begin = std::chrono::steady_clock::now();
+  try {
+    detail::parallel_for(
+        2, 2,
+        [&] {
+          if (++checks == 3)
+            throw std::runtime_error("cancelled");
+        },
+        [&](unsigned, const Check &poll) {
+          if (std::this_thread::get_id() == caller) {
+            while (!worker_started && std::chrono::steady_clock::now() - begin < 5s)
+              std::this_thread::sleep_for(1ms);
+            return;
+          }
+          worker_started = true;
+          for (const auto end = std::chrono::steady_clock::now() + 5s;
+               std::chrono::steady_clock::now() < end;) {
+            poll();
+            std::this_thread::sleep_for(1ms);
+          }
+          worker_completed = true;
+        });
+  } catch (const std::runtime_error &e) {
+    interrupted = std::string(e.what()) == "cancelled";
+  }
+  require(interrupted && worker_started && !worker_completed &&
+          std::chrono::steady_clock::now() - begin < 4s);
 }
 } // namespace
 int main(int argc, char **argv) {

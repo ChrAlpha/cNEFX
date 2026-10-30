@@ -1,13 +1,17 @@
 #include "cnefx/merge.hpp"
 
+#include <atomic>
 #include <charconv>
 #include <csignal>
 #include <iostream>
 #include <string_view>
 
 namespace {
-volatile std::sig_atomic_t interrupted = 0;
-extern "C" void signal_handler(int) { interrupted = 1; }
+// Worker threads may receive the signal; a lock-free atomic is safe in a
+// handler and visible to the caller's thread.
+std::atomic<bool> interrupted{false};
+static_assert(std::atomic<bool>::is_always_lock_free);
+extern "C" void signal_handler(int) { interrupted.store(true, std::memory_order_relaxed); }
 std::filesystem::path from_utf8(const std::string &text) {
   return std::filesystem::path(std::u8string(text.begin(), text.end()));
 }

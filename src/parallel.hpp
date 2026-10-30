@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <exception>
 #include <mutex>
 #include <thread>
@@ -17,9 +19,11 @@ inline unsigned concurrency(unsigned jobs, unsigned tasks) {
 
 // Runs task(index, poll) for every index in [0, count). The caller's thread
 // takes part and is the only thread that runs check, so callbacks keep their
-// caller-thread contract. Other threads poll a stop flag instead. After a task
-// or check fails, the remaining threads stop at their next poll and the first
-// failure is rethrown once every thread has joined.
+// caller-thread contract; it keeps polling check while other threads finish.
+// Other threads poll a stop flag instead. After a task or check fails, the
+// remaining threads stop at their next poll and the first failure is rethrown
+// once every thread has joined. Failing to start a thread only reduces
+// parallelism.
 template <class Task>
 void parallel_for(unsigned count, unsigned jobs, const Check &check, const Task &task) {
   const auto threads = concurrency(jobs, count);
@@ -62,15 +66,41 @@ void parallel_for(unsigned count, unsigned jobs, const Check &check, const Task 
       }
     }
   };
+  std::condition_variable finished;
+  unsigned active = 0;
   std::vector<std::thread> workers;
   workers.reserve(threads - 1);
-  try {
-    for (unsigned t = 1; t < threads; ++t)
-      workers.emplace_back([&] { run(stopped); });
-  } catch (...) {
-    fail();
+  for (unsigned t = 1; t < threads; ++t) {
+    {
+      const std::lock_guard lock(mutex);
+      ++active;
+    }
+    try {
+      workers.emplace_back([&] {
+        run(stopped);
+        const std::lock_guard lock(mutex);
+        --active;
+        finished.notify_one();
+      });
+    } catch (...) {
+      const std::lock_guard lock(mutex);
+      --active;
+      break;
+    }
   }
   run(caller);
+  std::unique_lock lock(mutex);
+  while (!finished.wait_for(lock, std::chrono::milliseconds(20), [&] { return !active; })) {
+    lock.unlock();
+    try {
+      if (!stop && check)
+        check();
+    } catch (...) {
+      fail();
+    }
+    lock.lock();
+  }
+  lock.unlock();
   for (auto &worker : workers)
     worker.join();
   if (failure)
