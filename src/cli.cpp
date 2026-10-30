@@ -27,15 +27,15 @@ void help() {
          "Modes: 4->1, 8->1/2, 16->1/4, 32->1/2/4/8.\n\n"
          "Options:\n"
          "  -o, --output FILE.nefx             Write one verified NEFX\n"
-         "  --output-directory DIR            Publish a complete output set\n"
-         "  --outputs N                       Outputs per exposure sequence (default 1)\n"
+         "  --output-directory DIR             Publish a complete output set\n"
+         "  --outputs N                        Outputs per exposure sequence (default 1)\n"
          "  --ae-bracketing N                  Require 2-9 exposures (default: detect metadata)\n"
-         "  --jobs N                          Worker threads, 1-256 (default: all cores)\n"
+         "  --jobs N                           Worker threads, 1-256 (default: all cores)\n"
          "  --chromatic-aberration-correction  Apply supported source radial correction\n"
-         "  --json                            Write a JSON report to stdout\n"
-         "  --                                Treat remaining arguments as input paths\n"
-         "  -h, --help                        Show this help\n"
-         "  --version                         Show the version\n\n"
+         "  --json                             Write a JSON report to stdout\n"
+         "  --                                 Treat remaining arguments as input paths\n"
+         "  -h, --help                         Show this help\n"
+         "  --version                          Show the version\n\n"
          "Experimental: authentic capture/reference and Lightroom acceptance remain open.\n";
 }
 int run(const std::vector<std::string> &args) {
