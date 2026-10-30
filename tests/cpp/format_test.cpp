@@ -11,6 +11,72 @@ void require(bool ok) {
   if (!ok)
     throw std::runtime_error("Format test failed.");
 }
+template <class F> bool rejects(F f) {
+  try {
+    f();
+  } catch (const std::invalid_argument &) {
+    return true;
+  }
+  return false;
+}
+void sequences() {
+  // Two interleaved 4-frame bursts in shuffled order, as a directory may list them.
+  std::vector<Metadata> input;
+  for (const auto [burst, shot] : std::vector<std::pair<unsigned, unsigned>>{
+           {7, 3}, {9, 2}, {7, 1}, {9, 4}, {7, 4}, {9, 1}, {7, 2}, {9, 3}}) {
+    Metadata item;
+    item.sequence.make = "NIKON CORPORATION";
+    item.sequence.model = "NIKON Z 8";
+    item.sequence.count = 4;
+    item.sequence.burst = burst;
+    item.sequence.identity_hash = "camera";
+    item.shot = shot;
+    input.push_back(item);
+  }
+  const auto groups = group_sequences(input);
+  require(groups == std::vector<std::vector<unsigned>>({{2, 6, 0, 4}, {5, 1, 7, 3}}));
+  for (const auto &group : groups) {
+    std::vector<Metadata> ordered;
+    for (const auto index : group)
+      ordered.push_back(input[index]);
+    validate_sequence(ordered, false);
+    require(rejects([&] { validate_sequence(std::span(ordered).first(3), false); }));
+    ordered[3].shot = ordered[2].shot;
+    require(rejects([&] { validate_sequence(ordered, false); }));
+  }
+  // Equal burst identities from another body form their own sequence.
+  auto other = input;
+  for (auto &item : other)
+    item.sequence.identity_hash = "other camera";
+  other.insert(other.begin(), input.begin(), input.end());
+  require(group_sequences(other).size() == 4);
+  // Only source captures with active pixel-shift metadata are classified as such.
+  Directory maker;
+  maker.set(0x56, 7, Bytes{'0', '1', '0', '0', 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0});
+  maker.set(0x5e, 7, Bytes{'0', '1', '0', '0', 1});
+  const auto root = [](const Directory &note) {
+    Directory exif, result;
+    exif.tags[37500].children.push_back(note);
+    result.tags[34665].children.push_back(exif);
+    return result;
+  };
+  require(!skip_reason(root(maker)));
+  auto ordinary = maker;
+  ordinary.tags[0x56].data[12] = 0;
+  const std::string_view inactive = "No active pixel-shift metadata.";
+  require(skip_reason(root(ordinary)) == inactive && skip_reason(Directory{}) == inactive);
+  auto merged = maker;
+  merged.set(0x0e2d, 7, Bytes{});
+  require(skip_reason(root(merged)) == std::string_view("Already merged NEFX."));
+  // Earlier outputs are recognized by camera and burst identity.
+  merged.tags[0x56].data[4] = 9;
+  const auto identity = [&](const Directory &note) {
+    auto tree = root(note);
+    tree.tags[34665].children.front().set(42033, 2, Bytes{'S', 'N', '1', 0});
+    return merged_identity(tree);
+  };
+  require(identity(merged) && identity(merged)->second == 9 && !identity(maker));
+}
 void merge(int argc, char **argv, bool corrected) {
   const unsigned count = argc - 3;
   output_groups(count, 1);
@@ -58,6 +124,7 @@ void merge(int argc, char **argv, bool corrected) {
   pending.cleanup();
 }
 void tests() {
+  sequences();
   require(crc16(Bytes{'1', '2', '3', '4', '5', '6', '7', '8', '9'}) == 0x29b1);
   const Rgb values{4, 1, {0, 1, 16382, 16383, 1, 2, 3, 4, 5, 6, 7, 8}};
   auto payload = packed14(values);

@@ -51,12 +51,12 @@ comments, commit messages, and new documentation must be English ASCII.
 
 | Boundary | Required behavior |
 | --- | --- |
-| Input identity | Preserve explicit capture order, complete sequence size, consecutive shot numbers, matching sequence metadata, and immutable source hashes. Reject duplicate files and hard links. |
-| RAW decoding | Keep `metadata.cpp` and `raw.cpp` strict about supported Nikon metadata, compression, CFA, geometry, and crop. Read each source once from its owned descriptor; hash, parse and decode those same bytes. Do not patch real capture metadata or relax validation to accept an unsupported file. |
+| Input identity | Skip only non-NEF files, captures without active pixel-shift metadata and merged NEFX. Group the rest by camera and burst identity and order each sequence by shot number, as NX Studio does; never infer order from file names or timestamps. Preserve complete sequence size, consecutive shot numbers, matching sequence metadata and immutable source hashes. A path reached twice counts once; reject hard links. |
+| RAW decoding | Keep `metadata.cpp` and `raw.cpp` strict about supported Nikon metadata, compression, CFA, geometry, and crop. Discovery reads metadata once to plan; synthesis reads each capture once from its owned descriptor, hashes, parses and decodes those same bytes and requires the planned metadata. Do not patch real capture metadata or relax validation to accept an unsupported file. |
 | Numerical core | Keep reconstruction independent of file decoding and capture identity. Preserve integer arithmetic, truncation, ordered sparse repair, phase mapping, and the special 32-to-4 grouping. Disable floating-point contraction and fast math for calibrated arithmetic. |
 | Resource ownership | Preserve one decode per capture index and bounded source-plane retention. Keep LibRaw state on the heap with callbacks, streams and source bytes alive through its destruction. Source bytes, decoder buffers, final RGB and radial correction consume additional memory. Run callbacks only on the caller's thread; workers poll a stop flag, and outputs must not depend on the job count. |
 | NEFX serialization | Preserve required source metadata and JPEG payloads, update recovered Nikon blocks and CRCs, and verify decoded RGB samples exactly before publication. Do not equate this with byte-identical Nikon output. |
-| Publication | Stage privately beside the destination; publish without replacement only after validation. Pre-publication failures must not expose partial output sets. |
+| Publication | Stage privately beside each destination; publish without replacement only after the outputs are validated. Without an output directory each sequence is an independent unit: a failure exposes none of its outputs (or reports those already published) and leaves other sequences unaffected. A directory publishes every sequence at once or nothing. Recognize an existing merged NEFX of the same camera and burst as done; never replace anything else. |
 | Post-publication failure | Retain published output and report parent-sync or cleanup warnings. Do not delete a valid output or imply that retrying the same destination is safe. |
 | CLI | Keep orchestration thin. Preserve versioned JSON reports, process exit codes, cancellation behavior, limitations, and warnings. Argument errors use stderr, not JSON reports. |
 
@@ -128,9 +128,9 @@ ctest --preset sanitize
 uv run --locked python tools/ci.py verify --build-dir build/sanitize --config Debug
 ```
 
-`verify` runs numerical, format, four-model/nine-mode CLI and failure-injection
-checks. Reports go to `build/<preset>/verification/`. Preserve that directory
-before rerunning: the command refuses to overwrite it. Individual
+`verify` runs numerical, format, four-model/nine-mode CLI, multi-sequence,
+discovery and failure-injection checks. Reports go to `build/<preset>/verification/`.
+Preserve that directory before rerunning: the command refuses to overwrite it. Individual
 `tools/verify_cpp_*.py` runners accept a fresh `--work-directory`. The sanitizer
 preset instruments both cNEFX and LibRaw.
 
@@ -197,7 +197,7 @@ binary ABI or installed SDK is promised.
 | Descriptor ownership, SHA-256, bounded TIFF graph, publication | `src/io.cpp`, `src/sha256.cpp`, `src/tiff.cpp` | `tests/cpp/io_test.cpp`, format/CLI lifecycle checks |
 | Strict Nikon metadata and RAW decode | `src/metadata.cpp`, `src/raw.cpp` | `tests/cpp/format_test.cpp`, `tools/verify_cpp_format.py` |
 | NEFX packing, Nikon blocks, CRCs, previews | `src/nefx.cpp` | Saved format expectations and vendor replays |
-| Sequence orchestration and reports | `src/merge.cpp`, `src/report.cpp` | `tests/cpp/merge_test.cpp`, `tools/verify_cpp_cli.py` |
+| Input discovery, sequence orchestration and reports | `src/discover.cpp`, `src/merge.cpp`, `src/report.cpp` | `tests/cpp/merge_test.cpp`, `tools/verify_cpp_cli.py`, `tools/verify_cpp_sequences.py`, `tools/verify_cpp_discovery.py` |
 | CLI argument handling and signals | `src/cli.cpp` | CLI regression, cancellation and package smoke checks |
 | Build, packaging and release | `CMakeLists.txt`, `cmake/`, `package.json`, `npm/`, `.github/workflows/` | Four native platforms, ASan/UBSan, empty-PATH package and npm launcher checks |
 
@@ -209,26 +209,46 @@ correction add to the working set; this is not a universal peak-memory bound.
 Callbacks run on the caller's thread; workers stop at their next poll after
 failure or cancellation.
 
-Groups are consecutive except 32-to-4: it pairs four-frame blocks at zero-based
-capture offsets `0/16`, `4/20`, `8/24` and `12/28`. Each output inherits metadata
-from its group's first source.
+Inputs are files, directories (their immediate non-hidden `.NEF` files) or
+wildcard file-name patterns, expanded by cNEFX when the shell passes them
+through. A named path that does not exist stops the run. Unparseable files are
+skipped; a pixel-shift capture that fails strict checks or I/O is an error.
+Discovery opens each file once for metadata and closes it; each sequence reopens
+its captures, checks they are unchanged and closes them when published, so open
+files and staging space are bounded by one sequence. Sequences follow first
+appearance and each is reconstructed with its own ISO, sparse selection, radial
+metadata and decoder calibration. AE bracketing needs no special handling: each
+exposure is a separate burst. `outputs` applies to each sequence; a sequence
+with some outputs present synthesizes only the missing ones. Output groups within
+a sequence are consecutive except 32-to-4: it pairs four-frame blocks at
+zero-based capture offsets `0/16`, `4/20`, `8/24` and `12/28`. Each output
+inherits metadata from its group's first source.
 
 ## CLI reports and publication
 
-With `--json`, stdout carries a report with `schema_version: 1`:
+With `--json`, stdout carries a report with `schema_version: 2`:
 
-- Success includes `status: "ok"`, `backend: "native"`, `output_format: "NEFX"`,
-  program/LibRaw versions, `camera`, `sequence_validation`, ordered `inputs` with
-  hashes and shot numbers, correction setting, `limitations` and `warnings`.
-- A single output has `output`, `sha256`, `shape` in height/width/channels order,
-  and `samples_verified`.
-- An output set has `output_directory`, `output_count`, `outputs`, total
-  `samples_verified` and zero-based `input_indices` for each output. It contains
-  `merged-01.nefx` through `merged-NN.nefx` and `manifest.json`.
-- Runtime failure has `status: "error"` and `error` with `code` and `message`.
-  Codes are `merge_failed` or `cancelled`.
+- A completed run has `status: "ok"`, or `"partial"` with exit code `1` when a
+  sequence failed or a file could not be read. Both include `backend: "native"`,
+  `output_format: "NEFX"`, program/LibRaw versions, `sequence_validation`,
+  correction setting, `sequences`, `inputs`, `skipped`, `errors`, `limitations`
+  and `warnings`. Each sequence has `camera`, `first_capture`, `captures`, a
+  `status` of `merged`, `already_merged` or `failed` (with `error`), and
+  `existing` outputs of an earlier run when present. `inputs` lists captures
+  decoded by this run with hashes, shot numbers and `sequence_index`; `skipped`
+  and `errors` list paths with a `reason`.
+- Every report has `output_count`, `outputs` and total `samples_verified`. Each
+  output has `output`, `sha256`, `shape` in height/width/channels order,
+  `samples_verified`, `sequence_index` and zero-based `input_indices`.
+- Outputs default to `<first capture stem>_merged.NEFX` beside that capture, or
+  `_merged_01` through `_merged_NN` for several outputs per sequence. `--output`
+  names the only output. `--output-directory` adds `output_directory` and holds
+  the same names plus `manifest.json`.
+- A run that cannot start or an output-directory failure has `status: "error"`
+  and `error` with `code` and `message`. Codes are `merge_failed` or
+  `cancelled`.
 
-Exit codes are `0` for success, `1` for runtime failure, `130` for caught
+Exit codes are `0` for success, `1` for a partial or failed run, `130` for caught
 cancellation and `2` for argument errors. Argument errors use stderr even with
 `--json`. SIGINT/SIGTERM cancellation is cooperative during merge work.
 
@@ -236,7 +256,9 @@ Publication uses Linux `renameat2(RENAME_NOREPLACE)`, macOS
 `renamex_np(RENAME_EXCL)` or a Windows move without replacement. If a POSIX
 filesystem lacks exclusive rename, a single file uses a no-replace hard link.
 A directory requires exclusive rename; unsupported publication fails without
-exposing a partial output set.
+exposing a partial output set. A sequence's output files are verified together,
+then published one by one; cancellation stops a sequence only before its first
+output, and sequences already published stay.
 
 Parent-directory sync or temporary-cleanup failure after publication produces
 success with warnings and retains the output. The directory manifest precedes

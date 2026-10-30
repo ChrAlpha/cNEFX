@@ -60,7 +60,7 @@ else()
   target_compile_options(cnefx_format PRIVATE -Wall -Wextra -Wpedantic -ffp-contract=off)
 endif()
 
-add_library(cnefx_merge STATIC src/merge.cpp src/report.cpp)
+add_library(cnefx_merge STATIC src/discover.cpp src/merge.cpp src/report.cpp)
 target_link_libraries(cnefx_merge PUBLIC cnefx_core PRIVATE cnefx_format Threads::Threads)
 target_compile_definitions(cnefx_merge PRIVATE CNEFX_VERSION="${PROJECT_VERSION}")
 add_library(cnefx::cnefx ALIAS cnefx_merge)

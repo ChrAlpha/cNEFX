@@ -42,40 +42,56 @@ Check the accompanying `.sha256` file, extract the archive, and add its `bin`
 directory to `PATH`. Builds are unsigned and not notarized; older-system
 compatibility is not established.
 
-## Merge a sequence
+## Merge pixel-shift captures
 
-Use **lossless-compressed, 14-bit FX NEF files** from one complete pixel-shift
-sequence. Pass every file explicitly in capture order, with consecutive shot
-numbers. Directory inputs and shell glob ordering are not a substitute for
-capture order. HE/HE* is unsupported; HLG, other image areas and untested
-firmware/settings remain unvalidated.
-
-The destination must not exist, and its parent directory must already exist.
-Four captures to one NEFX:
+Use **lossless-compressed, 14-bit FX NEF files**. Pass a card folder, a shoot
+folder, files or a file-name pattern; no other option is needed:
 
 ```sh
-cnefx merge \
-  shot-01.NEF shot-02.NEF shot-03.NEF shot-04.NEF \
-  --output merged.nefx
+cnefx merge /path/to/DCIM/100NZ_8
+cnefx merge "/path/to/DCIM/100NZ_8/SGL_62*"   # quoted patterns also work on Windows
 ```
 
-Eight captures to two NEFX files in a new directory:
+A directory contributes the `.NEF` files directly inside it, without
+subdirectories or hidden files. Other files, unreadable or other cameras' NEFs,
+photos without pixel-shift metadata and merged NEFX files are skipped, and a file
+reached twice counts once. A path that does not exist stops the run, so a
+mistyped folder is never mistaken for an empty one. The remaining captures are
+grouped into sequences by camera and burst identity and ordered by shot number,
+as NX Studio does, so file order does not matter. Each sequence is written beside
+its first capture, for example `SGL_6243_merged.NEFX`; symbolic links are
+followed to the linked file. Pixel shift with AE bracketing records each exposure
+as its own sequence: a 3-exposure shoot produces three NEFX files for downstream
+HDR merging.
+
+Sequences are processed one at a time: each is read, synthesized, verified and
+published before the next starts, so disk staging and open files stay bounded by
+one sequence however large the folder is. A sequence whose outputs already exist,
+from cNEFX or NX Studio, is reported as already merged and not processed again;
+if only some of its outputs exist, just the missing ones are synthesized. An
+unrelated file at a destination is never replaced. An incomplete sequence, an
+unreadable file or a failed write is reported without stopping the other
+sequences, and the run exits with status 1. Fix the problem and run the same
+command again: only the remaining sequences are merged. After Ctrl+C, finished
+sequences stay published and a repeated run resumes.
+
+To choose the destination instead:
 
 ```sh
-cnefx merge \
-  shot-01.NEF shot-02.NEF shot-03.NEF shot-04.NEF \
-  shot-05.NEF shot-06.NEF shot-07.NEF shot-08.NEF \
-  --outputs 2 --output-directory merged-set
+cnefx merge shot-*.NEF --output merged.nefx         # exactly one sequence
+cnefx merge /path/to/folder --output-directory set  # all outputs at once
 ```
 
-The directory contains the NEFX files and a `manifest.json` report. cNEFX checks
-the output samples before publishing and never replaces an existing destination,
-including an empty directory. A successful merge can still report cleanup or
-sync warnings; keep the published output and read the warning before retrying.
+`--output-directory` publishes every NEFX and a `manifest.json` report together
+in a new directory, or nothing if any sequence fails; it stages all outputs
+first. A successful merge can still report cleanup or sync warnings; keep the
+published output and read the warning before retrying. HE/HE* is unsupported;
+HLG, other image areas and untested firmware/settings remain unvalidated.
 
 ### Output modes
 
-`--outputs` defaults to `1`. Use `--output-directory` for multiple outputs.
+`--outputs N` sets the outputs per sequence and defaults to `1`. Several outputs
+are named `NAME_merged_01.NEFX` onward; `--output` accepts only one.
 
 | Captures | Allowed outputs | Dimensions per output, relative to the source crop |
 | --- | --- | --- |

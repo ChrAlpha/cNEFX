@@ -66,20 +66,14 @@ std::string strings(const std::vector<std::string> &values) {
   }
   return out + "]";
 }
-std::string output(const OutputReport &o, bool indices) {
-  std::string out = "\"output\":" + quote(path_utf8(o.path)) + ",\"sha256\":" + quote(o.sha256) +
-                    ",\"shape\":[" + std::to_string(o.height) + "," + std::to_string(o.width) +
-                    ",3],\"samples_verified\":" + std::to_string(o.samples_verified);
-  if (indices) {
-    out += ",\"input_indices\":[";
-    for (std::size_t i = 0; i < o.input_indices.size(); ++i) {
-      if (i)
-        out += ',';
-      out += std::to_string(o.input_indices[i]);
-    }
-    out += ']';
+std::string indices(const std::vector<unsigned> &values) {
+  std::string out = "[";
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    if (i)
+      out += ',';
+    out += std::to_string(values[i]);
   }
-  return out;
+  return out + ']';
 }
 } // namespace
 std::string path_utf8(const std::filesystem::path &path) {
@@ -87,43 +81,66 @@ std::string path_utf8(const std::filesystem::path &path) {
   return std::string(bytes.begin(), bytes.end());
 }
 std::string report_json(const MergeReport &r) {
-  std::string out = "{\"schema_version\":1,\"status\":\"ok\",\"backend\":\"native\",\"output_"
-                    "format\":\"NEFX\",\"version\":" +
-                    quote(version()) + ",\"libraw_version\":" + quote(r.decoder_version) +
-                    ",\"camera\":{\"make\":" + quote(r.make) + ",\"model\":" + quote(r.model) +
-                    "},\"sequence_validation\":\"complete_consecutive_metadata_consistent\","
-                    "\"chromatic_aberration_correction\":" +
-                    (r.options.chromatic_aberration_correction ? "true" : "false") +
-                    ",\"inputs\":[";
-  for (std::size_t i = 0; i < r.inputs.size(); ++i) {
-    if (i)
-      out += ',';
-    const auto &input = r.inputs[i];
-    out += "{\"path\":" + quote(path_utf8(input.path)) + ",\"sha256\":" + quote(input.sha256) +
-           ",\"shot_number\":" + std::to_string(input.shot_number) + '}';
-  }
-  out +=
-      "],\"limitations\":" + strings(r.limitations) + ",\"warnings\":" + strings(r.warnings) + ",";
-  if (r.options.directory) {
-    out += "\"output_directory\":" + quote(path_utf8(r.options.output)) +
-           ",\"output_count\":" + std::to_string(r.outputs.size()) + ",\"outputs\":[";
-    std::uint64_t total = 0;
-    for (std::size_t i = 0; i < r.outputs.size(); ++i) {
-      if (i)
-        out += ',';
-      out += '{' + output(r.outputs[i], true) + '}';
-      total += r.outputs[i].samples_verified;
+  const auto files = [](const std::vector<FileReport> &items) {
+    std::string out = "[";
+    for (std::size_t i = 0; i < items.size(); ++i)
+      out += (i ? ",{\"path\":" : "{\"path\":") + quote(path_utf8(items[i].path)) +
+             ",\"reason\":" + quote(items[i].reason) + '}';
+    return out + ']';
+  };
+  constexpr const char *statuses[] = {"merged", "already_merged", "failed"};
+  std::string out =
+      "{\"schema_version\":2,\"status\":" + quote(r.complete() ? "ok" : "partial") +
+      ",\"backend\":\"native\",\"output_format\":\"NEFX\",\"version\":" + quote(version()) +
+      ",\"libraw_version\":" + quote(r.decoder_version) +
+      ",\"sequence_validation\":\"burst_grouped_complete_consecutive_metadata_"
+      "consistent\",\"chromatic_aberration_correction\":" +
+      (r.options.chromatic_aberration_correction ? "true" : "false") + ",\"sequences\":[";
+  for (std::size_t i = 0; i < r.sequences.size(); ++i) {
+    const auto &sequence = r.sequences[i];
+    out += (i ? ",{\"camera\":{\"make\":" : "{\"camera\":{\"make\":") + quote(sequence.make) +
+           ",\"model\":" + quote(sequence.model) +
+           "},\"first_capture\":" + quote(path_utf8(sequence.first_capture)) +
+           ",\"captures\":" + std::to_string(sequence.captures) +
+           ",\"status\":" + quote(statuses[static_cast<int>(sequence.status)]);
+    if (!sequence.existing.empty()) {
+      out += ",\"existing\":[";
+      for (std::size_t j = 0; j < sequence.existing.size(); ++j)
+        out += (j ? "," : "") + quote(path_utf8(sequence.existing[j]));
+      out += ']';
     }
-    out += "],\"samples_verified\":" + std::to_string(total);
-  } else {
-    if (r.outputs.size() != 1)
-      throw std::logic_error("A single-output report needs one output.");
-    out += output(r.outputs.front(), false);
+    if (sequence.status == SequenceStatus::failed)
+      out += ",\"error\":" + quote(sequence.error);
+    out += '}';
   }
-  return out + '}';
+  out += "],\"inputs\":[";
+  for (std::size_t i = 0; i < r.inputs.size(); ++i) {
+    const auto &input = r.inputs[i];
+    out += (i ? ",{\"path\":" : "{\"path\":") + quote(path_utf8(input.path)) +
+           ",\"sha256\":" + quote(input.sha256) +
+           ",\"shot_number\":" + std::to_string(input.shot_number) +
+           ",\"sequence_index\":" + std::to_string(input.sequence_index) + '}';
+  }
+  out += "],\"skipped\":" + files(r.skipped) + ",\"errors\":" + files(r.errors) +
+         ",\"limitations\":" + strings(r.limitations) + ",\"warnings\":" + strings(r.warnings);
+  if (r.options.directory)
+    out += ",\"output_directory\":" + quote(path_utf8(r.options.output));
+  out += ",\"output_count\":" + std::to_string(r.outputs.size()) + ",\"outputs\":[";
+  std::uint64_t total = 0;
+  for (std::size_t i = 0; i < r.outputs.size(); ++i) {
+    const auto &o = r.outputs[i];
+    out += (i ? ",{\"output\":" : "{\"output\":") + quote(path_utf8(o.path)) +
+           ",\"sha256\":" + quote(o.sha256) + ",\"shape\":[" + std::to_string(o.height) + "," +
+           std::to_string(o.width) +
+           ",3],\"samples_verified\":" + std::to_string(o.samples_verified) +
+           ",\"sequence_index\":" + std::to_string(o.sequence_index) +
+           ",\"input_indices\":" + indices(o.input_indices) + '}';
+    total += o.samples_verified;
+  }
+  return out + "],\"samples_verified\":" + std::to_string(total) + '}';
 }
 std::string error_json(const std::string &code, const std::string &message) {
-  return "{\"schema_version\":1,\"status\":\"error\",\"backend\":\"native\",\"error\":{\"code\":" +
+  return "{\"schema_version\":2,\"status\":\"error\",\"backend\":\"native\",\"error\":{\"code\":" +
          quote(code) + ",\"message\":" + quote(message) + "}}";
 }
 } // namespace cnefx

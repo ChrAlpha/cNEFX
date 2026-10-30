@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <charconv>
 #include <chrono>
+#include <map>
 #include <numeric>
 #include <string_view>
 
@@ -63,6 +64,20 @@ std::pair<std::int64_t, std::int64_t> rational(const Tag &tag, bool positive) {
   require(b > 0 && (!positive || a > 0), "Invalid exposure metadata.");
   const auto gcd = std::gcd(a, b);
   return {a / gcd, b / gcd};
+}
+// Hash of the camera serial, from EXIF or the Nikon MakerNote.
+std::string camera_identity(const Directory &exif, const Directory &maker) {
+  const auto trim = [](std::string s) {
+    const auto first = s.find_first_not_of(" \t\r\n\f\v");
+    if (first == std::string::npos)
+      return std::string{};
+    return s.substr(first, s.find_last_not_of(" \t\r\n\f\v") - first + 1);
+  };
+  auto serial = trim(exif.tags.contains(42033) ? exif.at(42033).text() : "");
+  if (serial.empty() && maker.tags.contains(0x1d))
+    serial = trim(maker.at(0x1d).text());
+  require(!serial.empty(), "Missing camera serial.");
+  return sha256(Bytes(serial.begin(), serial.end()));
 }
 RadialCorrection radial(const Directory &maker, const Directory &raw) {
   const auto &center = block(maker, 0x54, "0100", 20);
@@ -144,18 +159,7 @@ Metadata read_metadata(const Directory &root) {
   validate_crop(m.crop, m.width, m.height);
   m.iso = exif.at(34855).number();
   require(m.iso > 0 && m.iso < 65535, "Missing or unsupported EXIF ISO value.");
-  std::string serial = exif.tags.contains(42033) ? exif.at(42033).text() : "";
-  const auto trim = [](std::string s) {
-    const auto first = s.find_first_not_of(" \t\r\n\f\v");
-    if (first == std::string::npos)
-      return std::string{};
-    return s.substr(first, s.find_last_not_of(" \t\r\n\f\v") - first + 1);
-  };
-  serial = trim(serial);
-  if (serial.empty() && maker.tags.contains(0x1d))
-    serial = trim(maker.at(0x1d).text());
-  require(!serial.empty(), "Missing camera serial.");
-  m.identity_hash = sha256(Bytes(serial.begin(), serial.end()));
+  m.identity_hash = camera_identity(exif, maker);
   result.timestamp = timestamp(exif);
   if (exif.tags.contains(36881))
     m.timezone = exif.at(36881).text();
@@ -172,11 +176,14 @@ Metadata read_metadata(const Directory &root) {
   }
   return result;
 }
-void validate_sequence(const std::vector<Metadata> &metadata, bool radial) {
-  output_groups(metadata.size(), 1);
+void validate_sequence(std::span<const Metadata> metadata, bool radial) {
   const auto &first = metadata.front();
-  if (first.sequence.count != metadata.size())
-    throw std::invalid_argument("Input count does not match the capture mode.");
+  const auto count = std::to_string(metadata.size()) + " of " +
+                     std::to_string(first.sequence.count) + " captures.";
+  if (metadata.size() < first.sequence.count)
+    throw std::invalid_argument("Incomplete pixel-shift sequence: " + count);
+  if (metadata.size() > first.sequence.count)
+    throw std::invalid_argument("Repeated captures, e.g. a copy of the same files: " + count);
   for (std::size_t i = 0; i < metadata.size(); ++i) {
     const auto &item = metadata[i];
     if (std::uint64_t(item.shot) != std::uint64_t(first.shot) + i)
@@ -191,5 +198,51 @@ void validate_sequence(const std::vector<Metadata> &metadata, bool radial) {
     if (radial && item.radial->coefficients != first.radial->coefficients)
       throw std::invalid_argument("Sequence radial correction coefficients differ.");
   }
+}
+const char *skip_reason(const Directory &root) {
+  // Classification only; read_metadata strictly validates every accepted capture.
+  const auto find = [](const Directory &directory, unsigned code) -> const Tag * {
+    const auto tag = directory.tags.find(code);
+    return tag == directory.tags.end() ? nullptr : &tag->second;
+  };
+  const auto *exif = find(root, 34665);
+  const auto *note =
+      exif && exif->children.size() == 1 ? find(exif->children.front(), 37500) : nullptr;
+  const auto *maker = note && note->children.size() == 1 ? &note->children.front() : nullptr;
+  const auto *capture = maker ? find(*maker, 0x56) : nullptr;
+  const auto *shift = maker ? find(*maker, 0x5e) : nullptr;
+  if (!capture || !shift || capture->data.size() <= 12 || capture->data[12] != 1 ||
+      shift->data.size() <= 4 || shift->data[4] < 1 || shift->data[4] > 4)
+    return "No active pixel-shift metadata.";
+  return maker->tags.contains(0x0e2d) ? "Already merged NEFX." : nullptr;
+}
+std::optional<std::pair<std::string, std::uint32_t>> merged_identity(const Directory &root) {
+  try {
+    const auto &exif = child(root.at(34665));
+    const auto &maker = child(exif.at(37500));
+    if (!maker.tags.contains(0x0e2d))
+      return std::nullopt;
+    return std::pair(camera_identity(exif, maker), u32(block(maker, 0x56, "0100", 16), 4));
+  } catch (const std::invalid_argument &) {
+    return std::nullopt;
+  }
+}
+std::vector<std::vector<unsigned>> group_sequences(std::span<const Metadata> metadata) {
+  // NX Studio keys sequences by burst identity and orders captures by shot number;
+  // the camera serial keeps equal burst identities from two bodies apart.
+  std::vector<std::vector<unsigned>> sequences;
+  std::map<std::pair<std::string, std::uint32_t>, std::size_t> bursts;
+  for (unsigned i = 0; i < metadata.size(); ++i) {
+    const auto &item = metadata[i].sequence;
+    const auto [position, inserted] =
+        bursts.emplace(std::pair(item.identity_hash, item.burst), sequences.size());
+    if (inserted)
+      sequences.emplace_back();
+    sequences[position->second].push_back(i);
+  }
+  for (auto &sequence : sequences)
+    std::stable_sort(sequence.begin(), sequence.end(),
+                     [&](unsigned a, unsigned b) { return metadata[a].shot < metadata[b].shot; });
+  return sequences;
 }
 } // namespace cnefx::detail
