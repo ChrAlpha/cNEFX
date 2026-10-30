@@ -150,7 +150,9 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
         ).stdout
     )
     if os.name == "nt":
-        assert quoted["error"]["code"] == "merge_failed"
+        # The name is invalid on Windows: the sequence fails and nothing appears.
+        assert quoted["status"] == "partial" and quoted["outputs"] == []
+        assert quoted["sequences"][0]["status"] == "failed"
         assert not quoted_target.exists()
     else:
         assert quoted["outputs"][0]["output"] == str(quoted_target)
