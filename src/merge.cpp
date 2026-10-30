@@ -325,11 +325,14 @@ MergeReport merge(std::span<const fs::path> inputs, const MergeOptions &options,
   if (!options.chromatic_aberration_correction)
     report.limitations.push_back("Chromatic aberration correction is disabled.");
   if (set) {
-    const auto manifest = report_json(report) + "\n";
-    File file(set->temporary() / "manifest.json", FileMode::create);
-    file.write(0,
-               std::span(reinterpret_cast<const std::uint8_t *>(manifest.data()), manifest.size()));
-    file.sync();
+    {
+      // Windows cannot move a directory while a file inside it is open.
+      const auto manifest = report_json(report) + "\n";
+      File file(set->temporary() / "manifest.json", FileMode::create);
+      file.write(
+          0, std::span(reinterpret_cast<const std::uint8_t *>(manifest.data()), manifest.size()));
+      file.sync();
+    }
     if (progress)
       progress(Stage::publish, 0, outputs);
     set->publish([&] {
