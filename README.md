@@ -25,16 +25,16 @@ mise x github:ChrAlpha/cNEFX@latest -- cnefx merge --help
 For Node.js users, run with `pnx`:
 
 ```sh
-pnx cnefx merge --help
+pnx cnefx-cli merge --help
 ```
 
 Or install globally with `pnpm`:
 
 ```sh
-pnpm add -g cnefx
+pnpm add -g cnefx-cli
 ```
 
-Update with `mise upgrade github:ChrAlpha/cNEFX` or `pnpm update -g cnefx`.
+Update with `mise upgrade github:ChrAlpha/cNEFX` or `pnpm update -g cnefx-cli`.
 You can also [build from source](#build-from-source) or download native archives
 from [Releases](https://github.com/ChrAlpha/cNEFX/releases).
 Builds cover Linux x86_64/ARM64, macOS Apple silicon and Windows x86_64.

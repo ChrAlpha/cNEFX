@@ -53,8 +53,8 @@ jobs:
       - name: Publish through npm trusted publishing
         run: |
           version="${GITHUB_REF_NAME#v}"
-          if [ "$(npm view "cnefx@$version" version 2>/dev/null)" = "$version" ]; then
-            echo "cnefx@$version is already published."
+          if [ "$(npm view "cnefx-cli@$version" version 2>/dev/null)" = "$version" ]; then
+            echo "cnefx-cli@$version is already published."
           else
-            npm publish "build/npm/cnefx-$version.tgz"
+            npm publish "build/npm/cnefx-cli-$version.tgz"
           fi

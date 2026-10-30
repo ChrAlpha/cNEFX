@@ -154,11 +154,11 @@ with an empty `PATH`. Rebuild after a commit before packaging.
 Linux ARM64 on Ubuntu 24.04, macOS ARM64 on macOS 15, and Windows x86_64 on
 Windows Server 2022. Archives contain `bin/cnefx` (or `bin/cnefx.exe`),
 `share/cnefx/build-info.json`, the project `LICENSE` and LibRaw licenses;
-preserve those licenses when redistributing. Builds are unsigned and not notarized. The CI matrix does not
-establish compatibility with older systems.
+preserve those licenses when redistributing. Builds are unsigned and not
+notarized. The CI matrix does not establish compatibility with older systems.
 
-CI also assembles the `cnefx` npm package: `tools/ci.py npm` unpacks the four
-verified archives into `native/<target>/`, `pnpm pack` adds the
+CI also assembles the `cnefx-cli` npm package: `tools/ci.py npm` unpacks the
+four verified archives into `native/<target>/`, `pnpm pack` adds the
 [launcher](npm/cli.ts), and the packed launcher runs through `pnx`. The launcher
 forwards arguments, exit codes and POSIX signals; on Windows the native process
 receives Ctrl+C from the shared console.
@@ -174,8 +174,8 @@ commit, then register the workflow:
 
 ```sh
 gh run download <run-id> --name npm-package --dir build/npm
-npm publish build/npm/cnefx-0.1.0.tgz
-npm trust github cnefx --file release.yml --repo ChrAlpha/cNEFX --allow-publish
+npm publish build/npm/cnefx-cli-0.1.0.tgz
+npm trust github cnefx-cli --file release.yml --repo ChrAlpha/cNEFX --allow-publish
 ```
 
 ## Source routing and API
