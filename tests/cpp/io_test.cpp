@@ -3,6 +3,10 @@
 #include <chrono>
 #include <iostream>
 
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+
 using namespace cnefx;
 using namespace cnefx::detail;
 namespace {
@@ -201,6 +205,26 @@ void publication(const fs::path &root) {
     }
     CHECK(path_exists(denied / "output.nefx"));
     pending.cleanup();
+  }
+  for (const bool directory : {false, true}) {
+    const auto locked = root / (directory ? "locked-set" : "locked-file");
+    fs::create_directory(locked);
+    const auto target = locked / (directory ? "outputs" : "output.nefx");
+    std::string error;
+    {
+      Publication pending(target, directory);
+      create(directory ? pending.temporary() / "one.nefx" : pending.temporary(), Bytes{1});
+      fs::permissions(locked, fs::perms::owner_read | fs::perms::owner_exec);
+      try {
+        pending.publish();
+      } catch (const std::exception &e) {
+        error = e.what();
+      }
+      fs::permissions(locked, fs::perms::owner_all);
+    }
+    // The transfer error must survive the absent destination's lookup error.
+    CHECK(geteuid() == 0 ? path_exists(target)
+                         : !path_exists(target) && error.starts_with("Publish output"));
   }
 #endif
 }

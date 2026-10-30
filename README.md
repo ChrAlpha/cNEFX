@@ -148,11 +148,11 @@ Exit codes are `0` for success, `1` for runtime failure, `130` for caught
 cancellation and `2` for argument errors. Argument errors use stderr even with
 `--json`. SIGINT/SIGTERM cancellation is cooperative during merge work.
 
-Single-file publication uses a no-replace hard link on POSIX and an exclusive
-move on Windows. Directory publication uses Linux `renameat2(RENAME_NOREPLACE)`,
-macOS `renamex_np(RENAME_EXCL)` or Windows exclusive move. The filesystem must
-support the required operation; unsupported publication fails without exposing
-a partial output set.
+Publication uses Linux `renameat2(RENAME_NOREPLACE)`, macOS
+`renamex_np(RENAME_EXCL)` or a Windows move without replacement. If a POSIX
+filesystem lacks the exclusive rename, a single file is published with a
+no-replace hard link instead. A directory requires the exclusive rename;
+unsupported publication fails without exposing a partial output set.
 
 A parent-directory sync or temporary-cleanup failure after publication produces
 a success report with warnings and retains the valid output. The directory

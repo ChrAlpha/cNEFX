@@ -71,26 +71,39 @@ void sync_directory(const fs::path &path) {
 bool same_identity(const FileState &a, const FileState &b) {
   return a.device == b.device && a.inode == b.inode && a.regular == b.regular;
 }
+bool published(const fs::path &path, const FileState &identity) {
+  try {
+    return same_identity(identity, file_state(path));
+  } catch (const std::exception &) {
+    return false;
+  }
+}
 void transfer(const fs::path &source, const fs::path &target, bool directory) {
+  const char *action = directory ? "Publish output directory without replacement"
+                                 : "Publish output without replacement";
 #ifdef _WIN32
   if (!MoveFileExW(source.c_str(), target.c_str(), MOVEFILE_WRITE_THROUGH))
-    throw std::system_error(GetLastError(), std::system_category(),
-                            "Publish output without replacement");
+    throw std::system_error(GetLastError(), std::system_category(), action);
 #else
-  if (!directory) {
-    if (link(source.c_str(), target.c_str()))
-      io_error("Publish output without replacement");
-    return;
-  }
 #if defined(__linux__) && defined(SYS_renameat2)
-  if (syscall(SYS_renameat2, AT_FDCWD, source.c_str(), AT_FDCWD, target.c_str(), 1))
-    io_error("Publish output directory without replacement");
+  constexpr unsigned rename_noreplace = 1;
+  if (!syscall(SYS_renameat2, AT_FDCWD, source.c_str(), AT_FDCWD, target.c_str(), rename_noreplace))
+    return;
+  const bool unsupported = errno == EINVAL || errno == ENOSYS;
 #elif defined(__APPLE__)
-  if (renamex_np(source.c_str(), target.c_str(), RENAME_EXCL))
-    io_error("Publish output directory without replacement");
+  if (!renamex_np(source.c_str(), target.c_str(), RENAME_EXCL))
+    return;
+  const bool unsupported = errno == ENOTSUP || errno == EINVAL;
 #else
-  throw std::runtime_error("Atomic output directory publication is unsupported on this platform.");
+  const bool unsupported = true;
+  errno = ENOTSUP;
 #endif
+  // Without an exclusive rename, a hard link still publishes a file without
+  // replacement. No equivalent exists for a directory.
+  if (!unsupported || directory)
+    io_error(action);
+  if (link(source.c_str(), target.c_str()))
+    io_error(action);
 #endif
 }
 } // namespace
@@ -263,17 +276,14 @@ void Publication::publish(const Check &check) {
     check();
   try {
     transfer(temporary_, destination_, directory_);
-    published_ = true;
   } catch (...) {
-    try {
-      if (!same_identity(identity, file_state(destination_)))
-        throw;
-      published_ = true;
-    } catch (...) {
+    // A reported failure can follow a completed transfer. Otherwise keep the
+    // original error rather than the absent destination's lookup error.
+    if (!published(destination_, identity))
       throw;
-    }
     warnings_.push_back("Output published; transfer reported a completion failure.");
   }
+  published_ = true;
   try {
     if (check)
       check();
