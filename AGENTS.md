@@ -128,9 +128,9 @@ ctest --preset sanitize
 uv run --locked python tools/ci.py verify --build-dir build/sanitize --config Debug
 ```
 
-`verify` runs numerical, format, four-model/nine-mode CLI, multi-sequence and
-failure-injection checks. Reports go to `build/<preset>/verification/`. Preserve that directory
-before rerunning: the command refuses to overwrite it. Individual
+`verify` runs numerical, format, four-model/nine-mode CLI, multi-sequence,
+discovery and failure-injection checks. Reports go to `build/<preset>/verification/`.
+Preserve that directory before rerunning: the command refuses to overwrite it. Individual
 `tools/verify_cpp_*.py` runners accept a fresh `--work-directory`. The sanitizer
 preset instruments both cNEFX and LibRaw.
 
@@ -197,7 +197,7 @@ binary ABI or installed SDK is promised.
 | Descriptor ownership, SHA-256, bounded TIFF graph, publication | `src/io.cpp`, `src/sha256.cpp`, `src/tiff.cpp` | `tests/cpp/io_test.cpp`, format/CLI lifecycle checks |
 | Strict Nikon metadata and RAW decode | `src/metadata.cpp`, `src/raw.cpp` | `tests/cpp/format_test.cpp`, `tools/verify_cpp_format.py` |
 | NEFX packing, Nikon blocks, CRCs, previews | `src/nefx.cpp` | Saved format expectations and vendor replays |
-| Input discovery, sequence orchestration and reports | `src/merge.cpp`, `src/report.cpp` | `tests/cpp/merge_test.cpp`, `tools/verify_cpp_cli.py`, `tools/verify_cpp_sequences.py` |
+| Input discovery, sequence orchestration and reports | `src/discover.cpp`, `src/merge.cpp`, `src/report.cpp` | `tests/cpp/merge_test.cpp`, `tools/verify_cpp_cli.py`, `tools/verify_cpp_sequences.py`, `tools/verify_cpp_discovery.py` |
 | CLI argument handling and signals | `src/cli.cpp` | CLI regression, cancellation and package smoke checks |
 | Build, packaging and release | `CMakeLists.txt`, `cmake/`, `package.json`, `npm/`, `.github/workflows/` | Four native platforms, ASan/UBSan, empty-PATH package and npm launcher checks |
 
@@ -211,15 +211,18 @@ failure or cancellation.
 
 Inputs are files, directories (their immediate non-hidden `.NEF` files) or
 wildcard file-name patterns, expanded by cNEFX when the shell passes them
-through. Discovery opens each file once for metadata and closes it; each sequence
-reopens its captures, checks they are unchanged and closes them when published,
-so open files and staging space are bounded by one sequence. Sequences follow
-first appearance and each is reconstructed with its own ISO, sparse selection,
-radial metadata and decoder calibration. AE bracketing
-needs no special handling: each exposure is a separate burst. `outputs` applies
-to each sequence. Output groups within a sequence are consecutive except 32-to-4:
-it pairs four-frame blocks at zero-based capture offsets `0/16`, `4/20`, `8/24`
-and `12/28`. Each output inherits metadata from its group's first source.
+through. A named path that does not exist stops the run. Unparseable files are
+skipped; a pixel-shift capture that fails strict checks or I/O is an error.
+Discovery opens each file once for metadata and closes it; each sequence reopens
+its captures, checks they are unchanged and closes them when published, so open
+files and staging space are bounded by one sequence. Sequences follow first
+appearance and each is reconstructed with its own ISO, sparse selection, radial
+metadata and decoder calibration. AE bracketing needs no special handling: each
+exposure is a separate burst. `outputs` applies to each sequence; a sequence
+with some outputs present synthesizes only the missing ones. Output groups within
+a sequence are consecutive except 32-to-4: it pairs four-frame blocks at
+zero-based capture offsets `0/16`, `4/20`, `8/24` and `12/28`. Each output
+inherits metadata from its group's first source.
 
 ## CLI reports and publication
 
@@ -231,12 +234,9 @@ With `--json`, stdout carries a report with `schema_version: 2`:
   correction setting, `sequences`, `inputs`, `skipped`, `errors`, `limitations`
   and `warnings`. Each sequence has `camera`, `first_capture`, `captures`, a
   `status` of `merged`, `already_merged` or `failed` (with `error`), and
-  `existing` outputs of an earlier run when present; a sequence with some outputs
-  present synthesizes only the missing ones. `inputs` lists captures decoded by
-  this run with hashes, shot numbers and `sequence_index`; `skipped` and `errors`
-  list paths with a `reason`. Unparseable files are skipped; a pixel-shift
-  capture that fails strict checks or I/O is an error. A named path that does
-  not exist stops the run.
+  `existing` outputs of an earlier run when present. `inputs` lists captures
+  decoded by this run with hashes, shot numbers and `sequence_index`; `skipped`
+  and `errors` list paths with a `reason`.
 - Every report has `output_count`, `outputs` and total `samples_verified`. Each
   output has `output`, `sha256`, `shape` in height/width/channels order,
   `samples_verified`, `sequence_index` and zero-based `input_indices`.

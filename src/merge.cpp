@@ -250,7 +250,13 @@ MergeReport merge(std::span<const fs::path> inputs, const MergeOptions &options,
     if (used.size() != needed)
       throw std::logic_error("Every needed capture must be decoded exactly once.");
     missing_matrix |= calibration->missing_matrix;
-    const auto commit = [&](std::size_t count) {
+    // Record the first count outputs as published, with their warnings.
+    const auto finish = [&](std::size_t count) {
+      for (std::size_t i = 0; i < count && !set; ++i) {
+        files[i]->cleanup();
+        report.warnings.insert(report.warnings.end(), files[i]->warnings().begin(),
+                               files[i]->warnings().end());
+      }
       report.inputs.insert(report.inputs.end(), used.begin(), used.end());
       report.outputs.insert(report.outputs.end(), results.begin(),
                             results.begin() + std::ptrdiff_t(count));
@@ -258,7 +264,7 @@ MergeReport merge(std::span<const fs::path> inputs, const MergeOptions &options,
     if (set) {
       for (const auto &source : sources)
         retained.emplace_back(source.file->path(), source.initial);
-      commit(results.size());
+      finish(results.size());
       return;
     }
     for (std::size_t i = 0; i < files.size(); ++i) {
@@ -275,12 +281,7 @@ MergeReport merge(std::span<const fs::path> inputs, const MergeOptions &options,
       } catch (const std::exception &e) {
         if (!i)
           throw;
-        for (std::size_t j = 0; j < i; ++j) {
-          files[j]->cleanup();
-          report.warnings.insert(report.warnings.end(), files[j]->warnings().begin(),
-                                 files[j]->warnings().end());
-        }
-        commit(i);
+        finish(i);
         std::string paths;
         for (std::size_t j = 0; j < i; ++j)
           paths += (j ? ", " : "") + path_utf8(results[j].path);
@@ -290,12 +291,7 @@ MergeReport merge(std::span<const fs::path> inputs, const MergeOptions &options,
       }
       ++published;
     }
-    for (auto &file : files) {
-      file->cleanup();
-      report.warnings.insert(report.warnings.end(), file->warnings().begin(),
-                             file->warnings().end());
-    }
-    commit(results.size());
+    finish(results.size());
   };
   for (unsigned index = 0; index < plans.size(); ++index) {
     auto &sequence = report.sequences[index];

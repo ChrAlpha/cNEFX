@@ -1,4 +1,4 @@
-"""Synthetic multi-sequence discovery, grouping, isolation and publication."""
+"""Synthetic multi-sequence grouping, per-sequence isolation and failure injection."""
 
 from __future__ import annotations
 
@@ -155,16 +155,6 @@ def check_case(executable, folder, model, count, outputs, jobs, corrected):
         "input_sha256": hashes,
         "output_sha256": [o["sha256"] for o in report["outputs"]],
     }
-
-
-def ordinary(source: Path, target: Path) -> None:
-    """A capture whose pixel-shift flag is off, like an ordinary photo."""
-    tree = read(source.read_bytes())
-    maker = parts(tree)[1]
-    capture = bytearray(maker.tags[0x56].payload)
-    capture[12] = 0
-    maker.set(0x56, 7, bytes(capture))
-    target.write_bytes(serialize(tree))
 
 
 def configure(source, target, count, capture, iso, selection, radial):

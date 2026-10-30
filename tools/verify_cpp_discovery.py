@@ -15,14 +15,17 @@ import numpy as np
 
 import ci_fixture
 from tiff_fixture import read, serialize
-from verify_cpp_sequences import (
-    check_outputs,
-    merge,
-    name,
-    ordinary,
-    samples,
-    sequence,
-)
+from verify_cpp_sequences import check_outputs, merge, name, parts, samples, sequence
+
+
+def ordinary(source: Path, target: Path) -> None:
+    """A capture whose pixel-shift flag is off, like an ordinary photo."""
+    tree = read(source.read_bytes())
+    maker = parts(tree)[1]
+    capture = bytearray(maker.tags[0x56].payload)
+    capture[12] = 0
+    maker.set(0x56, 7, bytes(capture))
+    target.write_bytes(serialize(tree))
 
 
 def zero_configuration(executable, directory):

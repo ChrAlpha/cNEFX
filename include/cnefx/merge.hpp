@@ -31,7 +31,7 @@ struct InputReport {
   std::uint32_t shot_number{};
   unsigned sequence_index{};
 };
-// A path that is not a pixel-shift capture, or one that could not be read.
+// A skipped path, or a capture that could not be read, with the reason.
 struct FileReport {
   std::filesystem::path path;
   std::string reason;
@@ -42,9 +42,8 @@ struct SequenceReport {
   std::filesystem::path first_capture;
   unsigned captures{};
   SequenceStatus status{};
-  // Outputs of an earlier run; the reason for failed.
-  std::vector<std::filesystem::path> existing;
-  std::string error;
+  std::vector<std::filesystem::path> existing; // Outputs of an earlier run.
+  std::string error;                           // Why the sequence failed.
 };
 struct OutputReport {
   std::filesystem::path path;

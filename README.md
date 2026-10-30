@@ -56,14 +56,13 @@ A directory contributes the `.NEF` files directly inside it, without
 subdirectories or hidden files. Other files, unreadable or other cameras' NEFs,
 photos without pixel-shift metadata and merged NEFX files are skipped, and a file
 reached twice counts once. A path that does not exist stops the run, so a
-mistyped folder is never mistaken for an empty one. Symbolic links are followed;
-outputs go beside the linked file. The
-remaining captures are grouped into sequences by camera and burst identity and
-ordered by shot number, as NX Studio does, so file order does not matter. Each
-sequence is written beside its first capture, for example
-`SGL_6243_merged.NEFX`. Pixel shift with AE bracketing records each exposure as
-its own sequence: a 3-exposure shoot produces three NEFX files for downstream HDR
-merging.
+mistyped folder is never mistaken for an empty one. The remaining captures are
+grouped into sequences by camera and burst identity and ordered by shot number,
+as NX Studio does, so file order does not matter. Each sequence is written beside
+its first capture, for example `SGL_6243_merged.NEFX`; symbolic links are
+followed to the linked file. Pixel shift with AE bracketing records each exposure
+as its own sequence: a 3-exposure shoot produces three NEFX files for downstream
+HDR merging.
 
 Sequences are processed one at a time: each is read, synthesized, verified and
 published before the next starts, so disk staging and open files stay bounded by

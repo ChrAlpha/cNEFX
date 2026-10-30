@@ -18,8 +18,7 @@ std::filesystem::path from_utf8(const std::string &text) {
 void help() {
   std::cout << "cNEFX " << cnefx::version()
             << " - native Nikon pixel-shift NEFX synthesis\n\n"
-               "Usage: cnefx merge PATH... [--outputs N] [--output FILE.nefx | --output-directory "
-               "DIR]\n\n"
+               "Usage: cnefx merge PATH... [options]\n\n"
                "PATH is a NEF file, a directory whose immediate .NEF files are used, or a file\n"
                "name pattern with * or ?. Other files are skipped. Captures are grouped into\n"
                "sequences by burst identity and ordered by shot number; AE-bracketed exposures\n"
