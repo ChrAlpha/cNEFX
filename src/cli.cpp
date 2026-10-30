@@ -22,6 +22,7 @@ void help() {
                "  -o, --output FILE.nefx             Write one verified NEFX\n"
                "  --output-directory DIR            Publish a complete output set\n"
                "  --outputs N                       Number of outputs (default 1)\n"
+               "  --jobs N                          Worker threads, 1-256 (default: all cores)\n"
                "  --chromatic-aberration-correction  Apply supported source radial correction\n"
                "  --json                            Write a JSON report to stdout\n"
                "  --                                Treat remaining arguments as input paths\n"
@@ -50,7 +51,7 @@ int run(const std::vector<std::string> &args) {
     }
     if (args[0] != "merge")
       throw std::invalid_argument("Expected the merge command.");
-    bool positional = false, have_output = false, have_count = false;
+    bool positional = false, have_output = false, have_count = false, have_jobs = false;
     for (std::size_t i = 1; i < args.size(); ++i) {
       const auto &arg = args[i];
       if (!positional && (arg == "--help" || arg == "-h")) {
@@ -69,12 +70,21 @@ int run(const std::vector<std::string> &args) {
         options.chromatic_aberration_correction = true;
         continue;
       }
-      if (!positional &&
-          (arg == "-o" || arg == "--output" || arg == "--output-directory" || arg == "--outputs")) {
+      if (!positional && (arg == "-o" || arg == "--output" || arg == "--output-directory" ||
+                          arg == "--outputs" || arg == "--jobs")) {
         if (i + 1 >= args.size() || args[i + 1].empty() || args[i + 1].starts_with("--"))
           throw std::invalid_argument("Missing value for " + arg + ".");
         const auto &value = args[++i];
-        if (arg == "--outputs") {
+        if (arg == "--jobs") {
+          if (have_jobs)
+            throw std::invalid_argument("--jobs was specified more than once.");
+          const auto result =
+              std::from_chars(value.data(), value.data() + value.size(), options.jobs);
+          if (result.ec != std::errc{} || result.ptr != value.data() + value.size() ||
+              !options.jobs || options.jobs > 256)
+            throw std::invalid_argument("--jobs requires an integer from 1 to 256.");
+          have_jobs = true;
+        } else if (arg == "--outputs") {
           if (have_count)
             throw std::invalid_argument("--outputs was specified more than once.");
           const auto result =

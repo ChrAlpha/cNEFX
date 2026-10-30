@@ -90,6 +90,36 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
                     "samples_match": True,
                 }
             )
+    # One job keeps all work on one thread; outputs must match the parallel path.
+    serial = []
+    for count, outputs in ((32, 1), (16, 4)):
+        folder = directory / f"serial-{count}-{outputs}"
+        folder.mkdir()
+        sources = ci_fixture.sequence(folder, count, model="NIKON Z 8")
+        output = folder / "result"
+        report = json.loads(
+            command(
+                [
+                    str(executable),
+                    "merge",
+                    *map(str, sources),
+                    "--outputs",
+                    str(outputs),
+                    "--output-directory",
+                    str(output),
+                    "--jobs",
+                    "1",
+                    "--json",
+                ]
+            ).stdout
+        )
+        golden = ci_fixture.merge_expectations("NIKON Z 8", count, outputs)
+        for item, expected in zip(report["outputs"], golden["outputs"], strict=True):
+            assert (
+                tree_digest(Path(item["output"]).read_bytes())
+                == expected["tree_sha256"]
+            )
+        serial.append({"inputs": count, "outputs": outputs, "jobs": 1})
     folder = directory / "single"
     folder.mkdir()
     sources = ci_fixture.sequence(folder)
@@ -124,6 +154,8 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
         ["--outputs", "0"],
         ["--unknown"],
         ["--outputs", "2", "-o", "a.nefx"],
+        ["--jobs", "0"],
+        ["--jobs", "257"],
     ):
         result = command([str(executable), "merge", *extra], 2)
         assert not result.stdout and result.stderr
@@ -194,6 +226,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
         "expectations_sha256": ci_fixture.GOLDEN_SHA256,
         "passed": True,
         "cases": cases,
+        "serial_cases": serial,
         "injected_failures": injected,
         "cancellation": cancellation,
         "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),

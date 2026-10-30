@@ -54,7 +54,7 @@ else()
 endif()
 
 add_library(cnefx_merge STATIC src/merge.cpp src/report.cpp)
-target_link_libraries(cnefx_merge PUBLIC cnefx_format)
+target_link_libraries(cnefx_merge PUBLIC cnefx_format PRIVATE Threads::Threads)
 target_compile_definitions(cnefx_merge PRIVATE CNEFX_VERSION="${PROJECT_VERSION}")
 add_library(cnefx::cnefx ALIAS cnefx_merge)
 add_executable(cnefx src/cli.cpp)

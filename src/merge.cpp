@@ -1,5 +1,6 @@
 #include "cnefx/merge.hpp"
 #include "nefx.hpp"
+#include "parallel.hpp"
 
 #include <algorithm>
 #include <set>
@@ -58,10 +59,7 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
   std::vector<bool> consumed(paths.size());
   std::optional<Calibration> calibration;
   unsigned decoded = 0;
-  auto load = [&](unsigned index) {
-    if (consumed.at(index))
-      throw std::logic_error("Capture decoded more than once.");
-    auto frame = read_frame(sources.at(index), check);
+  auto accept = [&](unsigned index, std::pair<Plane, Metadata> frame) {
     // Decoded bytes must carry the validated metadata; LibRaw adds calibration.
     auto expected = preflight[index];
     expected.sequence.calibration = frame.second.sequence.calibration;
@@ -71,11 +69,29 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
       calibration = frame.second.sequence.calibration;
     else if (*calibration != frame.second.sequence.calibration)
       throw std::invalid_argument("Sequence calibration differs.");
-    consumed[index] = true;
     ++decoded;
     if (progress)
       progress(Stage::decode, decoded, paths.size());
     return std::move(frame.first);
+  };
+  // Decode a batch concurrently. Claims, validation and progress stay on the
+  // caller's thread, in capture order.
+  auto load = [&](const std::vector<unsigned> &indices) {
+    for (const auto index : indices) {
+      if (consumed.at(index))
+        throw std::logic_error("Capture decoded more than once.");
+      consumed[index] = true;
+    }
+    std::vector<std::pair<Plane, Metadata>> frames(indices.size());
+    const auto count = static_cast<unsigned>(indices.size());
+    parallel_for(count, options.jobs, check, [&](unsigned i, const Check &poll) {
+      frames[i] = read_frame(sources.at(indices[i]), poll);
+    });
+    std::vector<Plane> planes;
+    planes.reserve(frames.size());
+    for (unsigned i = 0; i < frames.size(); ++i)
+      planes.push_back(accept(indices[i], std::move(frames[i])));
+    return planes;
   };
   MergeReport report;
   report.make = information.sequence.make;
@@ -88,14 +104,15 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
     auto pixels = reconstruct(
         members.size(),
         [&](std::span<const unsigned> batch) {
-          std::vector<Plane> planes;
+          std::vector<unsigned> captures;
           for (const auto i : batch)
-            planes.push_back(load(members[i]));
-          return planes;
+            captures.push_back(members.at(i));
+          return load(captures);
         },
         information.sequence.crop, Selection::parse(information.sequence.selector),
         information.sequence.iso,
-        options.chromatic_aberration_correction ? information.radial : std::nullopt, check);
+        options.chromatic_aberration_correction ? information.radial : std::nullopt, check,
+        options.jobs);
     const auto name =
         "merged-" + std::string(index < 9 ? "0" : "") + std::to_string(index + 1) + ".nefx";
     const auto candidate = options.directory ? pending.temporary() / name : pending.temporary();

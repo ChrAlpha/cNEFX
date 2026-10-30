@@ -16,6 +16,10 @@ struct MergeOptions {
   std::filesystem::path output;
   unsigned outputs = 1;
   bool directory = false, chromatic_aberration_correction = false;
+  // Worker threads for decoding a batch of up to four captures and for radial
+  // correction; zero selects the hardware concurrency. Outputs do not depend on
+  // it; one keeps all work on the caller's thread.
+  unsigned jobs = 0;
 };
 struct InputReport {
   std::filesystem::path path;

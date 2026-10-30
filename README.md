@@ -122,6 +122,12 @@ Add `--chromatic-aberration-correction` to enable supported source correction.
 `--output-directory`; a directory can also contain one output. `--outputs`
 defaults to `1`. Use `--` before input paths that begin with a hyphen.
 
+`--jobs N` bounds worker threads from 1 to 256 and defaults to the hardware
+concurrency. Up to four captures of a reconstruction batch, or one averaging
+pair, decode concurrently; radial correction splits rows across the same limit.
+Outputs do not depend on `--jobs`. `--jobs 1` runs serially with the smallest
+working set.
+
 | Capture count | Allowed `--outputs` | Per-output crop dimensions |
 | --- | --- | --- |
 | 4 | 1 | 1x width and height |
@@ -167,7 +173,9 @@ planning a retry.
 The reusable public API is [core.hpp](include/cnefx/core.hpp) and
 [merge.hpp](include/cnefx/merge.hpp). CMake consumers can use `add_subdirectory`
 and link `cnefx::cnefx`; no stable binary ABI or installed SDK is promised.
-Cancellation and progress callbacks run synchronously on the caller's thread.
+Cancellation and progress callbacks run synchronously on the caller's thread;
+worker threads only decode and correct rows, and stop at their next poll after
+a failure or cancellation.
 
 | Responsibility | Source | Native checks |
 | --- | --- | --- |
@@ -182,8 +190,9 @@ Cancellation and progress callbacks run synchronously on the caller's thread.
 The numerical core is independent of decoding and capture identity. Each capture
 index is decoded once; reconstruction keeps at most four source planes, or two
 for paired modes. Sparse repair retains original values only at affected sites.
-Compressed source bytes, decoder buffers, output RGB and radial correction add
-to the working set, so this is not a universal peak-memory bound.
+Compressed source bytes and decoder buffers for each concurrently decoded
+capture, output RGB and radial correction add to the working set, so this is
+not a universal peak-memory bound.
 
 `tools/` holds the native verification runners and their fixture helpers;
 `research/` indexes synthesis evidence. Python is used only for development
