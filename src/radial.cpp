@@ -62,10 +62,12 @@ Rgb correct_crop(const Rgb &image, std::uint32_t raw_width, std::uint32_t raw_he
                   for (int col = -1; col <= 2; ++col) {
                     const int xx = ix + col;
                     const double wx = weight(xx - sx);
+                    // The vendor multiplies the weights before the sample; the
+                    // association decides truncation at near-integer sums.
                     if (yy >= 0 && yy < int(image.height) && xx >= 0 && xx < int(image.width))
                       sum += image.pixels[(static_cast<std::size_t>(yy) * image.width + xx) * 3 +
                                           color * 2] *
-                             wx * wy;
+                             (wx * wy);
                   }
                 }
               }
