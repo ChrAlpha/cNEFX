@@ -123,6 +123,7 @@ add_custom_target(cnefx_build_info ALL
 install(TARGETS cnefx RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/build-info.json"
   DESTINATION ${CMAKE_INSTALL_DATADIR}/cnefx)
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/cnefx)
 if(NOT CNEFX_USE_SYSTEM_LIBRAW)
   install(FILES "${cnefx_libraw_source_SOURCE_DIR}/COPYRIGHT"
     "${cnefx_libraw_source_SOURCE_DIR}/LICENSE.CDDL" "${cnefx_libraw_source_SOURCE_DIR}/LICENSE.LGPL"

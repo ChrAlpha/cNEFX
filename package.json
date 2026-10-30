@@ -1,0 +1,39 @@
+{
+  "name": "cnefx",
+  "version": "0.1.0",
+  "description": "Native Nikon pixel-shift synthesis to NEFX.",
+  "type": "module",
+  "license": "MIT",
+  "author": "ChrAlpha",
+  "homepage": "https://github.com/ChrAlpha/cNEFX",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ChrAlpha/cNEFX.git"
+  },
+  "bugs": "https://github.com/ChrAlpha/cNEFX/issues",
+  "keywords": ["nikon", "pixel-shift", "nefx", "raw", "cli"],
+  "bin": {
+    "cnefx": "dist/cli.js"
+  },
+  "files": ["dist", "native"],
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.24.0",
+  "publishConfig": {
+    "access": "public",
+    "executableFiles": [
+      "native/linux-x86_64/bin/cnefx",
+      "native/linux-arm64/bin/cnefx",
+      "native/macos-arm64/bin/cnefx"
+    ]
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepack": "pnpm run build"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "7.0.2"
+  }
+}

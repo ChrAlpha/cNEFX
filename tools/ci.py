@@ -19,6 +19,7 @@ import rawpy
 from ci_fixture import GOLDEN_SHA256, check_rgb, merge_expectations, sequence
 
 ROOT = Path(__file__).resolve().parents[1]
+NPM_TARGETS = ["linux-arm64", "linux-x86_64", "macos-arm64", "windows-x86_64"]
 
 
 def run(*args: str, **kwargs) -> subprocess.CompletedProcess:
@@ -31,6 +32,8 @@ def version() -> str:
     if not match:
         raise ValueError("Missing CMake project version.")
     value = match[1]
+    if json.loads((ROOT / "package.json").read_text())["version"] != value:
+        raise ValueError("package.json and CMakeLists.txt versions must match.")
     if os.environ.get("GITHUB_REF_TYPE") == "tag":
         if os.environ.get("GITHUB_REF_NAME") != f"v{value}":
             raise ValueError("The version tag must match the native project version.")
@@ -184,6 +187,15 @@ def smoke(program: Path, work: Path) -> dict:
     }
 
 
+def extract(archive: Path, work: Path) -> None:
+    if archive.suffix == ".zip":
+        with zipfile.ZipFile(archive) as source:
+            source.extractall(work)
+    else:
+        with tarfile.open(archive) as source:
+            source.extractall(work, filter="data")
+
+
 def package(build: Path, config: str) -> None:
     destination = build / "packages"
     run(
@@ -205,12 +217,7 @@ def package(build: Path, config: str) -> None:
     assert Path(str(archive) + ".sha256").read_text().split()[0] == digest
     with tempfile.TemporaryDirectory(prefix="package-check-", dir=build) as temporary:
         work = Path(temporary)
-        if archive.suffix == ".zip":
-            with zipfile.ZipFile(archive) as source:
-                source.extractall(work)
-        else:
-            with tarfile.open(archive) as source:
-                source.extractall(work, filter="data")
+        extract(archive, work)
         binaries = list(work.glob("*/bin/cnefx")) + list(work.glob("*/bin/cnefx.exe"))
         assert len(binaries) == 1
         info_path = next(work.glob("*/share/cnefx/build-info.json"))
@@ -225,7 +232,11 @@ def package(build: Path, config: str) -> None:
             info["libraw_archive_sha256"]
             == "789f3c33466210a1a0907f747a97c715d21bbf4af712f257fcbbd90111b227e4"
         )
-        assert (info_path.parent / "libraw" / "COPYRIGHT").is_file()
+        assert (info_path.parent / "LICENSE").read_bytes() == (
+            ROOT / "LICENSE"
+        ).read_bytes()
+        for name in ("COPYRIGHT", "LICENSE.CDDL", "LICENSE.LGPL"):
+            assert (info_path.parent / "libraw" / name).is_file()
         report = smoke(binaries[0], work)
         report.update(
             build=info,
@@ -237,18 +248,40 @@ def package(build: Path, config: str) -> None:
     print(json.dumps(report, indent=2))
 
 
+def npm(artifacts: Path) -> None:
+    """Place the verified CI archive contents under native/<target>/."""
+    prefix = f"cnefx-{version()}-"
+    archives = {
+        path.name.removesuffix(".tar.gz").removesuffix(".zip"): path
+        for path in [
+            *artifacts.rglob(prefix + "*.tar.gz"),
+            *artifacts.rglob(prefix + "*.zip"),
+        ]
+    }
+    if sorted(stem.removeprefix(prefix) for stem in archives) != NPM_TARGETS:
+        raise ValueError(f"Expected one archive per npm target: {sorted(archives)}")
+    destination = ROOT / "native"
+    destination.mkdir()
+    for stem, archive in archives.items():
+        extract(archive, destination)
+        (destination / stem).rename(destination / stem.removeprefix(prefix))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("check", "verify", "package"))
+    parser.add_argument("command", choices=("check", "verify", "package", "npm"))
     parser.add_argument("--build-dir", type=Path, default=Path("build/release"))
     parser.add_argument("--config", default="Release")
+    parser.add_argument("--artifacts", type=Path, default=Path("build/artifacts"))
     args = parser.parse_args()
     if args.command == "check":
         check()
     elif args.command == "verify":
         verify(args.build_dir.resolve(), args.config)
-    else:
+    elif args.command == "package":
         package(args.build_dir.resolve(), args.config)
+    else:
+        npm(args.artifacts.resolve())
 
 
 if __name__ == "__main__":
