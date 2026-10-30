@@ -61,7 +61,7 @@ There is no camera-identity override. The recorded scope is
 
 | Boundary | Implemented behavior |
 | --- | --- |
-| Source decoding | Observed lossless-compressed 14-bit Nikon NEF layouts. Each file is read once; its hashed bytes are parsed and decoded by LibRaw. HE/HE* is unsupported. |
+| Source decoding | Observed lossless-compressed 14-bit Nikon NEF layouts. Each decode reads the file once and parses and decodes exactly the hashed bytes with LibRaw. HE/HE* is unsupported. |
 | Reconstruction | Integer phase mapping, pair averaging, ordered sparse repair and all nine output modes below. |
 | Optional correction | Source-metadata red/blue radial correction before crop; disabled by default and requires supported matching parameters. |
 | NEFX writing | Packed14 RGB, Nikon metadata/CRC updates, private RGB preview and preserved source JPEGs. Every output sample is read back and checked before publication. |

@@ -279,11 +279,13 @@ std::string sha256(std::span<const std::uint8_t> bytes, bool accelerate) {
   return hash.finish();
 }
 namespace {
-// Reads the file in bounded chunks; target supplies the destination of each.
+// Reads size bytes in bounded chunks; target supplies the destination of each.
+// The caller fixes size once, so a file growing during the read cannot move
+// the loop bound past a destination sized from it.
 template <class Target>
-std::string hash_file(File &file, const Check &check, bool accelerate, Target target) {
+std::string hash_file(File &file, std::uint64_t size, const Check &check, bool accelerate,
+                      Target target) {
   Hash hash(accelerate);
-  const auto size = file.size();
   for (std::uint64_t offset = 0; offset < size;) {
     if (check)
       check();
@@ -298,7 +300,7 @@ std::string hash_file(File &file, const Check &check, bool accelerate, Target ta
 } // namespace
 std::string sha256(File &file, const Check &check, bool accelerate) {
   Bytes buffer(1024 * 1024);
-  return hash_file(file, check, accelerate,
+  return hash_file(file, file.size(), check, accelerate,
                    [&](std::uint64_t, std::size_t size) { return std::span(buffer).first(size); });
 }
 Contents read_contents(File &file, const Check &check) {
@@ -306,7 +308,7 @@ Contents read_contents(File &file, const Check &check) {
   if (size > std::numeric_limits<std::size_t>::max())
     throw std::invalid_argument("Input exceeds address space.");
   auto bytes = std::make_shared<Bytes>(static_cast<std::size_t>(size));
-  auto digest = hash_file(file, check, true, [&](std::uint64_t offset, std::size_t length) {
+  auto digest = hash_file(file, size, check, true, [&](std::uint64_t offset, std::size_t length) {
     return std::span(*bytes).subspan(static_cast<std::size_t>(offset), length);
   });
   if (file.size() != bytes->size())
