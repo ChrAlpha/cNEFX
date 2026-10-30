@@ -61,7 +61,7 @@ There is no camera-identity override. The recorded scope is
 
 | Boundary | Implemented behavior |
 | --- | --- |
-| Source decoding | Observed lossless-compressed 14-bit Nikon NEF layouts, decoded by LibRaw from the descriptor used for integrity checks. HE/HE* is unsupported. |
+| Source decoding | Observed lossless-compressed 14-bit Nikon NEF layouts. Each file is read once; its hashed bytes are parsed and decoded by LibRaw. HE/HE* is unsupported. |
 | Reconstruction | Integer phase mapping, pair averaging, ordered sparse repair and all nine output modes below. |
 | Optional correction | Source-metadata red/blue radial correction before crop; disabled by default and requires supported matching parameters. |
 | NEFX writing | Packed14 RGB, Nikon metadata/CRC updates, private RGB preview and preserved source JPEGs. Every output sample is read back and checked before publication. |
@@ -180,8 +180,8 @@ Cancellation and progress callbacks run synchronously on the caller's thread.
 The numerical core is independent of decoding and capture identity. Each capture
 index is decoded once; reconstruction keeps at most four source planes, or two
 for paired modes. Sparse repair retains original values only at affected sites.
-Decoder buffers, output RGB and radial correction add to the working set, so this
-is not a universal peak-memory bound.
+Compressed source bytes, decoder buffers, output RGB and radial correction add
+to the working set, so this is not a universal peak-memory bound.
 
 `tools/` holds the native verification runners and their fixture helpers;
 `research/` indexes synthesis evidence. Python is used only for development

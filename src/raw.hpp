@@ -35,6 +35,9 @@ struct Source {
   std::string hash;
   explicit Source(const fs::path &path);
   void check() const;
+  // Reads the whole input once. The first read records its hash; later reads
+  // must reproduce it. Callers parse and decode the returned hashed bytes.
+  std::shared_ptr<Memory> read(const Check &check_cancel = {});
   void verify(const Check &check_cancel = {}) const;
 };
 Metadata read_metadata(const Directory &root);

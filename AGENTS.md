@@ -51,9 +51,9 @@ commit messages, and new documentation must be English ASCII.
 | Boundary | Required behavior |
 | --- | --- |
 | Input identity | Preserve explicit capture order, complete sequence size, consecutive shot numbers, matching sequence metadata, and immutable source hashes. Reject duplicate files and hard links. |
-| RAW decoding | Keep `metadata.cpp` and `raw.cpp` strict about supported Nikon metadata, compression, CFA, geometry, and crop. Decode from the same owned descriptor used for hashing. Do not patch real capture metadata or relax validation to accept an unsupported file. |
+| RAW decoding | Keep `metadata.cpp` and `raw.cpp` strict about supported Nikon metadata, compression, CFA, geometry, and crop. Read each source once from its owned descriptor; hash, parse and decode those same bytes. Do not patch real capture metadata or relax validation to accept an unsupported file. |
 | Numerical core | Keep reconstruction independent of file decoding and capture identity. Preserve integer arithmetic, truncation, ordered sparse repair, phase mapping, and the special 32-to-4 grouping. Disable floating-point contraction and fast math for calibrated arithmetic. |
-| Resource ownership | Preserve one decode per capture index and bounded source-plane retention. Keep LibRaw state on the heap with callbacks and streams alive through its destruction. Decoder buffers, final RGB and radial correction consume additional memory. |
+| Resource ownership | Preserve one decode per capture index and bounded source-plane retention. Keep LibRaw state on the heap with callbacks, streams and source bytes alive through its destruction. Source bytes, decoder buffers, final RGB and radial correction consume additional memory. |
 | NEFX serialization | Preserve required source metadata and JPEG payloads, update recovered Nikon blocks and CRCs, and verify decoded RGB samples exactly before publication. Do not equate this with byte-identical Nikon output. |
 | Publication | Stage privately beside the destination; publish without replacement only after validation. Pre-publication failures must not expose partial output sets. |
 | Post-publication failure | Retain published output and report parent-sync or cleanup warnings. Do not delete a valid output or imply that retrying the same destination is safe. |

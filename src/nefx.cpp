@@ -123,8 +123,10 @@ void write_nefx(Source &source, const fs::path &path, const Rgb &image, unsigned
                 const Check &check) {
   output_groups(count, 1);
   validate_rgb(image);
-  source.verify(check);
-  auto root = read_tiff(source.file);
+  if (source.hash.empty())
+    throw std::logic_error("Serialize only a decoded source.");
+  // Serialize from bytes that reproduce the hash recorded at decoding.
+  auto root = read_tiff(source.read(check));
   auto &subimages = root.at(330).children;
   if (subimages.size() != 6)
     throw std::invalid_argument("Expected the observed six-SubIFD Nikon layout.");

@@ -11,8 +11,8 @@
 
 namespace cnefx::detail {
 namespace {
-// Decode through the same descriptor used for hashes and metadata. LibRaw never
-// reopens a pathname that could have been replaced after preflight.
+// Decode a written output through its owned descriptor. LibRaw never reopens a
+// pathname that could have been replaced after staging.
 class Stream final : public LibRaw_abstract_datastream {
   std::FILE *file_;
   INT64 size_;
@@ -74,10 +74,10 @@ struct Control {
       throw std::invalid_argument("LibRaw reported corrupt RAW data.");
   }
 };
-void decode(LibRaw &raw, Stream &stream, Control &control) {
+template <class Open> void decode(LibRaw &raw, Control &control, Open open) {
   raw.set_progress_handler(Control::progress, &control);
   raw.set_dataerror_handler(Control::error, &control);
-  control.result(raw.open_datastream(&stream));
+  control.result(open());
   control.result(raw.unpack());
 }
 Calibration calibration(const LibRaw &raw, const std::string &model) {
@@ -132,6 +132,15 @@ void Source::check() const {
   if (file->state() != initial || file_state(file->path()) != initial)
     throw std::invalid_argument("Input changed during synthesis.");
 }
+std::shared_ptr<Memory> Source::read(const Check &check_cancel) {
+  check();
+  auto contents = read_contents(*file, check_cancel);
+  check();
+  if (!hash.empty() && contents.sha256 != hash)
+    throw std::invalid_argument("Input hash changed during synthesis.");
+  hash = std::move(contents.sha256);
+  return std::move(contents.memory);
+}
 void Source::verify(const Check &check_cancel) const {
   check();
   const auto actual = sha256(*file, check_cancel);
@@ -142,20 +151,19 @@ void Source::verify(const Check &check_cancel) const {
 std::pair<Plane, Metadata> read_frame(Source &source, const Check &check) {
   if (check)
     check();
-  source.check();
-  const auto hash = sha256(*source.file, check);
-  source.check();
-  if (!source.hash.empty() && source.hash != hash)
-    throw std::invalid_argument("Input hash changed during synthesis.");
-  auto metadata = read_metadata(read_tiff(source.file));
+  // Metadata and LibRaw both read the hashed bytes, never the file again.
+  const auto memory = source.read(check);
+  auto metadata = read_metadata(read_tiff(memory));
   auto &m = metadata.sequence;
-  Stream stream(*source.file);
   Control control{check, {}};
   // LibRaw owns a large decoder state. Keep it off the caller's thread stack;
-  // the stream and callback control must outlive its destructor.
+  // the source bytes and callback control must outlive its destructor.
   auto decoder = std::make_unique<LibRaw>();
   auto &raw = *decoder;
-  decode(raw, stream, control);
+  decode(raw, control, [&] {
+    const auto bytes = memory->bytes();
+    return raw.open_buffer(bytes.data(), bytes.size());
+  });
   const auto &sizes = raw.imgdata.sizes;
   if (!raw.imgdata.rawdata.raw_image || raw.imgdata.idata.colors != 3 ||
       std::strcmp(raw.imgdata.idata.cdesc, "RGBG") || raw.COLOR(0, 0) != 0 ||
@@ -177,10 +185,7 @@ std::pair<Plane, Metadata> read_frame(Source &source, const Check &check) {
   }
   if (*std::max_element(plane.pixels.begin(), plane.pixels.end()) > 16383)
     throw std::invalid_argument("RAW samples exceed 14 bits.");
-  if (sha256(*source.file, check) != hash)
-    throw std::invalid_argument("Source changed during decoding.");
   source.check();
-  source.hash = hash;
   return {std::move(plane), std::move(metadata)};
 }
 void verify_rgb(const fs::path &path, const Rgb &expected, const Check &check) {
@@ -189,7 +194,7 @@ void verify_rgb(const fs::path &path, const Rgb &expected, const Check &check) {
   Control control{check, {}};
   auto decoder = std::make_unique<LibRaw>();
   auto &raw = *decoder;
-  decode(raw, stream, control);
+  decode(raw, control, [&] { return raw.open_datastream(&stream); });
   const auto &sizes = raw.imgdata.sizes;
   const auto &data = raw.imgdata.rawdata;
   if (sizes.raw_width != expected.width || sizes.raw_height != expected.height ||
