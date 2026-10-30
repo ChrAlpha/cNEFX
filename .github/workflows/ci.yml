@@ -86,7 +86,7 @@ jobs:
       - run: cmake --build build/release --config Release --parallel 2
       - run: ctest --test-dir build/release -C Release --output-on-failure --output-junit native-tests.xml
       - run: uv sync --locked
-      - name: Independent core, container and CLI checks
+      - name: Pinned core, container and CLI regression checks
         run: uv run --no-sync python tools/ci.py verify
       - name: Package and run extracted binary with empty PATH
         run: uv run --no-sync python tools/ci.py package

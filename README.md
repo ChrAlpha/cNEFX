@@ -33,7 +33,7 @@ pkg-config for development; standalone packaging uses the pinned build.
 Verified native archives are uploaded by
 [Native CI](https://github.com/ChrAlpha/cNEFX/actions/workflows/ci.yml).
 Choose an artifact from the required branch/revision and check its accompanying
-`.sha256` file. Historical `nxc` Python releases predate this implementation.
+`.sha256` file. The former implementation is available from the `v0.0.1` tag.
 
 | Platform | Archive | CI system |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ Choose an artifact from the required branch/revision and check its accompanying
 
 Each archive contains `bin/cnefx` (or `bin/cnefx.exe`), build provenance in
 `share/cnefx/build-info.json`, and LibRaw license files. The executable runs
-without the Python reference package or ExifTool on `PATH`. Preserve the license
+without Python or ExifTool on `PATH`. Preserve the license
 files when redistributing an archive. Builds are unsigned and not notarized;
 compatibility with older systems is not established by this CI matrix.
 
@@ -66,7 +66,6 @@ There is no camera-identity override. The recorded scope is
 | Optional correction | Source-metadata red/blue radial correction before crop; disabled by default and requires supported matching parameters. |
 | NEFX writing | Packed14 RGB, Nikon metadata/CRC updates, private RGB preview and preserved source JPEGs. Every output sample is read back and checked before publication. |
 | Publication | Private staging beside the destination; no replacement of existing files or directories; complete output sets become visible together. |
-| Reference archive | Python synthesis, DNG, inspection, Picture Control and rendering remain under `reference/` for verification and historical research. They are outside the product runtime and active feature scope. |
 
 | Camera | Exact TIFF Model | Evidence boundary |
 | --- | --- | --- |
@@ -173,9 +172,9 @@ Cancellation and progress callbacks run synchronously on the caller's thread.
 | Grouping, phase mapping, sparse repair, radial correction | `src/core.cpp`, `src/sparse.cpp`, `src/radial.cpp` | `tests/cpp/core_test.cpp`, `tools/verify_cpp_core.py` |
 | Descriptor ownership, SHA-256, bounded TIFF graph, publication | `src/io.cpp`, `src/sha256.cpp`, `src/tiff.cpp` | `tests/cpp/io_test.cpp`, format/CLI lifecycle checks |
 | Strict Nikon metadata and RAW decode | `src/metadata.cpp`, `src/raw.cpp` | `tests/cpp/format_test.cpp`, `tools/verify_cpp_format.py` |
-| NEFX packing, Nikon blocks, CRCs, previews | `src/nefx.cpp` | Format differential checks and saved vendor replays |
+| NEFX packing, Nikon blocks, CRCs, previews | `src/nefx.cpp` | Saved format expectations and vendor replays |
 | Sequence orchestration and reports | `src/merge.cpp`, `src/report.cpp` | `tests/cpp/merge_test.cpp`, `tools/verify_cpp_cli.py` |
-| CLI argument handling and signals | `src/cli.cpp` | CLI differential, real cancellation and package smoke checks |
+| CLI argument handling and signals | `src/cli.cpp` | CLI regression, real cancellation and package smoke checks |
 | Build, pinned dependency and packaging | `CMakeLists.txt`, `cmake/`, `.github/workflows/ci.yml` | Four native platforms, ASan/UBSan, empty-PATH package checks |
 
 The numerical core is independent of decoding and capture identity. Each capture
@@ -184,16 +183,17 @@ for paired modes. Sparse repair retains original values only at affected sites.
 Decoder buffers, output RGB and radial correction add to the working set, so this
 is not a universal peak-memory bound.
 
-`tools/` holds probes and verification runners; `research/` indexes evidence.
-`reference/nx_ctudio/` preserves the independent Python implementation. It is
-installed only in the development environment as `cnefx-reference`, with no
-`nxc` console entry point. Historical files and tests do not expand product scope.
+`tools/` holds the native verification runners and their fixture helpers;
+`research/` indexes synthesis evidence. Python is used only for development
+checks: fixture construction, independent LibRaw readback, saved expectations,
+external oracle comparisons and package validation.
 
 ## Verification
 
 Read [AGENTS.md](AGENTS.md) before editing. Native unit tests require only the
-C++ build. Differential checks additionally use Python 3.12+ and the locked `uv`
-environment; NumPy, rawpy and tifffile are reference dependencies only.
+C++ build. The verification runners additionally use Python 3.12+ and the locked
+`uv` environment; NumPy, rawpy and tifffile are development dependencies only.
+This environment does not install a Python product or reference package.
 
 ```sh
 uv sync --locked
@@ -210,10 +210,17 @@ uv run --locked python tools/ci.py verify --build-dir build/sanitize --config De
 it before rerunning, or invoke an individual `tools/verify_cpp_*.py` runner with a
 fresh `--work-directory`. The sanitizer preset instruments both cNEFX and LibRaw.
 
-Run only affected Python reference tests for reference changes. Format modified
-C++ paths with `.clang-format`, use Ruff on modified Python paths, and run
+The compact [native-golden.json](tests/fixtures/native-golden.json) record pins
+independent expected sample and TIFF-tree hashes captured before the legacy
+implementation was removed. It also pins fixture hashes, groups and shapes.
+Checks never regenerate expectations from the executable being tested. Changes
+to expectations require separately reviewed evidence and provenance. Sample,
+metadata and image-payload changes are checked independently; this remains
+synthetic regression evidence.
+
+Format modified C++ paths with `.clang-format`, use Ruff on modified Python paths, and run
 `git diff --check`. Native CI checks changed text for ASCII and packages each
-platform after unit and differential checks. To package a local release build:
+platform after unit and saved-reference checks. To package a local release build:
 
 ```sh
 uv run --locked python tools/ci.py package --build-dir build/release
@@ -229,7 +236,6 @@ External evidence requires separately supplied, hash-checked artifacts:
 | `tools/verify_native_modes.py --executable build/release/cnefx` | Nine modes against the saved synthetic Nikon output matrix. |
 | `tools/verify_native_cli.py --executable build/release/cnefx` | Saved synthetic vendor output with optional radial correction. |
 | `tools/verify_firmware_reference.py` | Integer lattice/pair/green arithmetic against the pinned external firmware project; excludes sparse repair and serialization. |
-| `tools/benchmark_cpp.py` | Bounded Linux full-resolution C++/Python resource comparison and exact decoded agreement on hash-pinned synthetic copies. Requires GNU time and prlimit. |
 
 Inspect each runner's `--help` and record explicit time, memory and concurrency
 limits before expensive work. Reports pin revisions, binaries, inputs and
@@ -240,7 +246,7 @@ The correctness reference is
 [NikonFirmwarePatch/z8pixelshift](https://github.com/XinmiaoZhao/NikonFirmwarePatch/tree/13c3709a35c58f9cf6fc9c1043705712074651eb/z8pixelshift),
 pinned to `13c3709a35c58f9cf6fc9c1043705712074651eb`. Its code is an external test
 oracle, not a product dependency. Sparse repair, radial correction and container
-behavior are also compared against retained Python and saved Nikon outputs.
+behavior are checked against pinned independent expectations and saved Nikon outputs.
 
 ## Evidence and remaining acceptance
 
@@ -257,7 +263,9 @@ behavior are also compared against retained Python and saved Nikon outputs.
 These are dated records, not live verification. Large datasets, binaries and
 reports remain outside Git. Historical workstation paths under
 `/workspaces/LumaForge/nxc-data/` are artifact references, not runtime dependencies.
-Verify availability and hashes before relying on them.
+Verify availability and hashes before relying on them. Historical commands and
+source paths apply to their recorded revisions; recover old tooling from Git
+when reproducing those runs.
 
 Acceptance still requires complete authentic lossless 14-bit FX sequences for
 each enabled model, with matching NX Studio NEFX references across modes and

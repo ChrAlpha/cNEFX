@@ -15,9 +15,9 @@ commit messages, and new documentation must be English ASCII.
   scope decision. The current user request takes precedence over recorded scope.
 - Keep Wine and Nikon DLLs outside the product runtime. They are external research
   oracles, not dependencies, fallbacks, or distributable assets.
-- Keep Python, Linear DNG, inspection, Picture Control, Flexible Color and
-  rendering in `reference/` and research tools. They are verification references
-  or historical research, not product runtime features or an active backlog.
+- Keep Linear DNG, inspection, Picture Control, Flexible Color and rendering
+  outside the active scope. Recover historical implementations from Git tags;
+  do not retain duplicate product implementations as reference code.
 - Use the pinned, unmodified static LibRaw build. Optional system LibRaw is for
   development; external codecs, GUI frameworks and vendor SDKs are not required.
 - Retain experimental status until authentic capture/reference comparisons and
@@ -35,7 +35,7 @@ commit messages, and new documentation must be English ASCII.
    ```
 
 2. Read `research/project-scope.json`, `CMakeLists.txt`, and the relevant source
-   and tests. Read `pyproject.toml` for reference or harness work. Use the README
+   and tests. Read `pyproject.toml` for verification tooling. Use the README
    routing tables before exploring historical research.
 3. If `agent-handoff` is available, run `agent-handoff show --json`. Reconcile its
    objective and saved state with the current request. Saved checks and unchanged
@@ -62,22 +62,23 @@ commit messages, and new documentation must be English ASCII.
 Do not introduce a vendor backend, Python dependency or external subprocess into
 the merge runtime. Keep reusable computation in `src/`, public contracts in
 `include/cnefx/`, bounded probes in `tools/` and small native cases in `tests/cpp/`.
-The retained Python oracle in `reference/nx_ctudio/` must remain independent enough
-to detect numerical or format regressions in the C++ implementation.
+Keep fixture helpers separate from the product. Saved expectations must come
+from independently verified evidence, never the executable being tested.
 
 ## Verification and evidence
 
 - Use CMake/CTest and the pinned LibRaw source for the product. Use the locked
-  `uv` environment and existing pytest/Ruff configuration for differential checks
-  and research. Follow the README commands and preserve existing evidence.
+  `uv` environment and Ruff configuration for native verification runners.
+  Follow the README commands and preserve existing synthesis evidence.
 - For behavior changes, reproduce the failure with a focused test when practical.
-  Run affected CTest cases first, then the core/format/CLI differential suites
+  Run affected CTest cases first, then the core/format/CLI regression suites
   for changes spanning decoding, reconstruction, writing or publication. Run the
   ASan/UBSan preset for native ownership, bounds and numerical changes.
 - Format changed C++ with `.clang-format`; lint and format only modified Python
   paths with Ruff. There is no configured Python typechecker. Do not weaken or
   skip a failing test to obtain a passing result.
-- Keep evidence classes separate: unit fixtures, saved vendor-output replays,
+- Keep evidence classes separate: unit fixtures, saved expectation checks,
+  saved vendor-output replays,
   live vendor oracle runs, authentic capture comparisons, and downstream
   application acceptance. Label repeated ordinary RAW and metadata-patched inputs
   as synthetic, including at full resolution.

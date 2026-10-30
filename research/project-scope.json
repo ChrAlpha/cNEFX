@@ -2,7 +2,7 @@
   "schema_version": 1,
   "project": "cNEFX",
   "cli": "cnefx",
-  "updated_on": "2026-10-29",
+  "updated_on": "2026-10-30",
   "objective": "C++20 native Nikon pixel-shift synthesis exclusively to NEFX",
   "user_decisions": {
     "primary_platform": "Native Linux, with verified native packaging for Linux x86_64/ARM64, macOS ARM64 and Windows x86_64",
@@ -16,12 +16,12 @@
       "Linear DNG output and metadata inspection commands",
       "GUI and WASM delivery"
     ],
-    "implementation": "C++20 reusable numerical and merge library with a thin CLI; Python retained only as an independent verification reference and historical research",
+    "implementation": "C++20 reusable numerical and merge library with a thin CLI; Python is limited to native verification tooling, with no retained Python product implementation.",
     "product_features": [
       "Pixel-shift synthesis for most Nikon cameras with official pixel-shift shooting; initial model set: Z8, Zf, Z6III and Z5II",
       "NEFX output fidelity and downstream workflow compatibility"
     ],
-    "decision_context": "Current explicit cNEFX refactor request and Nowledge thread ext-openai-nwsbf4u: C++20 core and CLI, slim LibRaw, retained Python oracle"
+    "decision_context": "The explicit 2026-10-30 cleanup request supersedes retention of the Python reference implementation. Historical source is recoverable from Git, including v0.0.1."
   },
   "current_capabilities": {
     "merge": "Experimental C++20 synthesis of complete 4/8/16/32-frame Nikon Z8, Zf, Z6III or Z5II sequences to NEFX; all nine input/output combinations",
@@ -33,7 +33,7 @@
     "api": "Public C++20 numerical and merge contracts; synchronous cancellation and progress callbacks; JSON schema_version 1",
     "resource_ownership": "One decode per capture index, bounded source-plane retention, sparse original-value snapshots and streaming TIFF image payloads; decoder buffers, output RGB and radial correction remain additional memory"
   },
-  "historical_research": "reference/nx_ctudio preserves Python synthesis, DNG, inspection, Picture Control and renderer code for independent verification or historical research. No Python package is loaded by the product.",
+  "historical_research": "Obsolete Python synthesis, DNG, inspection, Picture Control and renderer implementations, tools and tests are removed. Synthesis format and validation records remain dated evidence for their recorded revisions.",
   "acceptance_boundaries": [
     "Synthetic fixture and saved vendor-output agreement is not authentic capture validation.",
     "LibRaw or Adobe SDK decoding is not Lightroom Classic acceptance.",
@@ -55,7 +55,7 @@
     "GUI, installed stable SDK/ABI, and WASM require separately agreed scope and acceptance."
   ],
   "active_priorities": [
-    "Maintain strict C++20 four-model synthesis, all nine merge modes and independent Python/vendor/firmware differential evidence.",
+    "Maintain strict C++20 four-model synthesis, all nine merge modes, pinned independent regression expectations and saved Nikon/firmware oracle comparisons.",
     "Validate ordered synthesis against authentic capture and matching reference files when they become available.",
     "Resolve concrete merge, NEFX serialization or resource defects demonstrated by capture validation.",
     "Retain experimental status until authentic capture and downstream acceptance are established."
