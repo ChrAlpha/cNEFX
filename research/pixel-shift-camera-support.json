@@ -132,6 +132,12 @@
     "functional_revisions": ["04ac65c", "173d395"],
     "zero_configuration": "At 173d395, cnefx merge <folder> --chromatic-aberration-correction writes the three same-named files beside the captures. All 545,292,288 decoded samples per output match NX Studio; normalized TIFF metadata differs only in Software and DateTime. Rerunning in the original folder refuses before decoding because the NX Studio outputs exist.",
     "regression": "Release and ASan/UBSan CTest, 128 core, 32 format, 36 CLI and the multi-sequence runner pass.",
+    "batch_processing": {
+      "revision": "aed45fb",
+      "result": "Per-sequence processing writes the same three outputs, every decoded sample equal to NX Studio. A repeated run and a run in the original folder report all sequences already merged, the latter recognizing the NX Studio files, with no writes. After one output is removed, a repeated run synthesizes only that sequence, again sample-identical.",
+      "record": "/workspaces/LumaForge/nxc-data/acceptance/20261030-z8-ae-zero-config/aed45fb/evidence.json",
+      "record_sha256": "6892c3ec994295386e568d355c823194dfb60cfbc5ca27c6d32b630c2e1236b7"
+    },
     "record": "/workspaces/LumaForge/nxc-data/acceptance/20261030-z8-ae-zero-config/173d395/evidence.json",
     "record_sha256": "b7554b63094ef1b31a63f3c782f1cd210acf14f8261120cb5e28ce7404e5c676",
     "acceptance_gaps": [
