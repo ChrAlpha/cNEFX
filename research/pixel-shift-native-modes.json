@@ -367,5 +367,54 @@
       "Historical research commands apply to their recorded revisions.",
       "Authentic ordered captures with matching NX Studio references and version-pinned Lightroom acceptance remain open."
     ]
+  },
+  "review_followup_20261030": {
+    "code_revision": "08eb0e4d6ec6f45f058a8d13e5eee2f5d24525ab",
+    "baseline_revision": "5267b1e5d78d872408c97adb18008e3f2dcdbbf4",
+    "trigger": "Requested review of correctness, performance and best practice, followed by fixes for every finding and an independent read-only review of the fixes.",
+    "changes": [
+      "Publication uses an exclusive rename for files and directories; files fall back to a no-replace hard link only without filesystem support. Transfer errors are no longer replaced by the destination lookup error.",
+      "Each decode reads the source once and parses and decodes the hashed bytes; serialization requires bytes reproducing the recorded hash; pre-publication hashing is unchanged.",
+      "Sequence order, numbering, mode and radial support are validated from TIFF metadata before decoding; decoded metadata must reproduce preflight metadata.",
+      "Core reads planes in batches of four frames or one pair; merge decodes a batch on up to --jobs threads and radial correction splits row blocks; callbacks stay on the caller's thread.",
+      "SHA-256 message schedule runs in SHA-NI or ARMv8 instructions.",
+      "CMake subprojects get no tests, install rules or runtime override and see only include/; build-info.json is regenerated per build and packaging requires it to match HEAD."
+    ],
+    "evidence_class": "Authored native tests, saved-expectation checks, saved synthetic vendor-output replays and synthetic full-resolution resource runs. No authentic capture, NX Studio reference or Lightroom acceptance.",
+    "report": {
+      "path": "/workspaces/LumaForge/nxc-data/scratch/review-20261030/report.json",
+      "sha256": "414fa36e7f64a3e863ad80a409dcf9e382c96abca6df02e92f15e35d8718b305"
+    },
+    "verification": {
+      "release": "4/4 CTest; 128 core cases/2284800 samples; 32 format cases; 36 CLI cases, two --jobs 1 cases and 11 lifecycle injections including misordered input; SIGINT cancellation; package check with current provenance.",
+      "sanitize": "Same suites under ASan/UBSan with pinned LibRaw.",
+      "thread_sanitizer": "Local TSan build: core tests, parallel merges with and without radial correction and cancellation/failure injections; only a suppressed glibc tzset_internal report.",
+      "aarch64": "Cross-built hash and core tests pass under qemu-aarch64 (max, cortex-a53).",
+      "vendor_modes": {
+        "modes": 9,
+        "outputs": 24,
+        "samples": 28940544,
+        "different_samples": 0
+      },
+      "vendor_cli": "12 uncorrected and 12 radial cases, 24117120 samples each, passed.",
+      "ci": "Six Native CI jobs passed on a8532e6; later fixes are verified locally and pushed."
+    },
+    "resources": {
+      "host": "AMD Ryzen 7 7700, 16 hardware threads, WSL2, warm cache; serial runs, 300 s and 4 GiB each.",
+      "32_to_4": "32.42 s/612 MiB baseline; 16.35 s/730 MiB default jobs; 25.75 s/611 MiB with --jobs 1.",
+      "32_to_1_radial": "43.51 s/2.38 GiB recorded baseline; 18.06 s default jobs; 38.60 s with --jobs 1; 2.38 GiB.",
+      "misordered_32_to_4": "Rejected after 29.07 s before; under 0.01 s after.",
+      "sha256": "394 MiB/s portable; 2359 MiB/s accelerated in memory (867 MiB/s file throughput before).",
+      "sigint_latency": "0.04-0.51 s at four points of a full-resolution 32-to-4 run, exit 130, no output or staging.",
+      "equivalence": "TIFF tree digests, which cover samples and every tag except 305/306, equal the baseline and saved outputs for all runs."
+    },
+    "unchanged_decisions": [
+      "DateTime 0x132 stays host local time, matching the recorded NX Studio behavior; output file hashes therefore differ between runs.",
+      "JSON reports keep surrogate escapes for invalid UTF-8 path bytes so byte paths remain recoverable."
+    ],
+    "limits": [
+      "Synthetic repeated ordinary RAW only; authentic per-model capture/reference and version-pinned Lightroom acceptance remain open.",
+      "Windows and macOS were exercised by CI only."
+    ]
   }
 }

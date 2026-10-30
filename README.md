@@ -268,7 +268,7 @@ behavior are checked against pinned independent expectations and saved Nikon out
 | Question | Record |
 | --- | --- |
 | Product scope and release gaps | [project-scope.json](research/project-scope.json) |
-| C++ migration, validation, portability and resource results | [pixel-shift-native-modes.json](research/pixel-shift-native-modes.json), `cpp_refactor_20261029` |
+| C++ migration, validation, portability and resource results | [pixel-shift-native-modes.json](research/pixel-shift-native-modes.json), `cpp_refactor_20261029`, `review_followup_20261030` |
 | Model layouts and ordinary-RAW evidence | [pixel-shift-camera-support.json](research/pixel-shift-camera-support.json) |
 | Reconstruction and sparse repair | [pixel-shift-algorithm.json](research/pixel-shift-algorithm.json), [pixel-shift-sparse-pipeline.json](research/pixel-shift-sparse-pipeline.json) |
 | NEFX format and writer | [pixel-shift-nefx-writer.json](research/pixel-shift-nefx-writer.json), [pixel-shift-serialization.json](research/pixel-shift-serialization.json) |
