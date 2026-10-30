@@ -76,13 +76,12 @@ def command(args: list[str], code: int = 0) -> subprocess.CompletedProcess:
     return result
 
 
-def arguments(executable, sources, target, brackets=3, outputs=1):
+def arguments(executable, sources, target, brackets=0, outputs=1):
     return [
         str(executable),
         "merge",
         *map(str, sources),
-        "--ae-bracketing",
-        str(brackets),
+        *(["--ae-bracketing", str(brackets)] if brackets else []),
         "--outputs",
         str(outputs),
         "--output-directory",
@@ -91,7 +90,9 @@ def arguments(executable, sources, target, brackets=3, outputs=1):
     ]
 
 
-def check_case(executable, folder, model, count, outputs, brackets, jobs, corrected):
+def check_case(
+    executable, folder, model, count, outputs, brackets, jobs, corrected, *, expected=0
+):
     folder.mkdir()
     # Saved constant-scene expectations exist for 4->1 and 32->4 only. Other
     # modes use the full saved spatial-pattern matrix without pixel transforms.
@@ -107,7 +108,7 @@ def check_case(executable, folder, model, count, outputs, brackets, jobs, correc
     )
     hashes = [hashlib.sha256(path.read_bytes()).hexdigest() for path in sources]
     target = folder / "result"
-    args = arguments(executable, sources, target, brackets, outputs) + [
+    args = arguments(executable, sources, target, expected, outputs) + [
         "--jobs",
         str(jobs),
     ]
@@ -121,6 +122,11 @@ def check_case(executable, folder, model, count, outputs, brackets, jobs, correc
     assert report["output_count"] == brackets * outputs
     assert report["ae_bracketing"]["exposure_count"] == brackets
     assert report["ae_bracketing"]["outputs_per_exposure"] == outputs
+    assert report["ae_bracketing"]["grouping"] == (
+        "explicit_count_contiguous_sequences"
+        if expected
+        else "metadata_contiguous_sequences"
+    )
     assert len(list(target.iterdir())) == brackets * outputs + 1
     assert [item["sha256"] for item in report["inputs"]] == hashes
     golden = ci_fixture.merge_expectations(
@@ -137,10 +143,10 @@ def check_case(executable, folder, model, count, outputs, brackets, jobs, correc
         }
     for index, item in enumerate(report["outputs"]):
         bracket, local = divmod(index, outputs)
-        expected = golden["outputs"][local]
+        expected_output = golden["outputs"][local]
         assert item["bracket_index"] == bracket
         assert item["input_indices"] == [
-            i + bracket * count for i in expected["input_indices"]
+            i + bracket * count for i in expected_output["input_indices"]
         ]
         path = Path(item["output"])
         assert path.name == f"bracket-{bracket + 1:02d}-merged-{local + 1:02d}.nefx"
@@ -150,7 +156,7 @@ def check_case(executable, folder, model, count, outputs, brackets, jobs, correc
             # coefficients. Compare to independently pinned pre-C++ sample hashes.
             offset = bracket * 256 if pattern == "constant" else 0
             pixels = image.raw_image[..., :3].astype(np.int32) - offset
-            ci_fixture.check_rgb(pixels, expected)
+            ci_fixture.check_rgb(pixels, expected_output)
         source = read(sources[item["input_indices"][0]].read_bytes())
         written = read(path.read_bytes())
         for code in (33434, 33437, 37380, 34855):
@@ -170,6 +176,7 @@ def check_case(executable, folder, model, count, outputs, brackets, jobs, correc
         "jobs": jobs,
         "corrected": corrected,
         "pattern": pattern,
+        "expected_exposures": expected,
         "input_sha256": hashes,
         "output_sha256": [o["sha256"] for o in report["outputs"]],
     }
@@ -193,12 +200,16 @@ def rejections(executable, directory):
         "calibration",
         "unsupported_model",
         "existing",
-        "no_opt_in",
+        "expected_count",
+        "auto_single_destination",
+        "mode_mismatch",
     ):
         folder = directory / mode
         folder.mkdir()
         sources = sequence(folder, 4, 3)
-        target = folder / "result"
+        target = folder / (
+            "result.nefx" if mode == "auto_single_destination" else "result"
+        )
         if mode == "missing_frame":
             sources.pop()
         elif mode == "missing_exposure":
@@ -224,6 +235,7 @@ def rejections(executable, directory):
                     "shutter_gap",
                     "backwards_time",
                     "geometry",
+                    "mode_mismatch",
                 }
                 else sources[-1:]
             )
@@ -248,13 +260,21 @@ def rejections(executable, directory):
                     maker.set(0x0C, 5, struct.pack("<8I", 3, 1, 1, 1, 1, 1, 1, 1))
                 elif mode == "unsupported_model":
                     tree.set(272, 2, b"NIKON Z f\0")
+                elif mode == "mode_mismatch":
+                    selector = bytearray(maker.tags[0x5E].payload)
+                    selector[4] = 2
+                    maker.set(0x5E, 7, bytes(selector))
                 path.write_bytes(serialize(tree))
-        args = arguments(executable, sources, target)
-        if mode == "no_opt_in":
-            at = args.index("--ae-bracketing")
-            del args[at : at + 2]
+        expected = (
+            3 if mode == "missing_exposure" else 2 if mode == "expected_count" else 0
+        )
+        args = arguments(executable, sources, target, expected)
+        if mode == "auto_single_destination":
+            args[args.index("--output-directory")] = "--output"
         report = json.loads(command(args, 1).stdout)
         assert report["error"]["code"] == "merge_failed", (mode, report)
+        if mode == "auto_single_destination":
+            assert "Detected multiple exposures" in report["error"]["message"]
         if mode == "existing":
             assert target.is_dir() and not list(target.iterdir())
         else:
@@ -289,6 +309,35 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
                 brackets,
                 1,
                 False,
+            )
+        )
+    # Total input count alone is ambiguous: e.g. 16 captures can be one 16-frame
+    # sequence or four 4-frame exposures. The camera's mode determines grouping.
+    for count, brackets in ((4, 2), (4, 4), (8, 2), (8, 4), (16, 2)):
+        cases.append(
+            check_case(
+                executable,
+                directory / f"metadata-{count}-{brackets}",
+                "NIKON Z 8",
+                count,
+                1,
+                brackets,
+                1,
+                False,
+            )
+        )
+    for count, outputs, brackets in ((4, 1, 3), (32, 8, 9)):
+        cases.append(
+            check_case(
+                executable,
+                directory / f"expected-{count}-{brackets}",
+                "NIKON Z 8",
+                count,
+                outputs,
+                brackets,
+                1,
+                False,
+                expected=brackets,
             )
         )
     failures = rejections(executable, directory)

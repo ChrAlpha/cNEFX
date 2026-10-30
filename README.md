@@ -86,8 +86,8 @@ sync warnings; keep the published output and read the warning before retrying.
 
 ### Pixel shift with AE bracketing
 
-Use `--ae-bracketing N` to process 2-9 complete exposure sequences from a Z8 or
-Z6III in one batch. Each exposure must contain the same number of pixel-shift
+cNEFX detects 2-9 complete exposure sequences from Z8 or Z6III pixel-shift and
+exposure metadata. Each exposure must contain the same number of pixel-shift
 captures. Pass the files in their original capture order, with each exposure's
 complete sequence together. For three exposures of four captures each:
 
@@ -96,7 +96,7 @@ cnefx merge \
   shot-01.NEF shot-02.NEF shot-03.NEF shot-04.NEF \
   shot-05.NEF shot-06.NEF shot-07.NEF shot-08.NEF \
   shot-09.NEF shot-10.NEF shot-11.NEF shot-12.NEF \
-  --ae-bracketing 3 --output-directory bracketed
+  --output-directory bracketed
 ```
 
 `--outputs` applies to each exposure: three 8-frame exposures with `--outputs 2`
@@ -106,12 +106,13 @@ All outputs are verified and published together.
 
 Each exposure keeps the normal sequence checks. Across exposures, camera identity
 and geometry must match, exposure settings must differ, and shutter counts must
-be consecutive. Shot numbers may reset at exposure boundaries. The supplied
-exposure count is required to detect a missing entire sequence.
+be consecutive. Shot numbers may reset at exposure boundaries. Add the optional
+`--ae-bracketing 3` to require exactly three exposures; this also catches a missing
+entire sequence. Without that option, the count comes from the supplied captures.
 
-**Experimental:** this validates an explicitly supplied batch; automatic camera
-AE-program identification, authentic AE capture/NX Studio comparisons and
-Lightroom HDR acceptance remain unvalidated. The outputs are separate NEFX
+**Experimental:** grouping validates the supplied exposure sequences. The camera's
+original AE-program count and identity, authentic AE capture/NX Studio comparisons
+and Lightroom HDR acceptance remain unvalidated. The outputs are separate NEFX
 files for downstream HDR processing.
 
 ### Options

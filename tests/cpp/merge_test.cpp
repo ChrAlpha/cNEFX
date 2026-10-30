@@ -26,7 +26,6 @@ void mutate(const fs::path &path, bool restore) {
 void inject(int argc, char **argv, bool bracketed) {
   const std::string mode = argv[2];
   MergeOptions options{argv[3], bracketed ? 1u : 2u, true, false};
-  options.brackets = bracketed ? 3 : 1;
   std::vector<fs::path> paths(argv + 4, argv + argc);
   bool fired = false, cancel = false, rejected = false, progressed = false;
   if (mode == "order") {

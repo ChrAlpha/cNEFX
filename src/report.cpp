@@ -91,13 +91,18 @@ std::string path_utf8(const std::filesystem::path &path) {
   return std::string(bytes.begin(), bytes.end());
 }
 std::string report_json(const MergeReport &r) {
+  const bool bracketed = !r.brackets.empty();
+  if ((bracketed || r.options.brackets > 1) &&
+      (r.brackets.size() < 2 || r.brackets.size() > 9 ||
+       (r.options.brackets && r.brackets.size() != r.options.brackets)))
+    throw std::logic_error("An AE bracket report needs every exposure sequence.");
   std::string out = "{\"schema_version\":1,\"status\":\"ok\",\"backend\":\"native\",\"output_"
                     "format\":\"NEFX\",\"version\":" +
                     quote(version()) + ",\"libraw_version\":" + quote(r.decoder_version) +
                     ",\"camera\":{\"make\":" + quote(r.make) + ",\"model\":" + quote(r.model) +
                     "},\"sequence_validation\":" +
-                    quote(r.options.brackets > 1 ? "complete_consecutive_exposure_sequences"
-                                                 : "complete_consecutive_metadata_consistent") +
+                    quote(bracketed ? "complete_consecutive_exposure_sequences"
+                                    : "complete_consecutive_metadata_consistent") +
                     ",\"chromatic_aberration_correction\":" +
                     (r.options.chromatic_aberration_correction ? "true" : "false") +
                     ",\"inputs\":[";
@@ -110,12 +115,12 @@ std::string report_json(const MergeReport &r) {
   }
   out +=
       "],\"limitations\":" + strings(r.limitations) + ",\"warnings\":" + strings(r.warnings) + ",";
-  if (r.options.brackets > 1) {
-    if (r.brackets.size() != r.options.brackets)
-      throw std::logic_error("An AE bracket report needs every exposure sequence.");
-    out += "\"ae_bracketing\":{\"exposure_count\":" + std::to_string(r.options.brackets) +
-           ",\"outputs_per_exposure\":" + std::to_string(r.options.outputs) +
-           ",\"grouping\":\"explicit_count_contiguous_sequences\",\"exposures\":[";
+  if (bracketed) {
+    out += "\"ae_bracketing\":{\"exposure_count\":" + std::to_string(r.brackets.size()) +
+           ",\"outputs_per_exposure\":" + std::to_string(r.options.outputs) + ",\"grouping\":" +
+           quote(r.options.brackets ? "explicit_count_contiguous_sequences"
+                                    : "metadata_contiguous_sequences") +
+           ",\"exposures\":[";
     for (std::size_t i = 0; i < r.brackets.size(); ++i) {
       if (i)
         out += ',';
@@ -139,7 +144,7 @@ std::string report_json(const MergeReport &r) {
     for (std::size_t i = 0; i < r.outputs.size(); ++i) {
       if (i)
         out += ',';
-      out += '{' + output(r.outputs[i], true, r.options.brackets > 1) + '}';
+      out += '{' + output(r.outputs[i], true, bracketed) + '}';
       total += r.outputs[i].samples_verified;
     }
     out += "],\"samples_verified\":" + std::to_string(total);

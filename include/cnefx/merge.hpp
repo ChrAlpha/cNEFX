@@ -20,9 +20,10 @@ struct MergeOptions {
   // correction; zero selects the hardware concurrency. Outputs do not depend on
   // it; one keeps all work on the caller's thread.
   unsigned jobs = 0;
-  // One sequence by default; 2-9 explicitly ordered AE exposure sequences require
-  // a directory. outputs applies to each sequence, with identical capture modes.
-  unsigned brackets = 1;
+  // Zero detects the exposure count from complete sequences in Nikon metadata.
+  // A positive value requires that count (1-9). Multiple exposures require a
+  // directory; outputs applies to each sequence, with identical capture modes.
+  unsigned brackets = 0;
 };
 struct InputReport {
   std::filesystem::path path;

@@ -15,21 +15,13 @@ const char *version() { return CNEFX_VERSION; }
 
 MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, const Check &check,
                   const Progress &progress) {
-  if (!options.brackets || options.brackets > 9)
-    throw std::invalid_argument("Expected 1 to 9 exposure sequences.");
+  if (options.brackets > 9)
+    throw std::invalid_argument("Expected 0 (automatic) or 1 to 9 exposure sequences.");
   if (options.brackets > 1 && !options.directory)
     throw std::invalid_argument("AE bracketing requires an output directory.");
-  if (paths.size() > 32 * options.brackets || paths.size() % options.brackets)
-    throw std::invalid_argument("Expected complete exposure sequences of at most 32 captures.");
-  const unsigned count = paths.size() / options.brackets;
-  const auto local_groups = output_groups(count, options.outputs);
-  Groups groups;
-  for (unsigned bracket = 0; bracket < options.brackets; ++bracket)
-    for (auto members : local_groups) {
-      for (auto &member : members)
-        member += bracket * count;
-      groups.push_back(std::move(members));
-    }
+  if (paths.size() < 4 || paths.size() % 4 ||
+      paths.size() > 32 * (options.brackets ? options.brackets : 9))
+    throw std::invalid_argument("Expected complete 4/8/16/32-frame exposure sequences.");
   if (options.output.empty())
     throw std::invalid_argument("An output destination is required.");
   if (!options.directory) {
@@ -63,16 +55,33 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
       check();
     preflight.push_back(read_metadata(read_tiff(source.file)));
   }
-  if (options.brackets == 1)
+  const auto &information = preflight.front();
+  const unsigned count = information.sequence.count;
+  if (paths.size() % count)
+    throw std::invalid_argument("Input count does not match complete metadata capture sequences.");
+  const unsigned brackets = paths.size() / count;
+  if (brackets > 9 || (options.brackets && brackets != options.brackets))
+    throw std::invalid_argument(
+        "Detected exposure count does not match the expected 1 to 9 sequences.");
+  if (brackets > 1 && !options.directory)
+    throw std::invalid_argument("Detected multiple exposures; use an output directory.");
+  if (brackets == 1)
     validate_sequence(preflight, options.chromatic_aberration_correction);
   else
-    validate_brackets(preflight, options.brackets, options.chromatic_aberration_correction);
-  const auto &information = preflight.front();
+    validate_brackets(preflight, brackets, options.chromatic_aberration_correction);
+  const auto local_groups = output_groups(count, options.outputs);
+  Groups groups;
+  for (unsigned bracket = 0; bracket < brackets; ++bracket)
+    for (auto members : local_groups) {
+      for (auto &member : members)
+        member += bracket * count;
+      groups.push_back(std::move(members));
+    }
   if (progress)
     progress(Stage::preflight, paths.size(), paths.size());
   Publication pending(output, options.directory);
   std::vector<bool> consumed(paths.size());
-  std::vector<std::optional<Calibration>> calibrations(options.brackets);
+  std::vector<std::optional<Calibration>> calibrations(brackets);
   unsigned decoded = 0;
   auto accept = [&](unsigned index, std::pair<Plane, Metadata> frame) {
     // Decoded bytes must carry the validated metadata; LibRaw adds calibration.
@@ -115,8 +124,8 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
   report.decoder_version = decoder_version();
   report.options = options;
   report.options.output = output;
-  if (options.brackets > 1)
-    for (unsigned bracket = 0; bracket < options.brackets; ++bracket) {
+  if (brackets > 1)
+    for (unsigned bracket = 0; bracket < brackets; ++bracket) {
       const auto &sequence = preflight[bracket * count].sequence;
       BracketReport item{sequence.iso, sequence.exposure, {}};
       for (unsigned i = 0; i < count; ++i)
@@ -138,9 +147,8 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
         sequence.crop, sequence.selection, sequence.iso,
         options.chromatic_aberration_correction ? preflight[members[0]].radial : std::nullopt,
         check, options.jobs);
-    const auto name =
-        (options.brackets > 1 ? "bracket-0" + std::to_string(bracket + 1) + "-" : "") + "merged-0" +
-        std::to_string(index % options.outputs + 1) + ".nefx";
+    const auto name = (brackets > 1 ? "bracket-0" + std::to_string(bracket + 1) + "-" : "") +
+                      "merged-0" + std::to_string(index % options.outputs + 1) + ".nefx";
     const auto candidate = options.directory ? pending.temporary() / name : pending.temporary();
     write_nefx(sources[members[0]], candidate, pixels, members.size(), check);
     verify_rgb(candidate, pixels, check);
@@ -156,12 +164,12 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
       "Experimental: authentic capture and Lightroom validation is partial.",
       "Adobe XMP defaults are preserved without updates.",
       "HE/HE* decoding is not implemented; use lossless-compressed 14-bit NEF inputs.",
-      options.brackets > 1
-          ? "AE brackets require complete exposure sequences in consecutive shutter order."
-          : "Input order must follow consecutive capture numbers in a single sequence."};
-  if (options.brackets > 1)
+      brackets > 1 ? "AE brackets require complete exposure sequences in consecutive shutter order."
+                   : "Input order must follow consecutive capture numbers in a single sequence."};
+  if (brackets > 1)
     report.limitations.push_back(
-        "AE bracket grouping uses the supplied exposure count and observed metadata; authentic "
+        "Exposure sequences are grouped from observed metadata. The camera's planned AE exposure "
+        "count is not established; use --ae-bracketing N to require an expected count. Authentic "
         "AE capture/reference and downstream HDR acceptance remain unvalidated.");
   if (std::any_of(calibrations.begin(), calibrations.end(),
                   [](const auto &calibration) { return calibration->missing_matrix; }))
