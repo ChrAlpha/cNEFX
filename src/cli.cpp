@@ -18,20 +18,25 @@ std::filesystem::path from_utf8(const std::string &text) {
 void help() {
   std::cout << "cNEFX " << cnefx::version()
             << " - native Nikon pixel-shift NEFX synthesis\n\n"
-               "Usage: cnefx merge FILE... --output FILE.nefx [--json]\n"
-               "       cnefx merge FILE... --outputs N --output-directory DIR [--json]\n\n"
-               "Pass a complete sequence in explicit capture order. Destinations must not exist.\n"
+               "Usage: cnefx merge PATH... [options]\n\n"
+               "PATH is a NEF file, a directory whose immediate .NEF files are used, or a file\n"
+               "name pattern with * or ?. Other files are skipped. Captures are grouped into\n"
+               "sequences by burst identity and ordered by shot number; AE-bracketed exposures\n"
+               "are separate sequences. Each sequence is merged and published on its own, beside\n"
+               "its first capture as NAME_merged.NEFX. A sequence whose outputs exist is not\n"
+               "merged again, so an interrupted or partial run can simply be repeated. Exit\n"
+               "status 1 reports a sequence or file that could not be merged.\n"
                "Modes: 4->1, 8->1/2, 16->1/4, 32->1/2/4/8.\n\n"
                "Options:\n"
-               "  -o, --output FILE.nefx             Write one verified NEFX\n"
-               "  --output-directory DIR            Publish a complete output set\n"
-               "  --outputs N                       Number of outputs (default 1)\n"
-               "  --jobs N                          Worker threads, 1-256 (default: all cores)\n"
+               "  -o, --output FILE.nefx             Write the only output to this file\n"
+               "  --output-directory DIR             Publish all outputs and a manifest together\n"
+               "  --outputs N                        Outputs per sequence (default 1)\n"
+               "  --jobs N                           Worker threads, 1-256 (default: all cores)\n"
                "  --chromatic-aberration-correction  Apply supported source radial correction\n"
-               "  --json                            Write a JSON report to stdout\n"
-               "  --                                Treat remaining arguments as input paths\n"
-               "  -h, --help                        Show this help\n"
-               "  --version                         Show the version\n\n"
+               "  --json                             Write a JSON report to stdout\n"
+               "  --                                 Treat remaining arguments as input paths\n"
+               "  -h, --help                         Show this help\n"
+               "  --version                          Show the version\n\n"
                "Experimental: authentic capture/reference and Lightroom acceptance remain open.\n";
 }
 int run(const std::vector<std::string> &args) {
@@ -110,10 +115,10 @@ int run(const std::vector<std::string> &args) {
         throw std::invalid_argument("Unknown option: " + arg);
       inputs.push_back(from_utf8(arg));
     }
-    if (!have_output || inputs.empty())
-      throw std::invalid_argument("Input files and an output destination are required.");
-    if (!options.directory && options.outputs != 1)
-      throw std::invalid_argument("Multiple outputs require --output-directory.");
+    if (inputs.empty())
+      throw std::invalid_argument("Input files or directories are required.");
+    if (have_output && !options.directory && options.outputs != 1)
+      throw std::invalid_argument("--output writes one file; use --output-directory or omit it.");
   } catch (const std::exception &e) {
     std::cerr << "cnefx: " << e.what() << '\n';
     return 2;
@@ -121,22 +126,38 @@ int run(const std::vector<std::string> &args) {
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
   try {
-    const auto report = cnefx::merge(inputs, options, [] {
-      if (interrupted)
-        throw cnefx::Cancelled();
-    });
+    const auto report = cnefx::merge(
+        inputs, options,
+        [] {
+          if (interrupted)
+            throw cnefx::Cancelled();
+        },
+        [&](cnefx::Stage stage, unsigned done, unsigned total) {
+          if (!json && stage == cnefx::Stage::write)
+            std::cerr << "Synthesized " << done << " of " << total << " outputs\n";
+        });
     if (json)
       std::cout << cnefx::report_json(report) << '\n';
     else {
       for (const auto &output : report.outputs)
         std::cout << cnefx::path_utf8(output.path) << " (" << output.samples_verified
                   << " samples verified)\n";
+      for (const auto &sequence : report.sequences)
+        if (sequence.status == cnefx::SequenceStatus::already_merged)
+          std::cerr << "Already merged: " << cnefx::path_utf8(sequence.first_capture) << '\n';
+        else if (sequence.status == cnefx::SequenceStatus::failed)
+          std::cerr << "Failed: " << cnefx::path_utf8(sequence.first_capture) << ": "
+                    << sequence.error << '\n';
+      for (const auto &item : report.errors)
+        std::cerr << "Unreadable: " << cnefx::path_utf8(item.path) << ": " << item.reason << '\n';
+      for (const auto &skipped : report.skipped)
+        std::cerr << "Skipped " << cnefx::path_utf8(skipped.path) << ": " << skipped.reason << '\n';
       for (const auto &limitation : report.limitations)
         std::cerr << limitation << '\n';
       for (const auto &warning : report.warnings)
         std::cerr << "Warning: " << warning << '\n';
     }
-    return 0;
+    return report.complete() ? 0 : 1;
   } catch (const cnefx::Cancelled &e) {
     if (json)
       std::cout << cnefx::error_json("cancelled", e.what()) << '\n';

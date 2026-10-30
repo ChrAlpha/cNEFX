@@ -179,7 +179,7 @@ def main() -> int:
                 )
                 observed["overwrite_rejected"] = (
                     rerun.returncode == 1
-                    and digest(output) == observed["cli"]["sha256"]
+                    and digest(output) == observed["cli"]["outputs"][0]["sha256"]
                 )
                 observed["passed"] &= observed["overwrite_rejected"]
         report["passed"] = (

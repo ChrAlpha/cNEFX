@@ -14,6 +14,8 @@ from pathlib import Path
 import rawpy
 
 import ci_fixture
+import verify_cpp_discovery
+import verify_cpp_sequences
 from tiff_fixture import tree_digest
 from verify_cpp_format import pixels
 
@@ -59,8 +61,8 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
             )
             report = json.loads(result.stdout)
             assert report == json.loads((output / "manifest.json").read_text())
-            assert report["status"] == "ok" and report["schema_version"] == 1
-            assert report["camera"]["model"] == model
+            assert report["status"] == "ok" and report["schema_version"] == 2
+            assert report["sequences"][0]["camera"]["model"] == model
             assert report["output_count"] == outputs
             assert report["warnings"] == []
             assert len(list(output.iterdir())) == outputs + 1
@@ -126,9 +128,13 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
     target = folder / "unicode space-\u6d4b\u8bd5.nefx"
     args = [str(executable), "merge", *map(str, sources), "-o", str(target), "--json"]
     report = json.loads(command(args).stdout)
-    assert report["output"] == str(target)
-    failure = json.loads(command(args, 1).stdout)
-    assert failure["error"]["code"] == "merge_failed"
+    assert report["outputs"][0]["output"] == str(target)
+    # A repeated run recognizes its own output and leaves it unchanged.
+    published = hashlib.sha256(target.read_bytes()).hexdigest()
+    repeated = json.loads(command(args).stdout)
+    assert repeated["outputs"] == []
+    assert repeated["sequences"][0]["status"] == "already_merged"
+    assert hashlib.sha256(target.read_bytes()).hexdigest() == published
     quoted_target = folder / 'quoted-".nefx'
     quoted = json.loads(
         command(
@@ -144,10 +150,12 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
         ).stdout
     )
     if os.name == "nt":
-        assert quoted["error"]["code"] == "merge_failed"
+        # The name is invalid on Windows: the sequence fails and nothing appears.
+        assert quoted["status"] == "partial" and quoted["outputs"] == []
+        assert quoted["sequences"][0]["status"] == "failed"
         assert not quoted_target.exists()
     else:
-        assert quoted["output"] == str(quoted_target)
+        assert quoted["outputs"][0]["output"] == str(quoted_target)
     for extra in (
         [],
         ["--json"],
@@ -163,7 +171,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
     assert "Usage:" in command([str(executable), "--help"]).stdout
     injected = []
     for mode in (
-        "order",
+        "incomplete",
         "preflight",
         "unread",
         "replacement",
@@ -184,6 +192,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
                 "--inject",
                 mode,
                 str(folder / "result"),
+                "2",
                 *map(str, sources),
             ]
         )
@@ -230,6 +239,10 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
         "injected_failures": injected,
         "cancellation": cancellation,
         "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+        "sequences": verify_cpp_sequences.run(
+            executable, injector, directory / "sequences"
+        ),
+        "discovery": verify_cpp_discovery.run(executable, directory / "discovery"),
     }
     (directory / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     return report

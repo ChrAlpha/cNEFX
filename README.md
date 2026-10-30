@@ -42,40 +42,29 @@ Check the accompanying `.sha256` file, extract the archive, and add its `bin`
 directory to `PATH`. Builds are unsigned and not notarized; older-system
 compatibility is not established.
 
-## Merge a sequence
+## Merge pixel-shift captures
 
-Use **lossless-compressed, 14-bit FX NEF files** from one complete pixel-shift
-sequence. Pass every file explicitly in capture order, with consecutive shot
-numbers. Directory inputs and shell glob ordering are not a substitute for
-capture order. HE/HE* is unsupported; HLG, other image areas and untested
-firmware/settings remain unvalidated.
-
-The destination must not exist, and its parent directory must already exist.
-Four captures to one NEFX:
+Use **lossless-compressed, 14-bit FX NEF files**. Pass a card folder, files or a
+file-name pattern; no other option is needed:
 
 ```sh
-cnefx merge \
-  shot-01.NEF shot-02.NEF shot-03.NEF shot-04.NEF \
-  --output merged.nefx
+cnefx merge /path/to/DCIM/100NZ_8
 ```
 
-Eight captures to two NEFX files in a new directory:
+cNEFX finds the pixel-shift sequences, as NX Studio does, and writes each one
+beside its first capture, e.g. `SGL_6243_merged.NEFX`. Other photos are skipped.
+With AE bracketing every exposure is its own sequence and output. Running the
+same command again only merges what is missing, so an interrupted or partly
+failed run can simply be repeated; existing files are never replaced.
 
-```sh
-cnefx merge \
-  shot-01.NEF shot-02.NEF shot-03.NEF shot-04.NEF \
-  shot-05.NEF shot-06.NEF shot-07.NEF shot-08.NEF \
-  --outputs 2 --output-directory merged-set
-```
-
-The directory contains the NEFX files and a `manifest.json` report. cNEFX checks
-the output samples before publishing and never replaces an existing destination,
-including an empty directory. A successful merge can still report cleanup or
-sync warnings; keep the published output and read the warning before retrying.
+Use `--output FILE.nefx` for a single sequence or `--output-directory DIR` to
+publish all outputs with a `manifest.json` together. HE/HE* is unsupported; HLG,
+other image areas and untested firmware/settings remain unvalidated.
 
 ### Output modes
 
-`--outputs` defaults to `1`. Use `--output-directory` for multiple outputs.
+`--outputs N` sets the outputs per sequence and defaults to `1`. Several outputs
+are named `NAME_merged_01.NEFX` onward; `--output` accepts only one.
 
 | Captures | Allowed outputs | Dimensions per output, relative to the source crop |
 | --- | --- | --- |

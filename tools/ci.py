@@ -160,7 +160,7 @@ def smoke(program: Path, work: Path) -> dict:
         )
         report = json.loads(result.stdout)
         assert report["status"] == "ok"
-        items = report["outputs"] if outputs > 1 else [report]
+        items = report["outputs"]
         golden = merge_expectations("NIKON Z 8", count, outputs, pattern="constant")
         assert [hashlib.sha256(p.read_bytes()).hexdigest() for p in paths] == golden[
             "input_sha256"
