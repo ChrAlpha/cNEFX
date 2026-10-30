@@ -251,11 +251,13 @@ void write_tiff(const Directory &root, File &output, const Check &check) {
         check();
       auto kind = tag.kind;
       auto count = tag.count;
-      auto payload = tag.data;
+      // Reference the tag's bytes; only rewritten pointer arrays need a buffer.
+      const Bytes *payload = &tag.data;
+      Bytes pointers;
       if (replacements.contains(code)) {
-        payload = replacements.at(code);
+        payload = &replacements.at(code);
         kind = 4;
-        count = payload.size() / 4;
+        count = payload->size() / 4;
       }
       std::uint32_t value = 0;
       if (!tag.nikon_header.empty()) {
@@ -272,17 +274,18 @@ void write_tiff(const Directory &root, File &output, const Check &check) {
         if (!tag.children.empty()) {
           kind = 4;
           count = tag.children.size();
-          payload.resize(count * 4);
+          pointers.resize(count * 4);
           for (unsigned i = 0; i < count; ++i)
-            put32(payload, i * 4, walk(tag.children[i], base, false) - base);
+            put32(pointers, i * 4, walk(tag.children[i], base, false) - base);
+          payload = &pointers;
         }
-        if (payload.size() != std::uint64_t(count) * type_width(kind))
+        if (payload->size() != std::uint64_t(count) * type_width(kind))
           throw std::invalid_argument("TIFF value length disagrees with its type.");
-        if (payload.size() > 4)
-          value = write(payload) - base;
+        if (payload->size() > 4)
+          value = write(*payload) - base;
         else {
           Bytes small(4);
-          std::copy(payload.begin(), payload.end(), small.begin());
+          std::copy(payload->begin(), payload->end(), small.begin());
           value = u32(small, 0);
         }
       }
