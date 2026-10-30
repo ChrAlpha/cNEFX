@@ -327,5 +327,45 @@
     "No authentic pixel-shift capture or Lightroom acceptance is established.",
     "Adobe default metadata updates for per-output 8/32 inputs remain unimplemented.",
     "Other firmware, compression and image-area variants remain outside validated coverage."
-  ]
+  ],
+  "python_cleanup_20261030": {
+    "code_revision": "ca60723e2f66d01b8cba1f39c98ffe12d31bf359",
+    "runtime_unchanged_from": "95bb544c836a990d8f973e54db9acfb4263ada5f",
+    "decision": "Remove the obsolete Python implementation instead of keeping it as a reference; historical source is recoverable from Git tags.",
+    "removed_files": 220,
+    "retained_python": "Nine native verification runners/helpers only; virtual uv environment, no installed Python product/reference package, no pytest or packaging backend.",
+    "expectations": {
+      "path": "tests/fixtures/native-golden.json",
+      "sha256": "8b28101edf9e9f77437c64e89d96ca467df8fef7fd302d2d103d4402ed359295",
+      "source_revision": "95bb544c836a990d8f973e54db9acfb4263ada5f",
+      "scope": "Pinned sample/fixture/tree hashes and groups; no retained Python synthesis, RAW decoder or NEFX encoder."
+    },
+    "verification": {
+      "release": "4/4 CTest; 128 core cases/2284800 samples; 32 format cases/14 rejections; 36 CLI cases/10 lifecycle injections; SIGINT cancellation.",
+      "sanitize": "Same CTest and saved-expectation suites under ASan/UBSan, including pinned LibRaw.",
+      "package": "CPack checksum/provenance/licenses and extracted binary synthesis with empty PATH passed.",
+      "mutation_probes": "Six single-sample, model, tag type, Nikon header, preview and image-payload changes detected.",
+      "vendor_modes": {
+        "modes": 9,
+        "outputs": 24,
+        "samples": 28940544,
+        "different_samples": 0
+      },
+      "vendor_radial": {
+        "cases": 4,
+        "samples": 8039040,
+        "different_samples": 0
+      },
+      "review": "Fresh manual diff and behavior review; confirmed native sources/CMake/native unit tests unchanged, retained helper dependency closure, valid docs links, ASCII/JSON, scoped Ruff and diff checks. No separate reviewer rerun."
+    },
+    "evidence": {
+      "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-python-cleanup-20261030/summary.json",
+      "sha256": "8e816c3782a82869650cc93f1640642742b87717ea71628f5b1f3c8099321a4b"
+    },
+    "limitations": [
+      "Frozen expectations are synthetic regression evidence, not a live differential oracle.",
+      "Historical research commands apply to their recorded revisions.",
+      "Authentic ordered captures with matching NX Studio references and version-pinned Lightroom acceptance remain open."
+    ]
+  }
 }
