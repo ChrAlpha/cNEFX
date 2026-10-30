@@ -203,6 +203,29 @@
       "Version-pinned Lightroom HDR acceptance"
     ]
   },
+  "authentic_ae_reference": {
+    "observed_on": "2026-10-30",
+    "status": "authentic_z8_16_frame_ae_nx_studio_sample_match",
+    "capture": "NIKON Z 8 firmware C 3.01, 48 lossless 14-bit NEFs SGL_6243..SGL_6290: three exposure-major 16-frame sequences at 1/60 s 0 EV, 1/125 s -1 EV and 1/30 s +1 EV; f/2, ISO 1600.",
+    "observed_metadata": "Per-exposure shot numbers and 0x5e frame ordinals reset to 1-16; burst ids differ per exposure; 48 absolute shutter counts are consecutive; EXIF ExposureBiasValue carries the bracket offset. BracketSet=AE/Flash, BracketProgram=Disabled and BracketIncrement=1 EV are constant, so no parsed field records the planned exposure count.",
+    "zero_configuration": "cnefx merge <48 files> --output-directory DIR groups three exposures from metadata without --ae-bracketing; --outputs 4 and --ae-bracketing 3 also pass, --ae-bracketing 2, a moved exposure block and a missing file are rejected. The first 32 files alone are accepted as two exposures.",
+    "references": "Three NX Studio 1.11 W NEFX files, one per exposure, with chromatic aberration correction enabled.",
+    "result_before_fix": "Revision 39e0596 with correction: green exact; 571, 331 and 952 red/blue samples differ by one. Every differing cubic sum lies within 7.3e-12 of an integer.",
+    "cause": "PixelShiftCombine.dll 1.10.1 (sha256 c82782c51be65d9528f6751bfca9d2bdc7b728baa3ee8eca2e84ba713ed9031c) multiplies wy*wx before the sample at RVA 0x34b4a3/0x34b4b6; cNEFX evaluated (sample*wx)*wy.",
+    "functional_revision": "96665b3",
+    "result_after_fix": "All 545,292,288 decoded samples per output match for all three exposures; decode metadata matches; normalized TIFF metadata differs only in Software, DateTime and the RAW payload encoding.",
+    "saved_expectations": "Only the eight saturated radial core cases change; their new hashes come from an independent constant-input model that reproduces the frozen v0.0.1 hashes under the old order.",
+    "regression": "Release and ASan/UBSan CTest, 128 core, 32 format, 36 CLI and AE batch cases pass.",
+    "record": "/workspaces/LumaForge/nxc-data/acceptance/20261030-z8-ae-reference/evidence.json",
+    "record_sha256": "3a35436c3690e22b00b86bf6ca395390bc89d90ef571a2f9117aa8563178e4e2",
+    "acceptance_gaps": [
+      "The earlier SGL_6128 32-to-1 reference is no longer available and was not rerun after the fix",
+      "NX Studio references without chromatic correction and for other output counts",
+      "Z6III and 4/8/32-frame AE captures",
+      "Camera AE-program count metadata",
+      "Version-pinned Lightroom HDR acceptance"
+    ]
+  },
   "coverage_limits": [
     "This is the four-model set confirmed from official manuals, not a promise to cover future firmware or every Nikon model.",
     "Z9, Z6II, Z5, Zfc, Z50II and ZR manual indexes did not expose a pixel-shift shooting entry in this bounded check; they are not allowlisted. Z7II manual URL returned 404, so no negative support claim is inferred.",

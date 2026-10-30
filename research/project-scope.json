@@ -25,7 +25,7 @@
   },
   "current_capabilities": {
     "merge": "Experimental C++20 synthesis of complete 4/8/16/32-frame Nikon Z8, Zf, Z6III or Z5II sequences to NEFX; all nine input/output combinations",
-    "ae_bracketing": "Experimental automatic metadata grouping of 2-9 complete Z8/Z6III exposure sequences, all nine modes per exposure, one atomic output directory; --ae-bracketing N optionally requires an expected exposure count. The manifest records grouping provenance, exposure settings and input mappings. Camera AE-program completeness and authentic AE/reference acceptance remain unvalidated.",
+    "ae_bracketing": "Experimental automatic metadata grouping of 2-9 complete Z8/Z6III exposure sequences, all nine modes per exposure, one atomic output directory; --ae-bracketing N optionally requires an expected exposure count. The manifest records grouping provenance, exposure settings and input mappings. One authentic Z8 16-to-1 three-exposure capture with correction enabled matches NX Studio in every decoded sample; camera AE-program completeness and other models/modes remain unvalidated.",
     "output_set_publication": "Linux renameat2(RENAME_NOREPLACE), macOS renamex_np(RENAME_EXCL), or Windows exclusive move after all outputs and the complete sequence pass validation",
     "chromatic_aberration_correction": "Optional native source-metadata red/blue radial correction before crop; disabled by default",
     "sequence_validation": "Explicit capture order, consecutive shot numbers, consistent observed metadata, distinct file identities, descriptor-bound decoding and final immutable source hashes",
@@ -43,7 +43,7 @@
   "release_gaps": [
     "Authentic complete pixel-shift sequences and matching NX Studio NEFX references for each enabled Nikon model",
     "Downstream application acceptance of native NEFX outputs, including Lightroom",
-    "Authentic Z8/Z6III AE bracket captures, matching NX Studio outputs, camera AE-program metadata and version-pinned Lightroom HDR acceptance"
+    "Authentic Z6III and further Z8 AE bracket modes with matching NX Studio outputs, camera AE-program metadata and version-pinned Lightroom HDR acceptance"
   ],
   "compatibility_limits": [
     "Source Adobe XMP defaults are preserved; vendor-equivalent default sharpening and noise reduction are not established. This is an appearance limitation, not evidence of different merged RAW samples.",

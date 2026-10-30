@@ -225,8 +225,9 @@ reset. Sparse selection, ISO and decoder calibration belong to each exposure;
 radial centers remain per capture. All exposures share one publication boundary.
 Observed fields validate the supplied batch, not the camera's originally planned
 AE-program count or identity. An optional expected count detects a missing whole
-exposure that automatic grouping cannot establish. Authentic AE/reference
-acceptance remains open.
+exposure that automatic grouping cannot establish. One authentic Z8 16-frame AE
+capture matches NX Studio per exposure with correction enabled; other models,
+modes and Lightroom HDR acceptance remain open.
 
 ## CLI reports and publication
 

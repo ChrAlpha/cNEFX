@@ -110,10 +110,11 @@ be consecutive. Shot numbers may reset at exposure boundaries. Add the optional
 `--ae-bracketing 3` to require exactly three exposures; this also catches a missing
 entire sequence. Without that option, the count comes from the supplied captures.
 
-**Experimental:** grouping validates the supplied exposure sequences. The camera's
-original AE-program count and identity, authentic AE capture/NX Studio comparisons
-and Lightroom HDR acceptance remain unvalidated. The outputs are separate NEFX
-files for downstream HDR processing.
+**Experimental:** grouping validates the supplied exposure sequences. One authentic
+Z8 capture (three 16-frame exposures) matches NX Studio 1.11 per exposure in every
+decoded sample with chromatic aberration correction enabled. The camera's original
+AE-program count, other models and modes, and Lightroom HDR acceptance remain
+unvalidated. The outputs are separate NEFX files for downstream HDR processing.
 
 ### Options
 
