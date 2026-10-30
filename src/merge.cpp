@@ -42,60 +42,53 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
     if (!identities.emplace(state.device, state.inode).second)
       throw std::invalid_argument("Duplicate input file or hard link.");
   }
+  // Validate the complete sequence from its TIFF metadata before any decode.
+  std::vector<Metadata> preflight;
+  preflight.reserve(sources.size());
+  for (const auto &source : sources) {
+    if (check)
+      check();
+    preflight.push_back(read_metadata(read_tiff(source.file)));
+  }
+  validate_sequence(preflight, options.chromatic_aberration_correction);
+  const auto &information = preflight.front();
   if (progress)
     progress(Stage::preflight, paths.size(), paths.size());
   Publication pending(output, options.directory);
-  std::vector<Metadata> metadata(paths.size());
   std::vector<bool> consumed(paths.size());
+  std::optional<Calibration> calibration;
   unsigned decoded = 0;
   auto load = [&](unsigned index) {
     if (consumed.at(index))
       throw std::logic_error("Capture decoded more than once.");
     auto frame = read_frame(sources.at(index), check);
-    metadata[index] = std::move(frame.second);
-    if (index && metadata[index].sequence != metadata[0].sequence)
-      throw std::invalid_argument("Sequence metadata differs.");
-    if (options.chromatic_aberration_correction &&
-        (!metadata[index].radial || metadata[index].radial != metadata[0].radial))
-      throw std::invalid_argument("Supported matching radial correction metadata is required: " +
-                                  metadata[index].radial_error);
+    // Decoded bytes must carry the validated metadata; LibRaw adds calibration.
+    auto expected = preflight[index];
+    expected.sequence.calibration = frame.second.sequence.calibration;
+    if (frame.second != expected)
+      throw std::invalid_argument("Input metadata changed after preflight.");
+    if (!calibration)
+      calibration = frame.second.sequence.calibration;
+    else if (*calibration != frame.second.sequence.calibration)
+      throw std::invalid_argument("Sequence calibration differs.");
     consumed[index] = true;
     ++decoded;
     if (progress)
       progress(Stage::decode, decoded, paths.size());
     return std::move(frame.first);
   };
-  auto first = load(0);
-  const auto &information = metadata[0];
-  if (information.sequence.count != paths.size())
-    throw std::invalid_argument("Input count does not match the capture mode.");
   MergeReport report;
   report.make = information.sequence.make;
   report.model = information.sequence.model;
   report.decoder_version = decoder_version();
   report.options = options;
   report.options.output = output;
-  report.limitations = {
-      "Experimental: authentic pixel-shift captures and Lightroom are not validated.",
-      "Adobe XMP defaults are preserved without updates.",
-      "HE/HE* decoding is not implemented; use lossless-compressed 14-bit NEF inputs.",
-      "Input order must follow consecutive capture numbers in a single sequence."};
-  if (information.sequence.calibration.missing_matrix)
-    report.limitations.push_back(
-        "LibRaw has no XYZ-to-camera matrix for this input; NEFX preserves source color metadata. "
-        "Color rendering is unvalidated.");
-  if (!options.chromatic_aberration_correction)
-    report.limitations.push_back("Chromatic aberration correction is disabled.");
   for (unsigned index = 0; index < groups.size(); ++index) {
     const auto &members = groups[index];
     auto pixels = reconstruct(
-        members.size(),
-        [&](unsigned i) { return members[i] == 0 ? std::move(first) : load(members[i]); },
-        information.sequence.crop, Selection::parse(information.sequence.selector),
-        information.sequence.iso,
+        members.size(), [&](unsigned i) { return load(members[i]); }, information.sequence.crop,
+        Selection::parse(information.sequence.selector), information.sequence.iso,
         options.chromatic_aberration_correction ? information.radial : std::nullopt, check);
-    if (decoded == paths.size())
-      validate_sequence(metadata, options.chromatic_aberration_correction);
     const auto name =
         "merged-" + std::string(index < 9 ? "0" : "") + std::to_string(index + 1) + ".nefx";
     const auto candidate = options.directory ? pending.temporary() / name : pending.temporary();
@@ -107,10 +100,22 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
     if (progress)
       progress(Stage::write, index + 1, groups.size());
   }
-  validate_sequence(metadata, options.chromatic_aberration_correction);
+  if (decoded != paths.size())
+    throw std::logic_error("Every capture must be decoded exactly once.");
+  report.limitations = {
+      "Experimental: authentic pixel-shift captures and Lightroom are not validated.",
+      "Adobe XMP defaults are preserved without updates.",
+      "HE/HE* decoding is not implemented; use lossless-compressed 14-bit NEF inputs.",
+      "Input order must follow consecutive capture numbers in a single sequence."};
+  if (calibration->missing_matrix)
+    report.limitations.push_back(
+        "LibRaw has no XYZ-to-camera matrix for this input; NEFX preserves source color metadata. "
+        "Color rendering is unvalidated.");
+  if (!options.chromatic_aberration_correction)
+    report.limitations.push_back("Chromatic aberration correction is disabled.");
   for (unsigned i = 0; i < sources.size(); ++i) {
     sources[i].verify(check);
-    report.inputs.push_back({sources[i].file->path(), sources[i].hash, metadata[i].shot});
+    report.inputs.push_back({sources[i].file->path(), sources[i].hash, preflight[i].shot});
     if (progress)
       progress(Stage::verify, i + 1, sources.size());
   }

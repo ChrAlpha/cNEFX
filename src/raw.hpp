@@ -28,6 +28,7 @@ struct Metadata {
   std::string timestamp;
   std::optional<RadialCorrection> radial;
   std::string radial_error;
+  bool operator==(const Metadata &) const = default;
 };
 struct Source {
   std::shared_ptr<File> file;

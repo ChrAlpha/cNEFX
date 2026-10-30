@@ -2,6 +2,7 @@
 #include "io.hpp"
 
 #include <iostream>
+#include <utility>
 
 using namespace cnefx;
 using namespace cnefx::detail;
@@ -26,7 +27,11 @@ void inject(int argc, char **argv) {
   const std::string mode = argv[2];
   MergeOptions options{argv[3], 2, true, false};
   std::vector<fs::path> paths(argv + 4, argv + argc);
-  bool fired = false, cancel = false, rejected = false;
+  bool fired = false, cancel = false, rejected = false, progressed = false;
+  if (mode == "order") {
+    fired = true;
+    std::swap(paths[0], paths[1]);
+  }
   try {
     merge(
         paths, options,
@@ -35,6 +40,7 @@ void inject(int argc, char **argv) {
             throw Cancelled();
         },
         [&](Stage stage, unsigned done, unsigned) {
+          progressed = true;
           if (fired)
             return;
           if (mode == "preflight" && stage == Stage::preflight) {
@@ -99,6 +105,8 @@ void inject(int argc, char **argv) {
     rejected = true;
   }
   require(fired && rejected);
+  // Capture order is metadata-only; it must fail before preflight completes.
+  require(mode != "order" || !progressed);
   require(mode == "target_race" ? fs::is_directory(options.output) && fs::is_empty(options.output)
                                 : !path_exists(options.output));
   for (const auto &entry : fs::directory_iterator(options.output.parent_path()))

@@ -131,6 +131,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
     assert "Usage:" in command([str(executable), "--help"]).stdout
     injected = []
     for mode in (
+        "order",
         "preflight",
         "unread",
         "replacement",

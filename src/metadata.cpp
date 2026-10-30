@@ -184,9 +184,10 @@ void validate_sequence(const std::vector<Metadata> &metadata, bool radial) {
       throw std::invalid_argument("Capture timestamps move backwards within the sequence.");
     if (item.sequence != first.sequence)
       throw std::invalid_argument("Sequence metadata differs.");
-    if (radial && (!item.radial || item.radial != first.radial))
-      throw std::invalid_argument(
-          "Sequence radial correction parameters differ or are unsupported.");
+    if (radial && !item.radial)
+      throw std::invalid_argument("Unsupported radial correction metadata: " + item.radial_error);
+    if (radial && item.radial != first.radial)
+      throw std::invalid_argument("Sequence radial correction parameters differ.");
   }
 }
 } // namespace cnefx::detail

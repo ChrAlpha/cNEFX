@@ -91,8 +91,10 @@ rendering are outside the current product scope.
 
 Pass explicit files in capture order. A directory or a shell glob is not an
 ordered-sequence contract. Capture numbers must be consecutive and observed
-sequence metadata must agree. Duplicate paths, hard links and changed inputs are
-rejected. Source SHA-256 hashes are checked again before publication.
+sequence metadata must agree; these checks read every input's metadata before
+any decoding, and each decoded input must reproduce it. Duplicate paths, hard
+links and changed inputs are rejected. Source SHA-256 hashes are checked again
+before publication.
 
 The output parent must already exist. The destination must not exist, including
 an empty directory or a dangling symlink. Four frames to one NEFX:
