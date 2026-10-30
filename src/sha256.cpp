@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <bit>
 #include <cstring>
+#include <limits>
 
 #if defined(__x86_64__) || defined(_M_X64)
 #include <immintrin.h>
@@ -199,19 +200,39 @@ std::string sha256(std::span<const std::uint8_t> bytes, bool accelerate) {
   hash.update(bytes);
   return hash.finish();
 }
-std::string sha256(File &file, const Check &check, bool accelerate) {
+namespace {
+// Reads the file in bounded chunks; target supplies the destination of each.
+template <class Target>
+std::string hash_file(File &file, const Check &check, bool accelerate, Target target) {
   Hash hash(accelerate);
   const auto size = file.size();
-  Bytes buffer(1024 * 1024);
   for (std::uint64_t offset = 0; offset < size;) {
     if (check)
       check();
-    auto chunk = std::span(buffer).first(
-        static_cast<std::size_t>(std::min<std::uint64_t>(size - offset, buffer.size())));
+    const auto chunk = target(
+        offset, static_cast<std::size_t>(std::min<std::uint64_t>(size - offset, 1024 * 1024)));
     file.read(offset, chunk);
     hash.update(chunk);
     offset += chunk.size();
   }
   return hash.finish();
+}
+} // namespace
+std::string sha256(File &file, const Check &check, bool accelerate) {
+  Bytes buffer(1024 * 1024);
+  return hash_file(file, check, accelerate,
+                   [&](std::uint64_t, std::size_t size) { return std::span(buffer).first(size); });
+}
+Contents read_contents(File &file, const Check &check) {
+  const auto size = file.size();
+  if (size > std::numeric_limits<std::size_t>::max())
+    throw std::invalid_argument("Input exceeds address space.");
+  auto bytes = std::make_shared<Bytes>(static_cast<std::size_t>(size));
+  auto digest = hash_file(file, check, true, [&](std::uint64_t offset, std::size_t length) {
+    return std::span(*bytes).subspan(static_cast<std::size_t>(offset), length);
+  });
+  if (file.size() != bytes->size())
+    throw std::invalid_argument("Input changed size while reading.");
+  return {std::make_shared<Memory>(std::move(bytes)), std::move(digest)};
 }
 } // namespace cnefx::detail

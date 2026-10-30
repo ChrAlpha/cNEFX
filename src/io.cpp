@@ -1,5 +1,6 @@
 #include "io.hpp"
 
+#include <algorithm>
 #include <cerrno>
 #include <limits>
 #include <random>
@@ -194,10 +195,46 @@ void File::seek(std::uint64_t offset) {
     io_error("Seek file");
 #endif
 }
-Bytes File::read(std::uint64_t offset, std::size_t size) {
+Bytes Input::read(std::uint64_t offset, std::size_t size) {
   Bytes data(size);
   read(offset, data);
   return data;
+}
+void Input::stream(std::uint64_t offset, std::uint64_t length, const Sink &sink,
+                   const Check &check) {
+  Bytes buffer(static_cast<std::size_t>(std::min<std::uint64_t>(length, 1024 * 1024)));
+  for (std::uint64_t done = 0; done < length;) {
+    if (check)
+      check();
+    auto chunk = std::span(buffer).first(
+        static_cast<std::size_t>(std::min<std::uint64_t>(length - done, buffer.size())));
+    read(offset + done, chunk);
+    sink(chunk);
+    done += chunk.size();
+  }
+}
+Memory::Memory(std::shared_ptr<const Bytes> bytes) : bytes_(std::move(bytes)) {
+  if (!bytes_)
+    throw std::invalid_argument("Missing input bytes.");
+}
+void Memory::read(std::uint64_t offset, std::span<std::uint8_t> bytes) {
+  if (offset > bytes_->size() || bytes.size() > bytes_->size() - offset)
+    throw std::runtime_error("Truncated or unreadable file region.");
+  std::copy_n(bytes_->begin() + static_cast<std::ptrdiff_t>(offset), bytes.size(), bytes.begin());
+}
+void Memory::stream(std::uint64_t offset, std::uint64_t length, const Sink &sink,
+                    const Check &check) {
+  if (offset > bytes_->size() || length > bytes_->size() - offset)
+    throw std::runtime_error("Truncated or unreadable file region.");
+  const auto region =
+      this->bytes().subspan(static_cast<std::size_t>(offset), static_cast<std::size_t>(length));
+  for (std::size_t done = 0; done < region.size();) {
+    if (check)
+      check();
+    const auto chunk = region.subspan(done, std::min<std::size_t>(region.size() - done, 1 << 20));
+    sink(chunk);
+    done += chunk.size();
+  }
 }
 void File::read(std::uint64_t offset, std::span<std::uint8_t> bytes) {
   seek(offset);

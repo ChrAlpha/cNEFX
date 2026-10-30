@@ -22,7 +22,6 @@ struct Tag {
   std::uint32_t number() const;
   std::string text() const;
 };
-using Sink = std::function<void(std::span<const std::uint8_t>)>;
 struct Payload {
   std::uint64_t length{};
   std::function<void(const Sink &, const Check &)> chunks;
@@ -35,6 +34,6 @@ struct Directory {
   Tag &at(unsigned code);
   const Tag &at(unsigned code) const;
 };
-Directory read_tiff(std::shared_ptr<File> file);
+Directory read_tiff(std::shared_ptr<Input> input);
 void write_tiff(const Directory &directory, File &output, const Check &check = {});
 } // namespace cnefx::detail

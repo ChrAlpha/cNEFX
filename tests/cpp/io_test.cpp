@@ -1,5 +1,6 @@
 #include "tiff.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 
@@ -56,6 +57,10 @@ void hashing(const fs::path &root) {
   File chunks(root / "chunks.bin");
   CHECK(sha256(chunks) == sha256(multiple_chunks, false));
   CHECK(sha256(chunks, {}, false) == sha256(multiple_chunks));
+  const auto contents = read_contents(chunks);
+  CHECK(contents.sha256 == sha256(multiple_chunks, false));
+  CHECK(std::ranges::equal(contents.memory->bytes(), multiple_chunks));
+  rejects([&] { contents.memory->read(multiple_chunks.size(), 1); });
   const auto path = root / "hash.bin";
   create(path, million);
   File file(path);
@@ -105,6 +110,14 @@ void tiff(const fs::path &root) {
   }
   File output(second);
   CHECK(sha256(*input) == sha256(output));
+  // A graph read from memory streams the same payloads as one read from a file.
+  const auto memory = read_contents(*input).memory;
+  {
+    File file(root / "memory.tif", FileMode::create);
+    write_tiff(read_tiff(memory), file);
+  }
+  File from_memory(root / "memory.tif");
+  CHECK(sha256(*input) == sha256(from_memory));
   auto malformed = root / "bad.tif";
   create(malformed, Bytes{'I', 'I', 42, 0, 8, 0, 0, 0});
   rejects([&] { read_tiff(std::make_shared<File>(malformed)); });

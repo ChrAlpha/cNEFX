@@ -93,8 +93,8 @@ const Tag &Directory::at(unsigned code) const {
   return tag->second;
 }
 
-Directory read_tiff(std::shared_ptr<File> file) {
-  const auto size = file->size();
+Directory read_tiff(std::shared_ptr<Input> input) {
+  const auto size = input->size();
   if (size >= (std::uint64_t{1} << 32))
     throw std::invalid_argument("Input exceeds classic TIFF size.");
   std::set<std::pair<std::uint64_t, std::uint32_t>> seen;
@@ -108,7 +108,7 @@ Directory read_tiff(std::shared_ptr<File> file) {
     metadata_bytes += count;
     if (metadata_bytes > 32u * 1024 * 1024)
       throw std::invalid_argument("TIFF metadata exceeds work budget.");
-    return file->read(offset, count);
+    return input->read(offset, count);
   };
   const auto first = [&](std::uint64_t base) {
     const auto h = block(base, 8);
@@ -171,17 +171,8 @@ Directory read_tiff(std::shared_ptr<File> file) {
         if (payload_bytes > 2 * size + 4u * 1024 * 1024)
           throw std::invalid_argument("TIFF payload references exceed work budget.");
         directory.images[offset_tag].push_back(
-            {length, [file, position, length](const Sink &sink, const Check &check) {
-               Bytes buffer(static_cast<std::size_t>(std::min<std::uint64_t>(length, 1024 * 1024)));
-               for (std::uint64_t offset = 0; offset < length;) {
-                 if (check)
-                   check();
-                 auto chunk = std::span(buffer).first(static_cast<std::size_t>(
-                     std::min<std::uint64_t>(length - offset, buffer.size())));
-                 file->read(position + offset, chunk);
-                 sink(chunk);
-                 offset += chunk.size();
-               }
+            {length, [input, position, length](const Sink &sink, const Check &check) {
+               input->stream(position, length, sink, check);
              }});
       }
     }
