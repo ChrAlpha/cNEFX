@@ -121,6 +121,27 @@
     "ordinary_input_rejection": "All three unchanged downloaded ordinary NEFs still fail with the active pixel-shift metadata requirement.",
     "evidence_class": "Authored small packed14 fixtures and actual LibRaw decode, plus unchanged ordinary-RAW inspection. No new authentic capture or vendor-output comparison."
   },
+  "authentic_ae_reference": {
+    "observed_on": "2026-10-30",
+    "status": "authentic_z8_16_frame_ae_nx_studio_sample_match",
+    "capture": "NIKON Z 8 firmware C 3.01, 48 lossless 14-bit NEFs SGL_6243..SGL_6290: pixel shift with AE bracketing, three 16-frame sequences at 1/60 s 0 EV, 1/125 s -1 EV and 1/30 s +1 EV; f/2, ISO 1600.",
+    "observed_metadata": "Each exposure is its own burst identity (MakerNote 0x56 bytes 4-7) with shot numbers and 0x5e frame ordinals 1-16; absolute shutter counts are consecutive; EXIF ExposureBiasValue carries the bracket offset. BracketSet=AE/Flash, BracketProgram=Disabled and BracketIncrement=1 EV are constant, so no parsed field records the planned exposure count.",
+    "references": "NX Studio 1.11 W wrote three NEFX files, one per exposure, named SGL_6243_merged.NEFX, SGL_6259_merged.NEFX and SGL_6275_merged.NEFX, with chromatic aberration correction enabled.",
+    "grouping_conclusion": "AE bracketing needs no special handling: grouping by burst identity and ordering by shot number, as Polaris.dll does, yields the same three sequences.",
+    "radial_order": "Before 04ac65c, 571, 331 and 952 red/blue samples differed by one at cubic sums within 7.3e-12 of an integer; PixelShiftCombine.dll multiplies the weights before the sample (RVA 0x34b4a3/0x34b4b6). Diagnosis record: /workspaces/LumaForge/nxc-data/acceptance/20261030-z8-ae-reference/evidence.json.",
+    "functional_revisions": ["04ac65c", "173d395"],
+    "zero_configuration": "At 173d395, cnefx merge <folder> --chromatic-aberration-correction writes the three same-named files beside the captures. All 545,292,288 decoded samples per output match NX Studio; normalized TIFF metadata differs only in Software and DateTime. Rerunning in the original folder refuses before decoding because the NX Studio outputs exist.",
+    "regression": "Release and ASan/UBSan CTest, 128 core, 32 format, 36 CLI and the multi-sequence runner pass.",
+    "record": "/workspaces/LumaForge/nxc-data/acceptance/20261030-z8-ae-zero-config/173d395/evidence.json",
+    "record_sha256": "b7554b63094ef1b31a63f3c782f1cd210acf14f8261120cb5e28ce7404e5c676",
+    "acceptance_gaps": [
+      "The earlier SGL_6128 32-to-1 reference is no longer available and was not rerun after the radial order fix",
+      "NX Studio references without chromatic correction and for other output counts",
+      "Z6III and 4/8/32-frame AE captures; card folders mixing other files from a real shoot",
+      "Camera AE-program count metadata",
+      "Version-pinned Lightroom HDR acceptance"
+    ]
+  },
   "coverage_limits": [
     "This is the four-model set confirmed from official manuals, not a promise to cover future firmware or every Nikon model.",
     "Z9, Z6II, Z5, Zfc, Z50II and ZR manual indexes did not expose a pixel-shift shooting entry in this bounded check; they are not allowlisted. Z7II manual URL returned 404, so no negative support claim is inferred.",
