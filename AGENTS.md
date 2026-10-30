@@ -52,7 +52,7 @@ comments, commit messages, and new documentation must be English ASCII.
 | Boundary | Required behavior |
 | --- | --- |
 | Input identity | Group captures by camera and burst identity and order them by shot number, as NX Studio does; never by file names or timestamps. Keep sequences complete, consecutive and metadata-consistent, sources immutable, and reject hard links. |
-| RAW decoding | Keep `metadata.cpp` and `raw.cpp` strict about supported Nikon metadata, compression, CFA, geometry, and crop. Synthesis reads each capture once from its owned descriptor; hash, parse and decode those same bytes and require the planned metadata. Do not patch real capture metadata or relax validation to accept an unsupported file. |
+| RAW decoding | Keep `metadata.cpp`, `raw.cpp` and `ticoraw.cpp` strict about supported Nikon metadata, compression, CFA, geometry, and crop. Never let LibRaw unpack HE/HE* strips; `ticoraw.cpp` decodes them and accepts only the observed camera codestream profile. Synthesis reads each capture once from its owned descriptor; hash, parse and decode those same bytes and require the planned metadata. Do not patch real capture metadata or relax validation to accept an unsupported file. |
 | Numerical core | Keep reconstruction independent of file decoding and capture identity. Preserve integer arithmetic, truncation, ordered sparse repair, phase mapping, and the special 32-to-4 grouping. Disable floating-point contraction and fast math for calibrated arithmetic. |
 | Resource ownership | Preserve one decode per capture index and bounded source-plane retention. Keep LibRaw state on the heap with callbacks, streams and source bytes alive through its destruction. Source bytes, decoder buffers, final RGB and radial correction consume additional memory. Run callbacks only on the caller's thread; workers poll a stop flag, and outputs must not depend on the job count. |
 | NEFX serialization | Preserve required source metadata and JPEG payloads, update recovered Nikon blocks and CRCs, and verify decoded RGB samples exactly before publication. Do not equate this with byte-identical Nikon output. |
@@ -136,8 +136,10 @@ preset instruments both cNEFX and LibRaw.
 
 [native-golden.json](tests/fixtures/native-golden.json) pins independently
 verified sample and TIFF-tree hashes from before the Python implementation was
-removed. Never regenerate expectations from the executable being tested.
-Sample, metadata and image-payload checks remain synthetic regression evidence.
+removed; its `high_efficiency` section pins decodes of authored HE/HE*
+codestreams by the independent ticoraw decoder. Never regenerate expectations
+from the executable being tested. Sample, metadata and image-payload checks
+remain synthetic regression evidence.
 
 Package a release build after verification:
 
@@ -195,7 +197,7 @@ binary ABI or installed SDK is promised.
 | --- | --- | --- |
 | Grouping, phase mapping, sparse repair, radial correction | `src/core.cpp`, `src/sparse.cpp`, `src/radial.cpp` | `tests/cpp/core_test.cpp`, `tools/verify_cpp_core.py` |
 | Descriptor ownership, SHA-256, bounded TIFF graph, publication | `src/io.cpp`, `src/sha256.cpp`, `src/tiff.cpp` | `tests/cpp/io_test.cpp`, format/CLI lifecycle checks |
-| Strict Nikon metadata and RAW decode | `src/metadata.cpp`, `src/raw.cpp` | `tests/cpp/format_test.cpp`, `tools/verify_cpp_format.py` |
+| Strict Nikon metadata and RAW decode, including HE/HE* | `src/metadata.cpp`, `src/raw.cpp`, `src/ticoraw.cpp` | `tests/cpp/format_test.cpp`, `tools/verify_cpp_format.py`, `tools/ticoraw_fixture.py` |
 | NEFX packing, Nikon blocks, CRCs, previews | `src/nefx.cpp` | Saved format expectations and vendor replays |
 | Input discovery, sequence orchestration and reports | `src/discover.cpp`, `src/merge.cpp`, `src/report.cpp` | `tests/cpp/merge_test.cpp`, `tools/verify_cpp_cli.py`, `tools/verify_cpp_sequences.py`, `tools/verify_cpp_discovery.py` |
 | CLI argument handling and signals | `src/cli.cpp` | CLI regression, cancellation and package smoke checks |

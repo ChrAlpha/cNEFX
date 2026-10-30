@@ -25,6 +25,7 @@
   },
   "current_capabilities": {
     "merge": "Experimental C++20 synthesis of complete 4/8/16/32-frame Nikon Z8, Zf, Z6III or Z5II sequences to NEFX; all nine input/output combinations",
+    "raw_decoding": "14-bit lossless, packed and HE/HE* captures; HE/HE* strips bypass LibRaw unpack and use a clean-room TicoRAW decoder restricted to the observed camera profile",
     "discovery": "Zero-configuration files, directories or wildcard patterns: non-pixel-shift captures and merged NEFX are skipped, the rest grouped by camera and burst identity and ordered by shot number as in NX Studio; each sequence, including each AE-bracketed exposure, is merged and published on its own beside its first capture as <stem>_merged.NEFX; existing merged outputs are recognized so repeated runs resume; per-sequence failures are reported as partial completion",
     "output_set_publication": "Linux renameat2(RENAME_NOREPLACE), macOS renamex_np(RENAME_EXCL), or Windows exclusive move after validation; one unit per sequence beside the captures, or every sequence at once in an output directory",
     "chromatic_aberration_correction": "Optional native source-metadata red/blue radial correction before crop; disabled by default",
@@ -42,11 +43,13 @@
   ],
   "release_gaps": [
     "Authentic complete pixel-shift sequences and matching NX Studio NEFX references for each enabled Nikon model",
+    "Authentic HE and HE* pixel-shift sequences with matching NX Studio NEFX references",
     "Downstream application acceptance of native NEFX outputs, including Lightroom"
   ],
   "compatibility_limits": [
     "Source Adobe XMP defaults are preserved; vendor-equivalent default sharpening and noise reduction are not established. This is an appearance limitation, not evidence of different merged RAW samples.",
-    "HE/HE* decoding is unsupported. HLG, non-FX image areas, other firmware and broader correction parameters remain unvalidated.",
+    "HE/HE* decoding matches Adobe DNG Converter 18.7 on public ordinary captures of all four models; no NX Studio merge of authentic HE/HE* pixel-shift captures has been compared. HLG, non-FX image areas, other firmware and broader correction parameters remain unvalidated.",
+    "HE/HE* decoding implements JPEG XS (ISO/IEC 21122), which is subject to essential patents; distribution terms for builds that include it are not established.",
     "Full-resolution resource measurements cover synthetic repeated-RAW cases, not authentic capture quality or a universal memory bound.",
     "If LibRaw lacks a Z5II XYZ-to-camera matrix, synthesis reports that limitation and preserves source color metadata; it does not substitute calibration or render RAW data.",
     "No-replace publication requires the relevant operating-system and filesystem primitives; published outputs survive parent-sync or cleanup warnings."

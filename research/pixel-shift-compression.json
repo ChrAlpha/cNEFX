@@ -54,10 +54,52 @@
     "report_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/public-z8/decoder-report.json",
     "report_sha256": "5694165a52900e4b69bb43b744141d4603c1a051c9c33e89033e9fb459ee1cc3"
   },
+  "native_decoder_20261030": {
+    "implementation": "src/ticoraw.cpp, commit 7b6ddce; dispatched from src/raw.cpp for Nikon compression 13 (HE) and 14 (HE*). Code 15, also routed to TicoRAW by the vendor dispatch above, remains rejected without a sample.",
+    "specification": "https://github.com/lukaj99/ticoraw/blob/591714c55280c24b84bf83a2d3029e3d605443bd/docs/FORMAT.md, used as a format description only; no decoder code was copied.",
+    "camera_support": "Official specifications list NEF (RAW) as 14-bit only with lossless, high efficiency* and high efficiency options for Z8, Zf, Z6III and Z5II; no other RAW recording precision exists for these models.",
+    "public_captures": {
+      "evidence_kind": "saved_vendor_output_hashes_and_live_independent_decoder",
+      "manifest": "ticoraw conformance/manifest.toml at 591714c; cfa_sha256 values are Adobe DNG Converter 18.7 (build 2743, -u -p0) mosaics",
+      "local_manifest": "/workspaces/LumaForge/nxc-data/scratch/he-20261030/samples/manifest.json",
+      "local_manifest_sha256": "fbc6fad27c6bbad339eab2c37ba9f8fcca00772d7862f0ef9c3511eb1fbb0484",
+      "samples": ["z8_he", "z8_hestar", "zf_he", "zf_hestar", "z6iii_he", "z6iii_hestar_16x9", "z5ii_he_dx", "z5ii_hestar"],
+      "result": "All eight downloads match their published SHA-256. The native decoder and a live ticoraw 591714c decode (rustc 1.99.1) both reproduce every Adobe mosaic hash: 220,808,064 photosites, zero differences, 0.16 to 0.79 s per frame single-threaded.",
+      "stream_observations": "Every GCLI, data and sign sub-packet ends exactly at its declared length; constant-rate precincts end in zero padding only. The decoder requires both."
+    },
+    "libraw_0_22_3": {
+      "open": "Succeeds for all eight captures with the expected geometry, crop, black 1008, maximum 16383, white balance and matrix; the Z5II matrix is absent as for lossless Z5II captures.",
+      "unpack": "Z8, Zf and Z6III select nikon_he_load_raw by the FF10 FF50 strip signature and fail as unsupported. The Z5II is not in that model list: LibRaw selects nikon_load_raw, reads a lossless curve from file offset 0 at open, and unpack returns success with data errors over the TicoRAW bytes. cNEFX never unpacks HE strips.",
+      "calibration": "Open-time color data equals LibRaw's unpack-time copy for lossless Z8 (ordinary and two authentic pixel-shift frames), Zf, Z6III and Z5II captures, so calibration is read at open for every capture.",
+      "small_file_limit": "The Z5II open-time curve read covers up to 32 KiB near the file start and fails on smaller files; authored CI fixtures therefore carry a 36 KiB preview."
+    },
+    "ci_fixtures": {
+      "evidence_kind": "authored_codestreams_with_pinned_independent_decodes",
+      "generator": "tools/ticoraw_fixture.py, commit 489f848",
+      "coverage": "One sequence per model and capture count (Z8 4 HE, Zf 8 HE*, Z6III 16 HE, Z5II 32 HE*): 60 frames of 68x72 with two slices, odd band widths, random quantization, refinement, coding modes and padding. Each frame decode equals the pinned ticoraw decode and the fixture reconstruction; each merge equals the merge of a packed twin with the same samples. Six HE rejections check their reasons, and the CLI report names the HE limitation only for HE sequences.",
+      "mutations": "Nine non-equivalent decoder mutations (wavelet and Star-Tetrix rounding and clamping, prediction mapping, dequantization, refinement pump, discarded-coefficient signs, insignificant vertical groups, output curve) all fail the fixtures; a real DX capture misses the discarded-sign mutation. Two candidate mutations were equivalent: high-pass inputs are multiples of 16, and the first-precinct reference reduces to GTLI.",
+      "runs": "Release and ASan/UBSan CTest and tools/ci.py verify pass on the sources and tools of 489f848.",
+      "independent_review": "A separate review fuzzed 100,000 mutated fixture strips and 60 mutated Z5II strips under ASan/UBSan without reports, and decoded 4,000 mutated codestreams with both decoders: no output differences and no stream accepted by cNEFX but rejected by ticoraw."
+    },
+    "full_resolution_synthetic": {
+      "evidence_kind": "synthetic_full_resolution_metadata_patched_repeated_raw",
+      "construction": "Authentic Z8 C 3.01 pixel-shift frames SGL_6243..SGL_6258 (16 frames, one AE exposure) with their RAW strip replaced by the public Z8 HE or HE* codestream, compression set to 13 or 14 and the lossless linearization table removed; packed twins carry the same ticoraw-decoded samples. Identical repeated RAW, not authentic HE captures.",
+      "result": "16-to-1, 16-to-4 and corrected 16-to-1 merges of HE and HE* sequences equal their packed twins on all 545,292,288 RGB samples per case; --jobs 1 equals the default for 16-to-4. HE limitation appears only for HE sequences.",
+      "resources": "Executable 423f4cfdc217ff42eff83c23ec7ca35f167c9d4915e9017a8615432b80e3da78, built from 7b6ddce sources, default jobs on 16 threads: HE 11.1 to 13.6 s versus packed 9.8 to 12.5 s; peak RSS 2.61 versus 2.52 GB for 16-to-1 and 1.22 versus 1.06 GB for 16-to-4. Each concurrent HE decode holds four int32 component planes, about 4 bytes per photosite, in addition to the 2-byte output plane.",
+      "summary_outside_repo": "/workspaces/LumaForge/nxc-data/scratch/he-20261030/evidence/fullres-summary.json",
+      "summary_sha256": "ed84bdded4150c93cd56b35a09151c3f32c43eed5ce58df6147d39730c907223"
+    },
+    "not_established": [
+      "NX Studio merge of authentic HE/HE* pixel-shift captures: NEFX metadata for HE sources follows the lossless transformation, and HE sources lack the lossless NEFInfo 0x000e block, which is not recreated.",
+      "Whether NX Studio clips or otherwise normalizes decoded HE samples before merging.",
+      "Downstream white level: Adobe writes 15892 for HE captures, while NEFX from HE sources declares the same packed 14-bit layout as from lossless sources.",
+      "Public captures code every band with vertical prediction and no nonzero coefficient past a band end; zero prediction and discarded-coefficient signs rest on authored fixtures and ticoraw only.",
+      "Patent licensing for distributing builds that decode JPEG XS."
+    ]
+  },
   "remaining": [
-    "A Linux-native HE/HE* decoder path and pixel normalization evidence are still required for those inputs.",
-    "Use a supported authorized reference runtime to produce HE/HE* decoded reference samples; the Wine wrapper failed before decoding.",
+    "Authentic HE and HE* pixel-shift sequences with matching NX Studio NEFX references for each model.",
     "Authentic pixel-shift captures, newer firmware, HLG and non-FX image areas remain unverified.",
-    "Do not present the existing lossless/packed-14 matrices as general HE/HE* support."
+    "Do not present the authored, public ordinary-capture or full-resolution synthetic HE evidence as authentic pixel-shift acceptance."
   ]
 }

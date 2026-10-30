@@ -44,8 +44,9 @@ compatibility is not established.
 
 ## Merge pixel-shift captures
 
-Use **lossless-compressed, 14-bit FX NEF files**. Pass a card folder, files or a
-file-name pattern; no other option is needed:
+Use **14-bit FX NEF files** recorded as lossless compressed, high efficiency or
+high efficiency*. Pass a card folder, files or a file-name pattern; no other
+option is needed:
 
 ```sh
 cnefx merge /path/to/DCIM/100NZ_8
@@ -58,8 +59,9 @@ same command again only merges what is missing, so an interrupted or partly
 failed run can simply be repeated; existing files are never replaced.
 
 Use `--output FILE.nefx` for a single sequence or `--output-directory DIR` to
-publish all outputs with a `manifest.json` together. HE/HE* is unsupported; HLG,
-other image areas and untested firmware/settings remain unvalidated.
+publish all outputs with a `manifest.json` together. HE/HE* decoding matches
+Adobe DNG Converter, but no NX Studio merge of HE captures has been compared yet;
+HLG, other image areas and untested firmware/settings remain unvalidated.
 
 ### Output modes
 
@@ -119,3 +121,6 @@ include LibRaw's third-party license files.
   NEFX outputs used in format research.
 - [XinmiaoZhao's NikonFirmwarePatch / z8pixelshift](https://github.com/XinmiaoZhao/NikonFirmwarePatch/tree/v0.3.0/z8pixelshift),
   for its pixel-shift reconstruction research and arithmetic reference.
+- [lukaj99's ticoraw](https://github.com/lukaj99/ticoraw/blob/591714c55280c24b84bf83a2d3029e3d605443bd/docs/FORMAT.md),
+  for the HE/HE* format description the native decoder follows and the
+  independent decoder its tests are checked against.
