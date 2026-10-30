@@ -45,5 +45,8 @@ Metadata read_metadata(const Directory &root);
 std::pair<Plane, Metadata> read_frame(Source &source, const Check &check = {});
 void verify_rgb(const fs::path &path, const Rgb &expected, const Check &check = {});
 const char *decoder_version();
-void validate_sequence(const std::vector<Metadata> &metadata, bool radial);
+void validate_sequence(std::span<const Metadata> metadata, bool radial);
+// Explicit exposure count; every consecutive block remains a complete sequence.
+// This validates observed fields, not an undocumented Nikon bracket-program tag.
+void validate_brackets(std::span<const Metadata> metadata, unsigned count, bool radial);
 } // namespace cnefx::detail

@@ -172,7 +172,7 @@ Metadata read_metadata(const Directory &root) {
   }
   return result;
 }
-void validate_sequence(const std::vector<Metadata> &metadata, bool radial) {
+void validate_sequence(std::span<const Metadata> metadata, bool radial) {
   output_groups(metadata.size(), 1);
   const auto &first = metadata.front();
   if (first.sequence.count != metadata.size())
@@ -190,6 +190,46 @@ void validate_sequence(const std::vector<Metadata> &metadata, bool radial) {
     // Captures record their own optical center; the lens coefficients are sequence-wide.
     if (radial && item.radial->coefficients != first.radial->coefficients)
       throw std::invalid_argument("Sequence radial correction coefficients differ.");
+  }
+}
+void validate_brackets(std::span<const Metadata> metadata, unsigned count, bool radial) {
+  require(count >= 2 && count <= 9, "AE bracketing requires 2 to 9 exposure sequences.");
+  require(!metadata.empty(), "AE bracketing requires input captures.");
+  const auto &first = metadata.front().sequence;
+  require(first.model == "NIKON Z 8" || first.model == "NIKON Z6_3",
+          "AE bracketing is supported only for Nikon Z8 and Z6III.");
+  output_groups(first.count, 1);
+  require(metadata.size() == count * first.count,
+          "Input count does not match the AE bracket count and capture mode.");
+  for (unsigned bracket = 0; bracket < count; ++bracket) {
+    const auto offset = bracket * first.count;
+    const auto sequence = metadata.subspan(offset, first.count);
+    validate_sequence(sequence, radial);
+    const auto &current = sequence.front().sequence;
+    // Exposure, ISO, burst identity, shutter anchor, sparse selection and decoder
+    // calibration belong to each sequence, whose strict equality is checked above.
+    require(current.make == first.make && current.model == first.model &&
+                current.identity_hash == first.identity_hash &&
+                current.timezone == first.timezone && current.orientation == first.orientation &&
+                current.width == first.width && current.height == first.height &&
+                current.crop == first.crop && current.compression == first.compression &&
+                current.mode == first.mode && current.count == first.count,
+            "AE bracket camera or capture geometry differs.");
+    for (unsigned previous = 0; previous < bracket; ++previous) {
+      const auto &other = metadata[previous * first.count].sequence;
+      require(current.iso != other.iso || current.exposure[0] != other.exposure[0] ||
+                  current.exposure[1] != other.exposure[1],
+              "AE bracket sequences must have distinct exposure settings.");
+    }
+  }
+  const auto shutter = [](const Metadata &item) {
+    return std::uint64_t(item.sequence.shutter_anchor) + item.shot;
+  };
+  for (std::size_t i = 1; i < metadata.size(); ++i) {
+    require(shutter(metadata[i]) == shutter(metadata.front()) + i,
+            "AE bracket inputs must have consecutive shutter counts in capture order.");
+    require(metadata[i].timestamp >= metadata[i - 1].timestamp,
+            "Capture timestamps move backwards across AE brackets.");
   }
 }
 } // namespace cnefx::detail

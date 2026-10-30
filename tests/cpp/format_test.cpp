@@ -11,6 +11,65 @@ void require(bool ok) {
   if (!ok)
     throw std::runtime_error("Format test failed.");
 }
+void brackets() {
+  std::vector<Metadata> input(12);
+  for (unsigned i = 0; i < input.size(); ++i) {
+    auto &item = input[i];
+    item.sequence.model = "NIKON Z 8";
+    item.sequence.count = 4;
+    item.sequence.mode = 1;
+    item.sequence.burst = 100 + i / 4;
+    item.sequence.shutter_anchor = 1000 + (i / 4) * 4;
+    item.sequence.iso = 100;
+    item.sequence.exposure = {{{1, 100u << (i / 4)}, {8, 1}, {0, 1}}};
+    item.shot = i % 4 + 1;
+    item.timestamp = "2026-10-30T00:00:00.000000";
+  }
+  validate_brackets(input, 3, false);
+  auto rejects = [&](const auto &change) {
+    auto bad = input;
+    change(bad);
+    bool rejected = false;
+    try {
+      validate_brackets(bad, 3, false);
+    } catch (const std::invalid_argument &) {
+      rejected = true;
+    }
+    require(rejected);
+  };
+  rejects([](auto &v) { v.pop_back(); });
+  rejects([](auto &v) { v.resize(8); });
+  rejects([](auto &v) { std::swap(v[3], v[4]); });
+  rejects([](auto &v) {
+    for (unsigned i = 4; i < 8; ++i)
+      v[i].sequence.exposure = v[0].sequence.exposure;
+  });
+  rejects([](auto &v) { v[5].sequence.exposure[0] = {1, 500}; });
+  rejects([](auto &v) {
+    for (unsigned i = 4; i < 8; ++i)
+      v[i].sequence.identity_hash = "different camera";
+  });
+  rejects([](auto &v) {
+    for (unsigned i = 4; i < 8; ++i)
+      v[i].sequence.shutter_anchor += 4;
+  });
+  rejects([](auto &v) {
+    for (unsigned i = 4; i < 8; ++i)
+      v[i].timestamp = "2026-10-29T00:00:00.000000";
+  });
+  rejects([](auto &v) {
+    for (auto &item : v)
+      item.sequence.model = "NIKON Z f";
+  });
+  // A burst may continue its shot numbering across exposures instead of resetting.
+  for (unsigned i = 0; i < input.size(); ++i) {
+    input[i].sequence.model = "NIKON Z6_3";
+    input[i].sequence.shutter_anchor = 1000;
+    input[i].sequence.burst = 100;
+    input[i].shot = i + 1;
+  }
+  validate_brackets(input, 3, false);
+}
 void merge(int argc, char **argv, bool corrected) {
   const unsigned count = argc - 3;
   output_groups(count, 1);
@@ -58,6 +117,7 @@ void merge(int argc, char **argv, bool corrected) {
   pending.cleanup();
 }
 void tests() {
+  brackets();
   require(crc16(Bytes{'1', '2', '3', '4', '5', '6', '7', '8', '9'}) == 0x29b1);
   const Rgb values{4, 1, {0, 1, 16382, 16383, 1, 2, 3, 4, 5, 6, 7, 8}};
   auto payload = packed14(values);
