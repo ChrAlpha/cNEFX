@@ -14,11 +14,8 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-import numpy as np
 import rawpy
-from ci_fixture import pixels, sequence
-
-from nx_ctudio.pixel_shift import reconstruct
+from ci_fixture import check_rgb, merge_expectations, sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -160,13 +157,17 @@ def smoke(program: Path, work: Path) -> dict:
         report = json.loads(result.stdout)
         assert report["status"] == "ok"
         items = report["outputs"] if outputs > 1 else [report]
-        for item in items:
-            indices = item.get("input_indices", list(range(count)))
-            expected = reconstruct(
-                [pixels(i) for i in indices], (4, 4, 56, 40), b"0100" + bytes(24), 3201
+        golden = merge_expectations("NIKON Z 8", count, outputs, pattern="constant")
+        assert [hashlib.sha256(p.read_bytes()).hexdigest() for p in paths] == golden[
+            "input_sha256"
+        ]
+        for item, expected in zip(items, golden["outputs"], strict=True):
+            assert (
+                item.get("input_indices", list(range(count)))
+                == expected["input_indices"]
             )
             with rawpy.imread(item["output"]) as image:
-                np.testing.assert_array_equal(image.raw_image[..., :3], expected)
+                check_rgb(image.raw_image[..., :3], expected)
         cases.append(
             {
                 "inputs": count,

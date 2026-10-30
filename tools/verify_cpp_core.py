@@ -1,4 +1,4 @@
-"""Differential C++ reconstruction checks against the retained Python reference."""
+"""Check C++ reconstruction against pinned independent reference expectations."""
 
 from __future__ import annotations
 
@@ -10,15 +10,16 @@ import subprocess
 from pathlib import Path
 
 import numpy as np
-
-from nx_ctudio._sparse import Selection
-from nx_ctudio.pixel_shift import reconstruct
-from nx_ctudio.radial import RadialCorrection
+from ci_fixture import GOLDEN
 
 
 def run(executable: Path, directory: Path) -> dict:
     directory.mkdir(parents=True, exist_ok=True)
     cases = []
+    expectations = {
+        (case["count"], case["seed"], case["iso"], case["radial"]): case
+        for case in GOLDEN["core"]
+    }
     for count in (4, 8, 16, 32):
         for seed in range(8):
             height, width = ((18, 24), (68, 74))[seed % 2]
@@ -30,11 +31,8 @@ def run(executable: Path, directory: Path) -> dict:
             if seed in (2, 3):
                 for frame in frames:
                     frame.fill(0 if seed == 2 else 16383)
-            selector = (
-                b"0100"
-                + Selection(
-                    height, width, first_row=6, inner_step=1, inner_after=5
-                ).pack()
+            selector = b"0100" + struct.pack(
+                "<BB6H3BxBxB3x", 0, 0, height, width, 2, 6, 0, 0, 1, 1, 1, 0, 5
             )
             crop = (1 + seed % 3, 1 + seed % 3, width - 4, height - 4)
             for iso in (3200, 3201):
@@ -44,7 +42,6 @@ def run(executable: Path, directory: Path) -> dict:
                     if seed == 7:
                         centers = (2**31 - 1, -(2**31))
                         coefficients = ((2**31 - 1,) * 3,) * 2
-                    radial = RadialCorrection(centers, coefficients)
                     payload = (
                         struct.pack(
                             "<9I", count, width, height, *crop, iso, int(corrected)
@@ -55,12 +52,9 @@ def run(executable: Path, directory: Path) -> dict:
                     )
                     source, target = directory / "input.bin", directory / "output.bin"
                     source.write_bytes(payload)
-                    expected = reconstruct(
-                        frames,
-                        crop,
-                        selector,
-                        iso,
-                        radial=radial if corrected else None,
+                    expected = expectations[count, seed, iso, corrected]
+                    assert (
+                        hashlib.sha256(payload).hexdigest() == expected["input_sha256"]
                     )
                     result = subprocess.run(
                         [str(executable), "--replay", str(source), str(target)],
@@ -70,27 +64,27 @@ def run(executable: Path, directory: Path) -> dict:
                     )
                     if result.returncode:
                         raise RuntimeError(result.stderr)
-                    actual = np.frombuffer(target.read_bytes(), dtype="<u2").reshape(
-                        expected.shape
+                    actual = target.read_bytes()
+                    matches = (
+                        len(actual) == expected["samples"] * 2
+                        and hashlib.sha256(actual).hexdigest()
+                        == expected["expected_sha256"]
                     )
-                    differences = int(np.count_nonzero(actual != expected))
                     case = {
                         "count": count,
                         "seed": seed,
                         "iso": iso,
                         "radial": corrected,
-                        "samples": int(expected.size),
-                        "different_samples": differences,
+                        "samples": expected["samples"],
+                        "samples_match": matches,
                         "input_sha256": hashlib.sha256(payload).hexdigest(),
-                        "expected_sha256": hashlib.sha256(
-                            expected.astype("<u2").tobytes()
-                        ).hexdigest(),
+                        "expected_sha256": expected["expected_sha256"],
                     }
                     cases.append(case)
-                    if differences:
+                    if not matches:
                         raise AssertionError(json.dumps(case))
     report = {
-        "evidence_kind": "synthetic_cpp_python_differential",
+        "evidence_kind": "synthetic_native_saved_reference_regression",
         "passed": True,
         "cases": cases,
         "samples": sum(case["samples"] for case in cases),

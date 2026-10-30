@@ -1,4 +1,4 @@
-"""Compare the C++ decode/writer with independent Python and LibRaw readback."""
+"""Check the native writer against saved expectations and LibRaw readback."""
 
 from __future__ import annotations
 
@@ -13,10 +13,7 @@ from pathlib import Path
 import ci_fixture
 import numpy as np
 import rawpy
-
-from nx_ctudio._tiff import read, serialize
-from nx_ctudio.nefx import encode
-from nx_ctudio.pixel_shift import reconstruct
+from tiff_fixture import read, serialize, tree_digest
 
 
 def pixels(index: int, shape: tuple[int, int] = (48, 64)) -> np.ndarray:
@@ -24,22 +21,6 @@ def pixels(index: int, shape: tuple[int, int] = (48, 64)) -> np.ndarray:
     return ((53 * x + 97 * y + index * 311 + (x * y + index * 7) % 127) % 16384).astype(
         np.uint16
     )
-
-
-def compare_tree(actual, expected) -> None:
-    assert set(actual.tags) == set(expected.tags)
-    pointer_tags = {273, 279, 513, 514, 324, 325}
-    for code, tag in expected.tags.items():
-        other = actual.tags[code]
-        assert tag.kind == other.kind, code
-        assert tag.nikon_header == other.nikon_header, code
-        assert len(tag.children) == len(other.children), code
-        if tag.children:
-            for left, right in zip(other.children, tag.children, strict=True):
-                compare_tree(left, right)
-        elif code not in pointer_tags | {305, 306}:
-            assert tag.payload == other.payload, code
-    assert actual.images == expected.images
 
 
 def rejections(executable: Path, directory: Path) -> list[str]:
@@ -142,18 +123,12 @@ def run(executable: Path, directory: Path) -> dict:
                 )
                 if result.returncode:
                     raise RuntimeError(f"{model}/{count}: {result.stderr}")
-                expected = reconstruct(
-                    [pixels(i) for i in range(count)],
-                    (4, 4, 56, 40),
-                    b"0100" + bytes([(4, 8, 16, 32).index(count) + 1]) + bytes(23),
-                    100,
-                )
+                golden = ci_fixture.merge_expectations(model, count, 1)
+                assert hashes == golden["input_sha256"]
+                expected = golden["outputs"][0]
                 with rawpy.imread(str(target)) as image:
-                    np.testing.assert_array_equal(image.raw_image[..., :3], expected)
-                compare_tree(
-                    read(target.read_bytes()),
-                    read(encode(sources[0].read_bytes(), expected, count)),
-                )
+                    ci_fixture.check_rgb(image.raw_image[..., :3], expected)
+                assert tree_digest(target.read_bytes()) == expected["tree_sha256"]
                 assert hashes == [
                     hashlib.sha256(p.read_bytes()).hexdigest() for p in sources
                 ]
@@ -162,8 +137,8 @@ def run(executable: Path, directory: Path) -> dict:
                         "model": model,
                         "count": count,
                         "corrected": corrected,
-                        "samples": int(expected.size),
-                        "different_samples": 0,
+                        "samples": expected["samples"],
+                        "samples_match": True,
                         "metadata_and_payloads_equal": True,
                         "input_sha256": hashes,
                         "output_sha256": hashlib.sha256(
@@ -172,7 +147,7 @@ def run(executable: Path, directory: Path) -> dict:
                     }
                 )
     report = {
-        "evidence_kind": "authored_cpp_python_format_comparison_real_libraw",
+        "evidence_kind": "authored_native_saved_format_regression_real_libraw",
         "passed": True,
         "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
         "rawpy": rawpy.__version__,

@@ -12,13 +12,9 @@ import time
 from pathlib import Path
 
 import ci_fixture
-import numpy as np
 import rawpy
-from verify_cpp_format import compare_tree, pixels
-
-from nx_ctudio._tiff import read
-from nx_ctudio.nefx import encode
-from nx_ctudio.pixel_shift import output_groups, reconstruct
+from tiff_fixture import tree_digest
+from verify_cpp_format import pixels
 
 
 def command(argv: list[str], code: int = 0) -> subprocess.CompletedProcess:
@@ -67,24 +63,21 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
             assert report["output_count"] == outputs
             assert report["warnings"] == []
             assert len(list(output.iterdir())) == outputs + 1
-            selector = b"0100" + bytes([(4, 8, 16, 32).index(count) + 1]) + bytes(23)
-            for item, group in zip(
-                report["outputs"], output_groups(count, outputs), strict=True
+            golden = ci_fixture.merge_expectations(model, count, outputs)
+            assert [
+                hashlib.sha256(p.read_bytes()).hexdigest() for p in sources
+            ] == golden["input_sha256"]
+            for item, expected in zip(
+                report["outputs"], golden["outputs"], strict=True
             ):
-                expected = reconstruct(
-                    [pixels(i) for i in group], (4, 4, 56, 40), selector, 100
-                )
                 path = Path(item["output"])
-                assert item["input_indices"] == list(group)
-                assert item["shape"] == list(expected.shape)
-                assert item["samples_verified"] == expected.size
+                assert item["input_indices"] == expected["input_indices"]
+                assert item["shape"] == expected["shape"]
+                assert item["samples_verified"] == expected["samples"]
                 assert item["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
                 with rawpy.imread(str(path)) as image:
-                    np.testing.assert_array_equal(image.raw_image[..., :3], expected)
-                compare_tree(
-                    read(path.read_bytes()),
-                    read(encode(sources[group[0]].read_bytes(), expected, len(group))),
-                )
+                    ci_fixture.check_rgb(image.raw_image[..., :3], expected)
+                assert tree_digest(path.read_bytes()) == expected["tree_sha256"]
             for item, path in zip(report["inputs"], sources, strict=True):
                 assert item["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
             cases.append(
@@ -93,7 +86,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
                     "inputs": count,
                     "outputs": outputs,
                     "samples": report["samples_verified"],
-                    "different_samples": 0,
+                    "samples_match": True,
                 }
             )
     folder = directory / "single"
