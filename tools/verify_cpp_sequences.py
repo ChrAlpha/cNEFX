@@ -5,8 +5,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
-import shutil
 import struct
 import subprocess
 from pathlib import Path
@@ -103,7 +101,8 @@ def samples(path):
 def check_outputs(report, sources, count, outputs, sequences, golden, offset):
     """Outputs follow sequence order; each matches its own sequence's pixels."""
     assert report["status"] == "ok" and report["schema_version"] == 2
-    assert report["warnings"] == [] and report["sequence_count"] == sequences
+    assert report["warnings"] == [] and len(report["sequences"]) == sequences
+    assert all(item["status"] == "merged" for item in report["sequences"])
     assert report["output_count"] == sequences * outputs
     assert [item["path"] for item in report["inputs"]] == [str(p) for p in sources]
     assert [item["sequence_index"] for item in report["inputs"]] == [
@@ -166,113 +165,6 @@ def ordinary(source: Path, target: Path) -> None:
     capture[12] = 0
     maker.set(0x56, 7, bytes(capture))
     target.write_bytes(serialize(tree))
-
-
-def zero_configuration(executable, directory):
-    """A folder of three sequences, an ordinary photo and other files."""
-    built = sequence(directory / "build", [4] * 3)
-    folder = directory / "card"
-    folder.mkdir()
-    # Lowercase extensions count; hidden files and subdirectories do not. A
-    # recursive scan would find a duplicate shot in the nested copy.
-    sources = [
-        folder / (path.stem + (".nef" if i >= 8 else ".NEF"))
-        for i, path in enumerate(built)
-    ]
-    for path, target in zip(built, sources, strict=True):
-        shutil.copy2(path, target)
-    ordinary(sources[0], folder / "DSC_0001.NEF")
-    (folder / "notes.txt").write_text("not a capture\n")
-    (folder / "._S1-01.NEF").write_bytes(b"\0\5\26\7 AppleDouble")
-    (folder / "nested").mkdir()
-    shutil.copy2(built[0], folder / "nested" / built[0].name)
-    golden = ci_fixture.merge_expectations("NIKON Z 8", 4, 1, pattern="constant")
-    report = merge(executable, folder)
-    assert "output_directory" not in report
-    assert report["skipped"] == [
-        {
-            "path": str(folder / "DSC_0001.NEF"),
-            "reason": "No active pixel-shift metadata.",
-        }
-    ]
-    check_outputs(report, sources, 4, 1, 3, golden, True)
-    assert sorted(p.name for p in folder.iterdir() if p.suffix == ".NEFX") == [
-        name(sources[i * 4], 1, 0) for i in range(3)
-    ]
-    assert not list(folder.glob(".cnefx-*"))
-    # Existing outputs are never replaced; a rerun fails before any decode.
-    hashes = {
-        p: hashlib.sha256(p.read_bytes()).hexdigest()
-        for p in folder.rglob("*")
-        if p.is_file()
-    }
-    error = merge(executable, folder, code=1)["error"]
-    assert error["code"] == "merge_failed" and "already exists" in error["message"]
-    assert hashes == {
-        p: hashlib.sha256(p.read_bytes()).hexdigest()
-        for p in folder.rglob("*")
-        if p.is_file()
-    }
-    # Explicit files in reverse order: sequences follow first appearance and
-    # captures their shot numbers.
-    target = directory / "reversed"
-    merged = folder / name(sources[0], 1, 0)
-    report = merge(executable, merged, *reversed(built), "--output-directory", target)
-    assert report["skipped"] == [
-        {"path": str(merged), "reason": "Already merged NEFX."}
-    ]
-    order = [p for number in (2, 1, 0) for p in built[number * 4 : number * 4 + 4]]
-    assert [item["path"] for item in report["inputs"]] == [str(p) for p in order]
-    for item, number in zip(report["outputs"], (2, 1, 0), strict=True):
-        assert Path(item["output"]).name == name(built[number * 4], 1, 0)
-        pixels = samples(Path(item["output"])).astype(np.int32) - number * 256
-        ci_fixture.check_rgb(pixels, golden["outputs"][0])
-    return {"skipped": ["ordinary", "merged"], "outputs": 3, "reversed": True}
-
-
-def mixed_sizes(executable, directory):
-    """Sequences of different lengths keep their own offsets and outputs."""
-    directory.mkdir()
-    sources = sequence(directory, [4, 32], pattern="spatial")
-    report = merge(executable, *sources, "--output-directory", directory / "result")
-    assert report["sequence_count"] == 2 and report["output_count"] == 2
-    for item, (number, count, first) in zip(
-        report["outputs"], ((0, 4, 0), (1, 32, 4)), strict=True
-    ):
-        expected = ci_fixture.merge_expectations("NIKON Z 8", count, 1)["outputs"][0]
-        assert item["sequence_index"] == number
-        assert item["input_indices"] == [i + first for i in expected["input_indices"]]
-        ci_fixture.check_rgb(samples(Path(item["output"])), expected)
-    return {"captures_per_sequence": [4, 32]}
-
-
-def descriptors(executable, directory):
-    """Skipped files close at once; captures may exceed the default soft limit."""
-    if os.name == "nt":
-        return "not_run_on_windows"
-    import resource
-
-    directory.mkdir()
-    few = sequence(directory / "few", [4])
-    for index in range(200):
-        ordinary(few[0], few[0].parent / f"DSC_{index:04d}.NEF")
-    many = sequence(directory / "many", [32] * 3, pattern="spatial")
-    _, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-    for sources, ceiling in (([few[0].parent], 64), (many, hard)):
-
-        def limit(ceiling=ceiling):
-            resource.setrlimit(resource.RLIMIT_NOFILE, (64, ceiling))
-
-        result = subprocess.run(
-            [str(executable), "merge", *map(str, sources), "--json"],
-            capture_output=True,
-            text=True,
-            timeout=120,
-            preexec_fn=limit,
-        )
-        assert result.returncode == 0, result
-        assert json.loads(result.stdout)["status"] == "ok"
-    return {"skipped_with_hard_limit_64": 200, "captures_with_soft_limit_64": 96}
 
 
 def configure(source, target, count, capture, iso, selection, radial):
@@ -357,55 +249,6 @@ def isolation(executable, directory):
     return cases
 
 
-def rejections(executable, directory):
-    cases = []
-    for mode in (
-        "missing_frame",
-        "duplicate",
-        "hardlink",
-        "mixed_exposure",
-        "model_mismatch",
-        "only_ordinary",
-        "single_file",
-        "existing_output",
-    ):
-        folder = directory / mode
-        folder.mkdir()
-        sources = sequence(folder, [4] * 3)
-        options = []
-        if mode == "missing_frame":
-            sources.pop(5)
-        elif mode == "duplicate":
-            sources.append(sources[0])
-        elif mode == "hardlink":
-            os.link(sources[0], folder / "link.NEF")
-            sources.append(folder / "link.NEF")
-        elif mode == "only_ordinary":
-            ordinary(sources[0], folder / "ordinary.NEF")
-            sources = [folder / "ordinary.NEF"]
-        elif mode == "single_file":
-            options = ["--output", folder / "result.nefx"]
-        elif mode == "existing_output":
-            (sources[4].parent / name(sources[4], 1, 0)).write_bytes(b"kept")
-        else:
-            for path in sources[4:5] if mode == "mixed_exposure" else sources[4:8]:
-                tree = read(path.read_bytes())
-                if mode == "mixed_exposure":
-                    parts(tree)[0].set(33434, 5, struct.pack("<II", 1, 100))
-                else:
-                    tree.set(272, 2, b"NIKON Z f\0")
-                path.write_bytes(serialize(tree))
-        report = merge(executable, *sources, *options, code=1)
-        assert report["schema_version"] == 2
-        assert report["error"]["code"] == "merge_failed", (mode, report)
-        produced = sorted(p.name for p in folder.rglob("*.NEFX"))
-        assert produced == (["S2-01_merged.NEFX"] if mode == "existing_output" else [])
-        assert not (folder / "result.nefx").exists()
-        assert not list(folder.rglob(".cnefx-*")), mode
-        cases.append({"case": mode, "error": report["error"]["message"]})
-    return cases
-
-
 def run(executable: Path, injector: Path, directory: Path) -> dict:
     directory.mkdir(parents=True)
     cases = []
@@ -420,11 +263,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
                         executable, folder, model, count, outputs, jobs, corrected
                     )
                 )
-    zero = zero_configuration(executable, directory / "zero-configuration")
     separated = isolation(executable, directory)
-    mixed = mixed_sizes(executable, directory / "mixed-sizes")
-    limits = descriptors(executable, directory / "descriptors")
-    failures = rejections(executable, directory)
     injected = []
     for mode, target in (
         *(
@@ -446,12 +285,15 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
         ("write_failure", "-"),
         ("cancel", "-"),
         ("race_last", "-"),
+        ("race_second", "-"),
+        ("cancel_later", "-"),
+        ("preflight", "-"),
     ):
         folder = directory / f"inject-{mode}-{'beside' if target == '-' else 'set'}"
-        folder.mkdir()
-        sources = sequence(folder, [4] * 3)
+        count, outputs = (8, 2) if mode == "race_second" else (4, 1)
+        sources = sequence(folder, [count] * (2 if mode == "race_second" else 3))
         destination = target if target == "-" else folder / target
-        command([injector, "--inject", mode, destination, 1, *sources])
+        command([injector, "--inject", mode, destination, outputs, *sources])
         injected.append({"mode": mode, "beside_sources": target == "-"})
     report = {
         "evidence_kind": "synthetic_multi_sequence_saved_spatial_and_offset_samples",
@@ -461,11 +303,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
         "rawpy": rawpy.__version__,
         "rawpy_libraw": rawpy.libraw_version,
         "cases": cases,
-        "zero_configuration": zero,
         "isolation": separated,
-        "mixed_sizes": mixed,
-        "descriptors": limits,
-        "rejections": failures,
         "injected_failures": injected,
     }
     (directory / "report.json").write_text(json.dumps(report, indent=2) + "\n")

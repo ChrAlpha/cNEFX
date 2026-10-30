@@ -49,6 +49,8 @@ void validate_sequence(std::span<const Metadata> metadata, bool radial);
 // Null for a source capture with active pixel-shift metadata, else the reason to
 // skip the file.
 const char *skip_reason(const Directory &root);
+// Camera and burst identity of a merged NEFX, used to recognize earlier outputs.
+std::optional<std::pair<std::string, std::uint32_t>> merged_identity(const Directory &root);
 // Indices grouped by camera and burst identity in first-appearance order, each
 // ordered by shot number. Callers validate every group with validate_sequence.
 std::vector<std::vector<unsigned>> group_sequences(std::span<const Metadata> metadata);

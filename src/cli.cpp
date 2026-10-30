@@ -6,36 +6,12 @@
 #include <iostream>
 #include <string_view>
 
-#ifdef _WIN32
-#include <cstdio>
-#else
-#include <algorithm>
-#include <climits>
-#include <sys/resource.h>
-#endif
-
 namespace {
 // Worker threads may receive the signal; a lock-free atomic is safe in a
 // handler and visible to the caller's thread.
 std::atomic<bool> interrupted{false};
 static_assert(std::atomic<bool>::is_always_lock_free);
 extern "C" void signal_handler(int) { interrupted.store(true, std::memory_order_relaxed); }
-// Every capture of a run stays open until publication, so a folder of several
-// sequences needs more descriptors than the default soft limit on some systems.
-void raise_file_limit() {
-#ifdef _WIN32
-  _setmaxstdio(8192);
-#else
-  rlimit limit{};
-  if (getrlimit(RLIMIT_NOFILE, &limit) || limit.rlim_cur >= limit.rlim_max)
-    return;
-  limit.rlim_cur = limit.rlim_max;
-#ifdef __APPLE__
-  limit.rlim_cur = std::min<rlim_t>(limit.rlim_max, OPEN_MAX);
-#endif
-  setrlimit(RLIMIT_NOFILE, &limit);
-#endif
-}
 std::filesystem::path from_utf8(const std::string &text) {
   return std::filesystem::path(std::u8string(text.begin(), text.end()));
 }
@@ -44,11 +20,13 @@ void help() {
             << " - native Nikon pixel-shift NEFX synthesis\n\n"
                "Usage: cnefx merge PATH... [--outputs N] [--output FILE.nefx | --output-directory "
                "DIR]\n\n"
-               "PATH is a NEF file or a directory whose immediate .NEF files are used. Captures\n"
-               "without pixel-shift metadata are skipped; the rest are grouped into sequences by\n"
-               "burst identity and ordered by shot number. Each complete sequence is merged;\n"
-               "AE-bracketed exposures are separate sequences. By default each output is written\n"
-               "beside its first capture as NAME_merged.NEFX. Destinations must not exist.\n"
+               "PATH is a NEF file, a directory whose immediate .NEF files are used, or a file\n"
+               "name pattern with * or ?. Other files are skipped. Captures are grouped into\n"
+               "sequences by burst identity and ordered by shot number; AE-bracketed exposures\n"
+               "are separate sequences. Each sequence is merged and published on its own, beside\n"
+               "its first capture as NAME_merged.NEFX. A sequence whose outputs exist is not\n"
+               "merged again, so an interrupted or partial run can simply be repeated. Exit\n"
+               "status 1 reports a sequence or file that could not be merged.\n"
                "Modes: 4->1, 8->1/2, 16->1/4, 32->1/2/4/8.\n\n"
                "Options:\n"
                "  -o, --output FILE.nefx             Write the only output to this file\n"
@@ -146,20 +124,33 @@ int run(const std::vector<std::string> &args) {
     std::cerr << "cnefx: " << e.what() << '\n';
     return 2;
   }
-  raise_file_limit();
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
   try {
-    const auto report = cnefx::merge(inputs, options, [] {
-      if (interrupted)
-        throw cnefx::Cancelled();
-    });
+    const auto report = cnefx::merge(
+        inputs, options,
+        [] {
+          if (interrupted)
+            throw cnefx::Cancelled();
+        },
+        [&](cnefx::Stage stage, unsigned done, unsigned total) {
+          if (!json && stage == cnefx::Stage::write)
+            std::cerr << "Synthesized " << done << " of " << total << " outputs\n";
+        });
     if (json)
       std::cout << cnefx::report_json(report) << '\n';
     else {
       for (const auto &output : report.outputs)
         std::cout << cnefx::path_utf8(output.path) << " (" << output.samples_verified
                   << " samples verified)\n";
+      for (const auto &sequence : report.sequences)
+        if (sequence.status == cnefx::SequenceStatus::already_merged)
+          std::cerr << "Already merged: " << cnefx::path_utf8(sequence.first_capture) << '\n';
+        else if (sequence.status == cnefx::SequenceStatus::failed)
+          std::cerr << "Failed: " << cnefx::path_utf8(sequence.first_capture) << ": "
+                    << sequence.error << '\n';
+      for (const auto &item : report.errors)
+        std::cerr << "Unreadable: " << cnefx::path_utf8(item.path) << ": " << item.reason << '\n';
       for (const auto &skipped : report.skipped)
         std::cerr << "Skipped " << cnefx::path_utf8(skipped.path) << ": " << skipped.reason << '\n';
       for (const auto &limitation : report.limitations)
@@ -167,7 +158,7 @@ int run(const std::vector<std::string> &args) {
       for (const auto &warning : report.warnings)
         std::cerr << "Warning: " << warning << '\n';
     }
-    return 0;
+    return report.complete() ? 0 : 1;
   } catch (const cnefx::Cancelled &e) {
     if (json)
       std::cout << cnefx::error_json("cancelled", e.what()) << '\n';

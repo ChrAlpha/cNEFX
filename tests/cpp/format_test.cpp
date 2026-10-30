@@ -50,8 +50,6 @@ void sequences() {
     item.sequence.identity_hash = "other camera";
   other.insert(other.begin(), input.begin(), input.end());
   require(group_sequences(other).size() == 4);
-  input[5].sequence.model = "NIKON Z f";
-  require(rejects([&] { group_sequences(input); }));
   // Only source captures with active pixel-shift metadata are classified as such.
   Directory maker;
   maker.set(0x56, 7, Bytes{'0', '1', '0', '0', 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0});
@@ -70,6 +68,14 @@ void sequences() {
   auto merged = maker;
   merged.set(0x0e2d, 7, Bytes{});
   require(skip_reason(root(merged)) == std::string_view("Already merged NEFX."));
+  // Earlier outputs are recognized by camera and burst identity.
+  merged.tags[0x56].data[4] = 9;
+  const auto identity = [&](const Directory &note) {
+    auto tree = root(note);
+    tree.tags[34665].children.front().set(42033, 2, Bytes{'S', 'N', '1', 0});
+    return merged_identity(tree);
+  };
+  require(identity(merged) && identity(merged)->second == 9 && !identity(maker));
 }
 void merge(int argc, char **argv, bool corrected) {
   const unsigned count = argc - 3;

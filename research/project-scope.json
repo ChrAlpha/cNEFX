@@ -25,8 +25,8 @@
   },
   "current_capabilities": {
     "merge": "Experimental C++20 synthesis of complete 4/8/16/32-frame Nikon Z8, Zf, Z6III or Z5II sequences to NEFX; all nine input/output combinations",
-    "discovery": "Zero-configuration files or directories: non-pixel-shift captures are skipped, the rest grouped by burst identity and ordered by shot number as in NX Studio; every complete sequence, including each AE-bracketed exposure, is merged beside its first capture as <stem>_merged.NEFX",
-    "output_set_publication": "Linux renameat2(RENAME_NOREPLACE), macOS renamex_np(RENAME_EXCL), or Windows exclusive move after all outputs and sequences pass validation; separate files publish in order and report partial publication",
+    "discovery": "Zero-configuration files, directories or wildcard patterns: non-pixel-shift captures and merged NEFX are skipped, the rest grouped by camera and burst identity and ordered by shot number as in NX Studio; each sequence, including each AE-bracketed exposure, is merged and published on its own beside its first capture as <stem>_merged.NEFX; existing merged outputs are recognized so repeated runs resume; per-sequence failures are reported as partial completion",
+    "output_set_publication": "Linux renameat2(RENAME_NOREPLACE), macOS renamex_np(RENAME_EXCL), or Windows exclusive move after validation; one unit per sequence beside the captures, or every sequence at once in an output directory",
     "chromatic_aberration_correction": "Optional native source-metadata red/blue radial correction before crop; disabled by default",
     "sequence_validation": "Burst-identity grouping, shot-number order, complete counts, consecutive shot numbers, consistent observed metadata, distinct file identities, descriptor-bound decoding and final immutable source hashes",
     "nefx_writer": "Native packed14 RGB, Nikon metadata updates and CRCs, private preview, preserved source JPEGs, atomic no-overwrite publication",

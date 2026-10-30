@@ -14,6 +14,7 @@ from pathlib import Path
 import rawpy
 
 import ci_fixture
+import verify_cpp_discovery
 import verify_cpp_sequences
 from tiff_fixture import tree_digest
 from verify_cpp_format import pixels
@@ -61,7 +62,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
             report = json.loads(result.stdout)
             assert report == json.loads((output / "manifest.json").read_text())
             assert report["status"] == "ok" and report["schema_version"] == 2
-            assert report["camera"]["model"] == model
+            assert report["sequences"][0]["camera"]["model"] == model
             assert report["output_count"] == outputs
             assert report["warnings"] == []
             assert len(list(output.iterdir())) == outputs + 1
@@ -128,8 +129,12 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
     args = [str(executable), "merge", *map(str, sources), "-o", str(target), "--json"]
     report = json.loads(command(args).stdout)
     assert report["outputs"][0]["output"] == str(target)
-    failure = json.loads(command(args, 1).stdout)
-    assert failure["error"]["code"] == "merge_failed"
+    # A repeated run recognizes its own output and leaves it unchanged.
+    published = hashlib.sha256(target.read_bytes()).hexdigest()
+    repeated = json.loads(command(args).stdout)
+    assert repeated["outputs"] == []
+    assert repeated["sequences"][0]["status"] == "already_merged"
+    assert hashlib.sha256(target.read_bytes()).hexdigest() == published
     quoted_target = folder / 'quoted-".nefx'
     quoted = json.loads(
         command(
@@ -235,6 +240,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
         "sequences": verify_cpp_sequences.run(
             executable, injector, directory / "sequences"
         ),
+        "discovery": verify_cpp_discovery.run(executable, directory / "discovery"),
     }
     (directory / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     return report

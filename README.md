@@ -45,27 +45,36 @@ compatibility is not established.
 ## Merge pixel-shift captures
 
 Use **lossless-compressed, 14-bit FX NEF files**. Pass a card folder, a shoot
-folder or individual files; no other option is needed:
+folder, files or a file-name pattern; no other option is needed:
 
 ```sh
 cnefx merge /path/to/DCIM/100NZ_8
+cnefx merge "/path/to/DCIM/100NZ_8/SGL_62*"   # quoted patterns also work on Windows
 ```
 
-A directory contributes the `.NEF` files directly inside it. Photos without
-pixel-shift metadata are skipped. The remaining captures are grouped into
-sequences by the camera's burst identity and ordered by shot number, as NX Studio
-does, so file order does not matter. Every complete sequence is merged and
-written beside its first capture, for example `SGL_6243_merged.NEFX`. Pixel shift
-with AE bracketing records each exposure as its own sequence: a 3-exposure shoot
-produces three NEFX files for downstream HDR merging.
+A directory contributes the `.NEF` files directly inside it, without
+subdirectories or hidden files. Other files, unreadable or other cameras' NEFs,
+photos without pixel-shift metadata and merged NEFX files are skipped, and a file
+reached twice counts once. A path that does not exist stops the run, so a
+mistyped folder is never mistaken for an empty one. Symbolic links are followed;
+outputs go beside the linked file. The
+remaining captures are grouped into sequences by camera and burst identity and
+ordered by shot number, as NX Studio does, so file order does not matter. Each
+sequence is written beside its first capture, for example
+`SGL_6243_merged.NEFX`. Pixel shift with AE bracketing records each exposure as
+its own sequence: a 3-exposure shoot produces three NEFX files for downstream HDR
+merging.
 
-Every sequence must be complete and one run accepts one camera model; a missing
-or inconsistent capture stops the run before any decode. Destinations are never replaced, so a second run in the same
-folder fails until the earlier outputs are moved. All outputs are verified
-before the first is published. If a later file cannot be published, the earlier
-ones remain valid and the error says how many were written. HE/HE* is
-unsupported; HLG, other image areas and untested firmware/settings remain
-unvalidated.
+Sequences are processed one at a time: each is read, synthesized, verified and
+published before the next starts, so disk staging and open files stay bounded by
+one sequence however large the folder is. A sequence whose outputs already exist,
+from cNEFX or NX Studio, is reported as already merged and not processed again;
+if only some of its outputs exist, just the missing ones are synthesized. An
+unrelated file at a destination is never replaced. An incomplete sequence, an
+unreadable file or a failed write is reported without stopping the other
+sequences, and the run exits with status 1. Fix the problem and run the same
+command again: only the remaining sequences are merged. After Ctrl+C, finished
+sequences stay published and a repeated run resumes.
 
 To choose the destination instead:
 
@@ -75,8 +84,10 @@ cnefx merge /path/to/folder --output-directory set  # all outputs at once
 ```
 
 `--output-directory` publishes every NEFX and a `manifest.json` report together
-in a new directory. A successful merge can still report cleanup or sync
-warnings; keep the published output and read the warning before retrying.
+in a new directory, or nothing if any sequence fails; it stages all outputs
+first. A successful merge can still report cleanup or sync warnings; keep the
+published output and read the warning before retrying. HE/HE* is unsupported;
+HLG, other image areas and untested firmware/settings remain unvalidated.
 
 ### Output modes
 

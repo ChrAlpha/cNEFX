@@ -81,14 +81,39 @@ std::string path_utf8(const std::filesystem::path &path) {
   return std::string(bytes.begin(), bytes.end());
 }
 std::string report_json(const MergeReport &r) {
-  std::string out = "{\"schema_version\":2,\"status\":\"ok\",\"backend\":\"native\",\"output_"
-                    "format\":\"NEFX\",\"version\":" +
-                    quote(version()) + ",\"libraw_version\":" + quote(r.decoder_version) +
-                    ",\"camera\":{\"make\":" + quote(r.make) + ",\"model\":" + quote(r.model) +
-                    "},\"sequence_validation\":\"burst_grouped_complete_consecutive_metadata_"
-                    "consistent\",\"chromatic_aberration_correction\":" +
-                    (r.options.chromatic_aberration_correction ? "true" : "false") +
-                    ",\"sequence_count\":" + std::to_string(r.sequence_count) + ",\"inputs\":[";
+  const auto files = [](const std::vector<FileReport> &items) {
+    std::string out = "[";
+    for (std::size_t i = 0; i < items.size(); ++i)
+      out += (i ? ",{\"path\":" : "{\"path\":") + quote(path_utf8(items[i].path)) +
+             ",\"reason\":" + quote(items[i].reason) + '}';
+    return out + ']';
+  };
+  constexpr const char *statuses[] = {"merged", "already_merged", "failed"};
+  std::string out =
+      "{\"schema_version\":2,\"status\":" + quote(r.complete() ? "ok" : "partial") +
+      ",\"backend\":\"native\",\"output_format\":\"NEFX\",\"version\":" + quote(version()) +
+      ",\"libraw_version\":" + quote(r.decoder_version) +
+      ",\"sequence_validation\":\"burst_grouped_complete_consecutive_metadata_"
+      "consistent\",\"chromatic_aberration_correction\":" +
+      (r.options.chromatic_aberration_correction ? "true" : "false") + ",\"sequences\":[";
+  for (std::size_t i = 0; i < r.sequences.size(); ++i) {
+    const auto &sequence = r.sequences[i];
+    out += (i ? ",{\"camera\":{\"make\":" : "{\"camera\":{\"make\":") + quote(sequence.make) +
+           ",\"model\":" + quote(sequence.model) +
+           "},\"first_capture\":" + quote(path_utf8(sequence.first_capture)) +
+           ",\"captures\":" + std::to_string(sequence.captures) +
+           ",\"status\":" + quote(statuses[static_cast<int>(sequence.status)]);
+    if (!sequence.existing.empty()) {
+      out += ",\"existing\":[";
+      for (std::size_t j = 0; j < sequence.existing.size(); ++j)
+        out += (j ? "," : "") + quote(path_utf8(sequence.existing[j]));
+      out += ']';
+    }
+    if (sequence.status == SequenceStatus::failed)
+      out += ",\"error\":" + quote(sequence.error);
+    out += '}';
+  }
+  out += "],\"inputs\":[";
   for (std::size_t i = 0; i < r.inputs.size(); ++i) {
     const auto &input = r.inputs[i];
     out += (i ? ",{\"path\":" : "{\"path\":") + quote(path_utf8(input.path)) +
@@ -96,11 +121,8 @@ std::string report_json(const MergeReport &r) {
            ",\"shot_number\":" + std::to_string(input.shot_number) +
            ",\"sequence_index\":" + std::to_string(input.sequence_index) + '}';
   }
-  out += "],\"skipped\":[";
-  for (std::size_t i = 0; i < r.skipped.size(); ++i)
-    out += (i ? ",{\"path\":" : "{\"path\":") + quote(path_utf8(r.skipped[i].path)) +
-           ",\"reason\":" + quote(r.skipped[i].reason) + '}';
-  out += "],\"limitations\":" + strings(r.limitations) + ",\"warnings\":" + strings(r.warnings);
+  out += "],\"skipped\":" + files(r.skipped) + ",\"errors\":" + files(r.errors) +
+         ",\"limitations\":" + strings(r.limitations) + ",\"warnings\":" + strings(r.warnings);
   if (r.options.directory)
     out += ",\"output_directory\":" + quote(path_utf8(r.options.output));
   out += ",\"output_count\":" + std::to_string(r.outputs.size()) + ",\"outputs\":[";
