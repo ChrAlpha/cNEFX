@@ -23,7 +23,8 @@ std::vector<std::pair<int, int>> Selection::coordinates(int width, int height) c
     throw std::invalid_argument("Unsupported sparse selector geometry.");
   const std::int64_t visits =
       std::int64_t(outer_count) * middle_count * (inner_before + inner_after + 1);
-  if (visits > 4096 || visits * (width / 2 - 2) > 1000000)
+  // Each visit yields at most width / 2 - 2 sites; keep the total within one source plane.
+  if (visits > 4096 || visits * (width / 2 - 2) > std::int64_t(width) * height)
     throw std::invalid_argument("Sparse selector exceeds the supported work budget.");
   int row = first_row - (reference_height - height) / 2;
   const int lower = (reference_width - width) / 4;

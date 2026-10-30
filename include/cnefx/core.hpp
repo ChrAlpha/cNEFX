@@ -36,6 +36,7 @@ struct Selection {
   int middle_count = 1, outer_count = 1, inner_before = 0, inner_after = 0;
   static Selection parse(std::span<const std::uint8_t> bytes);
   std::vector<std::pair<int, int>> coordinates(int width, int height) const;
+  bool operator==(const Selection &) const = default;
 };
 
 // Returns the planes for one batch of zero-based capture indices, in request

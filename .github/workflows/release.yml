@@ -32,7 +32,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.zip dist/*.sha256 \
             --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
             --title "cNEFX ${GITHUB_REF_NAME#v}" \
-            --notes "Experimental: validation against authentic captures with matching NX Studio references, and Lightroom compatibility testing, remain pending."
+            --notes "Experimental: validation against authentic captures, NX Studio references and Lightroom Classic is partial."
 
   npm:
     name: Publish to npm

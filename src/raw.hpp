@@ -17,7 +17,7 @@ struct SequenceMetadata {
   std::uint32_t orientation{}, width{}, height{}, iso{}, compression{}, mode{}, count{}, burst{},
       shutter_anchor{};
   Crop crop{};
-  Bytes selector;
+  Selection selection;
   std::array<std::pair<std::int64_t, std::int64_t>, 3> exposure{};
   Calibration calibration;
   bool operator==(const SequenceMetadata &) const = default;

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(cNEFX VERSION 0.1.0 LANGUAGES CXX)
+project(cNEFX VERSION 0.1.1 LANGUAGES CXX)
 
 # As a subproject, cNEFX builds no tests, installs nothing and keeps the
 # consumer's runtime library; cnefx::cnefx exposes only include/.

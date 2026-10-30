@@ -4,8 +4,8 @@ Merge Nikon pixel-shift captures into NEFX files on Linux, macOS and Windows.
 cNEFX accepts complete 4, 8, 16 or 32-frame sequences from the Z8, Zf, Z6III and
 Z5II. It runs natively, with no Nikon software or Python runtime required.
 
-**Experimental:** validation against authentic captures and matching NX Studio
-references, and Lightroom compatibility testing, remain pending for all models.
+**Experimental:** validation against authentic captures, NX Studio references
+and Lightroom Classic is partial.
 
 ## Install
 

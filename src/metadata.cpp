@@ -113,7 +113,8 @@ Metadata read_metadata(const Directory &root) {
   m.mode = shift[4];
   require(m.mode >= 1 && m.mode <= 4 && capture[12] == 1,
           "Expected active 4, 8, 16 or 32-frame pixel-shift metadata.");
-  m.selector = shift;
+  // Byte 5 is the per-capture frame ordinal; the sparse selection is sequence-wide.
+  m.selection = Selection::parse(shift);
   m.count = 2u << m.mode;
   m.burst = u32(capture, 4);
   result.shot = u32(capture, 8);
@@ -186,8 +187,9 @@ void validate_sequence(const std::vector<Metadata> &metadata, bool radial) {
       throw std::invalid_argument("Sequence metadata differs.");
     if (radial && !item.radial)
       throw std::invalid_argument("Unsupported radial correction metadata: " + item.radial_error);
-    if (radial && item.radial != first.radial)
-      throw std::invalid_argument("Sequence radial correction parameters differ.");
+    // Captures record their own optical center; the lens coefficients are sequence-wide.
+    if (radial && item.radial->coefficients != first.radial->coefficients)
+      throw std::invalid_argument("Sequence radial correction coefficients differ.");
   }
 }
 } // namespace cnefx::detail

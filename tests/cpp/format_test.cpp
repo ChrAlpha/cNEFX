@@ -43,7 +43,7 @@ void merge(int argc, char **argv, bool corrected) {
         }
         return planes;
       },
-      info.sequence.crop, Selection::parse(info.sequence.selector), info.sequence.iso,
+      info.sequence.crop, info.sequence.selection, info.sequence.iso,
       corrected ? info.radial : std::nullopt);
   validate_sequence(metadata, corrected);
   Publication pending(argv[2], false);

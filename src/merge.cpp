@@ -109,10 +109,9 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
             captures.push_back(members.at(i));
           return load(captures);
         },
-        information.sequence.crop, Selection::parse(information.sequence.selector),
-        information.sequence.iso,
-        options.chromatic_aberration_correction ? information.radial : std::nullopt, check,
-        options.jobs);
+        information.sequence.crop, information.sequence.selection, information.sequence.iso,
+        options.chromatic_aberration_correction ? preflight[members[0]].radial : std::nullopt,
+        check, options.jobs);
     const auto name =
         "merged-" + std::string(index < 9 ? "0" : "") + std::to_string(index + 1) + ".nefx";
     const auto candidate = options.directory ? pending.temporary() / name : pending.temporary();
@@ -127,7 +126,7 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
   if (decoded != paths.size())
     throw std::logic_error("Every capture must be decoded exactly once.");
   report.limitations = {
-      "Experimental: authentic pixel-shift captures and Lightroom are not validated.",
+      "Experimental: authentic capture and Lightroom validation is partial.",
       "Adobe XMP defaults are preserved without updates.",
       "HE/HE* decoding is not implemented; use lossless-compressed 14-bit NEF inputs.",
       "Input order must follow consecutive capture numbers in a single sequence."};
