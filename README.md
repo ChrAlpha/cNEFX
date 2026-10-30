@@ -1,166 +1,115 @@
-# NX Ctudio
+# cNEFX
 
-Native Nikon pixel-shift synthesis with NEFX output.
-The package is `nx-ctudio`, the import namespace is `nx_ctudio`, and the CLI is
-`nxc`.
+Native Nikon pixel-shift synthesis to NEFX, implemented as a C++20 library and
+CLI. Linux is the primary platform; native builds also cover macOS and Windows.
+The product has one command, `cnefx merge`, and no Python or vendor runtime.
 
-## Install and run
+**Experimental:** authentic capture/reference comparisons and version-pinned
+Lightroom acceptance remain open. Synthetic agreement and successful LibRaw
+decoding do not establish those acceptance requirements.
 
-For normal use, download a CI-built standalone archive from
-[GitHub Releases](https://github.com/ChrAlpha/nx-ctudio/releases/latest).
-No Python, `uv`, or source checkout is needed. Choose the archive for your system
-and architecture, not GitHub's automatically generated source-code archive:
+## Build and run
 
-| Platform | Standalone archive (`<version>` is the release version) | CI build/test system |
-| --- | --- | --- |
-| Linux x86_64 | `nxc-<version>-linux-x86_64.tar.gz` | Ubuntu 22.04 |
-| Linux ARM64 | `nxc-<version>-linux-arm64.tar.gz` | Ubuntu 24.04 |
-| macOS Apple silicon | `nxc-<version>-macos-arm64.tar.gz` | macOS 15 |
-| Windows x86_64 | `nxc-<version>-windows-x86_64.zip` | Windows Server 2022 |
-
-Extract the entire archive and keep the `nxc` directory intact, including
-`_internal` and `build-info.json`. For example, on Linux x86_64 with version 0.0.1:
+A C++20 compiler and CMake 3.21+ are required for the presets. The default build
+fetches the hash-pinned, unmodified LibRaw 0.22.3 source and links it statically.
+External codecs, LCMS, OpenMP, examples and vendor SDK integrations are disabled.
+No Python environment is needed to build or run the executable.
 
 ```sh
-tar -xzf nxc-0.0.1-linux-x86_64.tar.gz
-./nxc/nxc --version
-./nxc/nxc merge --help
+cmake --preset release
+cmake --build --preset release
+ctest --preset release
+./build/release/cnefx --version
+./build/release/cnefx merge --help
 ```
 
-On macOS, use `./nxc/nxc` after extracting its archive. On Windows PowerShell,
-use `.\nxc\nxc.exe`. The examples below use `nxc` on `PATH`; either add the
-extracted directory to `PATH` or substitute the executable's full path.
-Release assets include `SHA256SUMS` for checksum verification. Builds are unsigned
-and macOS notarization is not provided; compatibility with older systems is not
-established by the CI matrix.
+The default presets build with two parallel jobs. Multi-configuration generators
+such as Visual Studio place the executable in `build/release/Release/`. On Windows
+use `cnefx.exe`. An offline source archive can be supplied with
+`-DCNEFX_LIBRAW_ARCHIVE=/absolute/path/LibRaw-0.22.3.tar.gz`; the same SHA-256 check
+applies. `-DCNEFX_USE_SYSTEM_LIBRAW=ON` instead selects LibRaw 0.22+ through
+pkg-config for development; standalone packaging uses the pinned build.
 
-Single-file NEFX output is tested on all four build targets. Output-directory
-publication requires Linux libc `renameat2` and filesystem support for
-`RENAME_NOREPLACE`. `nxc inspect` additionally requires ExifTool on `PATH`;
-Debian/Ubuntu provide it as `libimage-exiftool-perl`. The merge command does not
-require ExifTool. All builds remain experimental, with the acceptance gaps below.
+Verified native archives are uploaded by
+[Native CI](https://github.com/ChrAlpha/cNEFX/actions/workflows/ci.yml).
+Choose an artifact from the required branch/revision and check its accompanying
+`.sha256` file. The former implementation is available from the `v0.0.1` tag.
 
-## Scope and acceptance state
+| Platform | Archive | CI system |
+| --- | --- | --- |
+| Linux x86_64 | `cnefx-<version>-linux-x86_64.tar.gz` | Ubuntu 22.04 |
+| Linux ARM64 | `cnefx-<version>-linux-arm64.tar.gz` | Ubuntu 24.04 |
+| macOS Apple silicon | `cnefx-<version>-macos-arm64.tar.gz` | macOS 15 |
+| Windows x86_64 | `cnefx-<version>-windows-x86_64.zip` | Windows Server 2022 |
 
-The active product path merges complete ordered Nikon Z8, Zf, Z6III and Z5II
-sequences into NEFX. It is experimental: authentic capture/reference validation
-and Lightroom acceptance
-remain open. Passing fixtures or decoding a generated NEFX does not close them.
-The recorded scope is [research/project-scope.json](research/project-scope.json).
-Model and file-format evidence is recorded in
-[pixel-shift-camera-support.json](research/pixel-shift-camera-support.json).
-Other NX Studio functionality remains outside the active scope.
+Each archive contains `bin/cnefx` (or `bin/cnefx.exe`), build provenance in
+`share/cnefx/build-info.json`, and LibRaw license files. The executable runs
+without Python or ExifTool on `PATH`. Preserve the license
+files when redistributing an archive. Builds are unsigned and not notarized;
+compatibility with older systems is not established by this CI matrix.
 
-| Implemented path | Boundary |
+The examples below use `cnefx` on `PATH`. Substitute the executable's full path
+when running from a build or extracted archive.
+
+## Scope and acceptance
+
+The active product accepts complete ordered 4, 8, 16 or 32-frame sequences from
+Z8, Zf, Z6III and Z5II, producing one NEFX or a complete output directory. It keeps
+strict model, sequence, compression, CFA, geometry and calibration checks.
+There is no camera-identity override. The recorded scope is
+[project-scope.json](research/project-scope.json).
+
+| Boundary | Implemented behavior |
 | --- | --- |
-| Native merge | Complete 4, 8, 16, or 32-frame sequences; nine output modes below. No Wine, Nikon DLL, or ExifTool dependency in this path. |
-| Source decoding | Observed lossless-compressed 14-bit Nikon NEF layouts, strict model/metadata/geometry checks, rawpy/LibRaw decoding. HE/HE* is unsupported. |
-| NEFX writing | Packed14 RGB, selected Nikon metadata/CRC updates, private RGB preview, retained source JPEGs, exact decoded-sample verification. |
-| Lateral chromatic correction | Optional source-metadata radial correction before crop; disabled by default; requires supported matching parameters. |
-| Inspection | ExifTool metadata and SHA-256 only; no RAW decoding or sequence validation. |
-| Historical code | Linear DNG is secondary; Picture Control, Flexible Color, rendering, and `picture-curve` are outside active development. |
+| Source decoding | Observed lossless-compressed 14-bit Nikon NEF layouts. Each decode reads the file once and parses and decodes exactly the hashed bytes with LibRaw. HE/HE* is unsupported. |
+| Reconstruction | Integer phase mapping, pair averaging, ordered sparse repair and all nine output modes below. |
+| Optional correction | Source-metadata red/blue radial correction before crop; disabled by default and requires supported matching parameters. |
+| NEFX writing | Packed14 RGB, Nikon metadata/CRC updates, private RGB preview and preserved source JPEGs. Every output sample is read back and checked before publication. |
+| Publication | Private staging beside the destination; no replacement of existing files or directories; complete output sets become visible together. |
 
-HLG, non-FX image areas, other firmware, and broader correction parameters remain
+| Camera | Exact TIFF Model | Evidence boundary |
+| --- | --- | --- |
+| Z8 | `NIKON Z 8` | Saved synthetic Nikon-output replays and authored native tests. |
+| Zf | `NIKON Z f` | Recorded ordinary-RAW layout/decode evidence and authored native tests. |
+| Z6III | `NIKON Z6_3` | Recorded ordinary-RAW layout/decode evidence and authored native tests. |
+| Z5II | `NIKON Z5_2` | Recorded ordinary-RAW layout/decode evidence and authored native tests. |
+
+Authentic acceptance remains open for every model. Four-model fixture coverage
+uses real LibRaw decoding but does not establish per-model NX Studio parity.
+Source white balance and ColorBalance tags are preserved. If LibRaw lacks the
+Z5II color matrix, the report records that limitation; synthesis does not render
+RAW data or substitute calibration.
+
+HLG, non-FX image areas, other firmware and broader correction parameters remain
 unvalidated. Source Adobe XMP defaults are preserved without vendor-equivalent
-updates; default rendered appearance is a separate limitation from merged samples.
-This repository is not a CLI clone of NX Studio.
-
-| Camera | Exact source TIFF Model | Evidence boundary |
-| --- | --- | --- |
-| Z8 | `NIKON Z 8` | Synthetic vendor-output replays and authored native tests; authentic acceptance open. |
-| Zf | `NIKON Z f` | Unmodified ordinary-RAW layout/decode and authored native tests; authentic acceptance open. |
-| Z6III | `NIKON Z6_3` | Unmodified ordinary-RAW layout/decode and authored native tests; authentic acceptance open. |
-| Z5II | `NIKON Z5_2` | Same format/test coverage; LibRaw 0.22.1 lacks its XYZ-to-camera matrix. |
-
-All four models use the nine merge modes below, tested with authored fixtures and
-real LibRaw decoding. These tests do not establish authentic capture or per-model
-NX Studio parity. The merger retains source white-balance and ColorBalance tags;
-it does not render RAW data or substitute a camera color matrix. For Z5II, the
-known missing LibRaw matrix is reported as a limitation. Unsupported models and
-metadata versions still fail; there is no camera-identity override.
-
-## Development environment
-
-Use `uv run` when developing or testing from source. For normal use, prefer the
-standalone Release builds above. Read [AGENTS.md](AGENTS.md) before editing.
-Run development commands from the repository root on Linux with Python 3.12+
-and `uv`.
-[pyproject.toml](pyproject.toml) defines the package and tools;
-[uv.lock](uv.lock) pins dependency resolution.
-
-```sh
-uv sync --locked
-uv run --locked nxc --version
-uv run --locked nxc merge --help
-```
-
-Runtime dependencies are NumPy, rawpy, and tifffile; standalone builds bundle them.
-The default development group adds pytest and Ruff. The inspection tests
-(`tests/test_inspect.py`) also need ExifTool on `PATH`. To run the CLI examples
-below from a source checkout, replace `nxc` with `uv run --locked nxc`.
-
-RAW datasets and vendor assets are not bundled. Historical reports commonly point
-to `/workspaces/LumaForge/nxc-data/`, a workstation-local external artifact tree.
-It is not a runtime dependency or an assumed path on a fresh checkout. Resolve
-required artifacts from the relevant research record and verify their hashes.
-
-## Source routing
-
-The merge path is:
-
-```text
-cli.main -> merge / merge_outputs
-  -> raw.read_frame (metadata, identity, decode, source hash)
-  -> pixel_shift.output_groups + reconstruct_from_reader
-       -> _sparse repair and optional radial correction
-  -> nefx.write_nefx -> _tiff streaming serialization
-  -> rawpy exact decoded RGB comparison
-  -> complete-sequence validation + final source hash checks
-  -> _atomic no-replace publication
-```
-
-This is the responsibility flow; decoding, validation, and writing interleave
-across output groups in `merge.py`.
-
-| Read or change | Source | Focused tests |
-| --- | --- | --- |
-| CLI/report orchestration and sequence identity | [cli.py](src/nx_ctudio/cli.py), [merge.py](src/nx_ctudio/merge.py) | `tests/test_merge.py`, `tests/test_merge_outputs.py` |
-| Nikon source metadata and decoding | [raw.py](src/nx_ctudio/raw.py) | `tests/test_raw_metadata.py`, `tests/test_merge.py`, `tests/test_camera_merge.py` |
-| Output grouping, phase mapping, integer reconstruction | [pixel_shift.py](src/nx_ctudio/pixel_shift.py), [_sparse.py](src/nx_ctudio/_sparse.py) | `tests/test_pixel_shift.py` |
-| Source-metadata radial correction | [radial.py](src/nx_ctudio/radial.py) | `tests/test_radial.py` |
-| NEFX tags, packing, preview, TIFF layout | [nefx.py](src/nx_ctudio/nefx.py), [_tiff.py](src/nx_ctudio/_tiff.py) | `tests/test_nefx.py`, `tests/test_tiff_stream.py` |
-| Atomic publication, cancellation, warnings | [_atomic.py](src/nx_ctudio/_atomic.py) | `tests/test_atomic.py`, `tests/test_merge_outputs.py` |
-| Read-only ExifTool inspection | [inspect.py](src/nx_ctudio/inspect.py) | `tests/test_inspect.py` |
-
-`tools/` contains standalone probes and replay utilities, not product modules.
-`research/` contains structured findings and external artifact references.
-Many files in those directories and `tests/` concern retained historical work;
-their presence does not expand the current scope.
+updates; default rendered appearance is separate from merged-sample correctness.
+A readable NEFX with matching samples is not byte-identical Nikon serialization.
+Wine and Nikon DLLs are external research oracles only. GUI, WASM and general RAW
+rendering are outside the current product scope.
 
 ## CLI contract
 
-Always pass explicit files in capture order. A directory or a shell glob is not
-an ordered sequence contract. The merger requires consecutive capture numbers,
-consistent observed metadata, and distinct input files; it verifies source hashes
-again before publication. Inputs must remain unchanged throughout the run.
+Pass explicit files in capture order. A directory or a shell glob is not an
+ordered-sequence contract. Capture numbers must be consecutive and observed
+sequence metadata must agree; these checks read every input's metadata before
+any decoding, and each decoded input must reproduce it. Duplicate paths, hard
+links and changed inputs are rejected. Source SHA-256 hashes are checked again
+before publication.
 
-Replace the absolute example paths with real captures. The output parent must
-already exist. The destination file or directory must not exist, including an
-empty directory or dangling symlink.
-
-Four frames to one NEFX:
+The output parent must already exist. The destination must not exist, including
+an empty directory or a dangling symlink. Four frames to one NEFX:
 
 ```sh
-nxc merge \
+cnefx merge \
   /data/capture4/shot-01.NEF /data/capture4/shot-02.NEF \
   /data/capture4/shot-03.NEF /data/capture4/shot-04.NEF \
   --output /data/results/merged.nefx --json
 ```
 
-Eight frames to a complete two-file output set (Linux only):
+Eight frames to a complete two-file output set:
 
 ```sh
-nxc merge \
+cnefx merge \
   /data/capture8/shot-01.NEF /data/capture8/shot-02.NEF \
   /data/capture8/shot-03.NEF /data/capture8/shot-04.NEF \
   /data/capture8/shot-05.NEF /data/capture8/shot-06.NEF \
@@ -168,10 +117,16 @@ nxc merge \
   --outputs 2 --output-directory /data/results/merge-set --json
 ```
 
-Add `--chromatic-aberration-correction` to enable supported source-metadata
-correction. `--output` requires a `.nefx` suffix and one output. Output counts
-above one require `--output-directory`; a directory can also contain one output.
-`--outputs` defaults to `1`.
+Add `--chromatic-aberration-correction` to enable supported source correction.
+`--output` requires a `.nefx` suffix and one output. Multiple outputs require
+`--output-directory`; a directory can also contain one output. `--outputs`
+defaults to `1`. Use `--` before input paths that begin with a hyphen.
+
+`--jobs N` bounds worker threads from 1 to 256 and defaults to the hardware
+concurrency. Up to four captures of a reconstruction batch, or one averaging
+pair, decode concurrently; radial correction splits rows across the same limit.
+Outputs do not depend on `--jobs`. `--jobs 1` runs serially with the smallest
+working set.
 
 | Capture count | Allowed `--outputs` | Per-output crop dimensions |
 | --- | --- | --- |
@@ -180,110 +135,157 @@ above one require `--output-directory`; a directory can also contain one output.
 | 16 | 1, 4 | 2x for one output; 1x for four |
 | 32 | 1, 2, 4, 8 | 2x for one or two outputs; 1x for four or eight |
 
-Groups are consecutive except 32-to-4: it pairs four-frame blocks at capture
-offsets `0/16`, `4/20`, `8/24`, and `12/28`. Each output inherits metadata from
-its group's first source. See `pixel_shift.output_groups` for exact index tuples.
+Groups are consecutive except 32-to-4: it pairs four-frame blocks at zero-based
+capture offsets `0/16`, `4/20`, `8/24` and `12/28`. Each output inherits metadata
+from its group's first source.
 
-With `--json`, merge writes its report to stdout:
+With `--json`, stdout carries a report with `schema_version: 1`:
 
-- Success: `status`, `backend`, `output_format`, `sequence_validation`, ordered
-  `inputs` with hashes and shot numbers, correction setting, `limitations`, and
-  `warnings`. `camera` contains source `make` and exact TIFF `model`.
-- Single output: `output`, `sha256`, `shape` in height/width/channels order, and
-  `samples_verified`.
-- Output set: `output_directory`, `output_count`, `outputs`, total
-  `samples_verified`, and zero-based `input_indices` for each output. The directory
-  contains `merged-01.nefx` through `merged-NN.nefx` and `manifest.json`.
-- Runtime failure: `status: "error"`, `backend: "native"`, and `error` with `code`
-  and `message`. Codes are `merge_failed` or `cancelled`.
+- Success includes `status: "ok"`, `backend: "native"`, `output_format: "NEFX"`,
+  program/LibRaw versions, `camera`, `sequence_validation`, ordered `inputs` with
+  hashes and shot numbers, correction setting, `limitations` and `warnings`.
+- A single output has `output`, `sha256`, `shape` in height/width/channels order,
+  and `samples_verified`.
+- An output set has `output_directory`, `output_count`, `outputs`, total
+  `samples_verified` and zero-based `input_indices` for each output. It contains
+  `merged-01.nefx` through `merged-NN.nefx` and `manifest.json`.
+- Runtime failure has `status: "error"` and `error` with `code` and `message`.
+  Codes are `merge_failed` or `cancelled`.
 
-Merge exits `0` on success, `1` on runtime failure, `130` on caught cancellation,
-and `2` on argument errors. Argument errors use argparse stderr, even with
-`--json`. Merge reports currently have no `schema_version` field. Check the exit
-code, status, and warnings; parse JSON only when a report was emitted.
+Exit codes are `0` for success, `1` for runtime failure, `130` for caught
+cancellation and `2` for argument errors. Argument errors use stderr even with
+`--json`. SIGINT/SIGTERM cancellation is cooperative during merge work.
 
-Published output can survive a parent-directory sync or temporary-cleanup warning.
-These are success reports with warnings, not grounds to delete or overwrite the
-destination. The directory manifest is written before final publication and cannot
-include warnings raised afterward; the final stdout report includes them.
+Publication uses Linux `renameat2(RENAME_NOREPLACE)`, macOS
+`renamex_np(RENAME_EXCL)` or a Windows move without replacement. If a POSIX
+filesystem lacks the exclusive rename, a single file is published with a
+no-replace hard link instead. A directory requires the exclusive rename;
+unsupported publication fails without exposing a partial output set.
 
-Metadata inspection is a separate command:
+A parent-directory sync or temporary-cleanup failure after publication produces
+a success report with warnings and retains the valid output. The directory
+manifest is written before publication and cannot contain later warnings; the
+final stdout report includes them. Check status, exit code and warnings before
+planning a retry.
 
-```sh
-nxc inspect /data/capture4/shot-01.NEF --json
-```
+## Source routing
 
-Its report has `schema_version: 1`, a `files` array with per-file status, and
-`raw_decode` / `sequence_validation` set to `not_performed`. Exit codes are `0`
-for all files inspected, `1` for file failures, `2` for dependency/argument errors,
-and `130` for caught cancellation. Inspection success is not merge eligibility.
+The reusable public API is [core.hpp](include/cnefx/core.hpp) and
+[merge.hpp](include/cnefx/merge.hpp). CMake consumers can use `add_subdirectory`
+and link `cnefx::cnefx`, which exposes only `include/`; a subproject builds no
+tests, installs nothing and keeps the consumer's runtime library. No stable
+binary ABI or installed SDK is promised.
+Cancellation and progress callbacks run synchronously on the caller's thread;
+worker threads only decode and correct rows, and stop at their next poll after
+a failure or cancellation.
 
-## Verification routing
-
-After development environment setup, this focused suite covers the active
-synthesis path without capture datasets or vendor binaries; the inspection tests
-need ExifTool:
-
-```sh
-uv run --locked pytest -q \
-  tests/test_pixel_shift.py tests/test_merge.py tests/test_merge_outputs.py \
-  tests/test_atomic.py tests/test_radial.py tests/test_nefx.py \
-  tests/test_tiff_stream.py tests/test_raw_metadata.py tests/test_inspect.py \
-  tests/test_nefx_roundtrip.py tests/test_camera_merge.py
-```
-
-For a narrow edit, select the relevant files from the routing table. Run Ruff only
-on changed Python files; for example, when changing `pixel_shift.py` and its tests:
-
-```sh
-uv run --locked ruff check src/nx_ctudio/pixel_shift.py tests/test_pixel_shift.py
-uv run --locked ruff format --check src/nx_ctudio/pixel_shift.py tests/test_pixel_shift.py
-git diff --check
-```
-
-External-data verification is a separate evidence tier:
-
-| Tool | Required input and output | What it establishes |
+| Responsibility | Source | Native checks |
 | --- | --- | --- |
-| [verify_native_core.py](tools/verify_native_core.py) | Saved passing pipeline reports; `--report NEW_JSON`; optional `--radial-correction` | Native numerical core versus hash-checked saved synthetic vendor outputs. |
-| [verify_native_cli.py](tools/verify_native_cli.py) | Saved pipeline reports; `--output NEW_DIRECTORY`; optional `--chromatic-aberration-correction` | CLI replay against saved vendor outputs using synthetic identity copies. |
-| [verify_native_modes.py](tools/verify_native_modes.py) | `--matrix MATRIX_JSON --manifest FIXTURE_JSON --output NEW_DIRECTORY` | All nine uncorrected modes versus the saved synthetic vendor matrix. |
+| Grouping, phase mapping, sparse repair, radial correction | `src/core.cpp`, `src/sparse.cpp`, `src/radial.cpp` | `tests/cpp/core_test.cpp`, `tools/verify_cpp_core.py` |
+| Descriptor ownership, SHA-256, bounded TIFF graph, publication | `src/io.cpp`, `src/sha256.cpp`, `src/tiff.cpp` | `tests/cpp/io_test.cpp`, format/CLI lifecycle checks |
+| Strict Nikon metadata and RAW decode | `src/metadata.cpp`, `src/raw.cpp` | `tests/cpp/format_test.cpp`, `tools/verify_cpp_format.py` |
+| NEFX packing, Nikon blocks, CRCs, previews | `src/nefx.cpp` | Saved format expectations and vendor replays |
+| Sequence orchestration and reports | `src/merge.cpp`, `src/report.cpp` | `tests/cpp/merge_test.cpp`, `tools/verify_cpp_cli.py` |
+| CLI argument handling and signals | `src/cli.cpp` | CLI regression, real cancellation and package smoke checks |
+| Build, pinned dependency and packaging | `CMakeLists.txt`, `cmake/`, `.github/workflows/ci.yml` | Four native platforms, ASan/UBSan, empty-PATH package checks |
 
-Run these with `uv run --locked python tools/TOOL.py --help` before preparing a
-replay. Reports reference external files, often with absolute paths. The CLI and
-mode replay tools patch shutter metadata on synthetic copies: they are not
-authentic-capture acceptance runners. Keep their output outside the repository.
-Some other historical tools contain workstation-specific paths; inspect them
-before execution.
+The numerical core is independent of decoding and capture identity. Each capture
+index is decoded once; reconstruction keeps at most four source planes, or two
+for paired modes. Sparse repair retains original values only at affected sites.
+Compressed source bytes and decoder buffers for each concurrently decoded
+capture, output RGB and radial correction add to the working set, so this is
+not a universal peak-memory bound.
 
-## Evidence and next work
+`tools/` holds the native verification runners and their fixture helpers;
+`research/` indexes synthesis evidence. Python is used only for development
+checks: fixture construction, independent LibRaw readback, saved expectations,
+external oracle comparisons and package validation.
 
-| Question | Start here |
+## Verification
+
+Read [AGENTS.md](AGENTS.md) before editing. Native unit tests require only the
+C++ build. The verification runners additionally use Python 3.12+ and the locked
+`uv` environment; NumPy, rawpy and tifffile are development dependencies only.
+This environment does not install a Python product or reference package.
+
+```sh
+uv sync --locked
+uv run --locked python tools/ci.py verify --build-dir build/release
+cmake --preset sanitize
+cmake --build --preset sanitize
+ctest --preset sanitize
+uv run --locked python tools/ci.py verify --build-dir build/sanitize --config Debug
+```
+
+`verify` runs 128 numerical cases, 32 format roundtrips plus 14 rejections, and
+36 four-model/nine-mode CLI cases with failure injections. Reports are saved in
+`build/<preset>/verification/`. It refuses to overwrite that directory: preserve
+it before rerunning, or invoke an individual `tools/verify_cpp_*.py` runner with a
+fresh `--work-directory`. The sanitizer preset instruments both cNEFX and LibRaw.
+
+The compact [native-golden.json](tests/fixtures/native-golden.json) record pins
+independent expected sample and TIFF-tree hashes captured before the legacy
+implementation was removed. It also pins fixture hashes, groups and shapes.
+Checks never regenerate expectations from the executable being tested. Changes
+to expectations require separately reviewed evidence and provenance. Sample,
+metadata and image-payload changes are checked independently; this remains
+synthetic regression evidence.
+
+Format modified C++ paths with `.clang-format`, use Ruff on modified Python paths, and run
+`git diff --check`. Native CI checks changed text for ASCII and packages each
+platform after unit and saved-reference checks. To package a local release build:
+
+```sh
+uv run --locked python tools/ci.py package --build-dir build/release
+```
+
+Every build rewrites `build-info.json` with the current revision and
+working-tree state. The package check requires that revision to be `HEAD`,
+verifies checksums, extracts the archive, and runs 4-to-1 and 32-to-4 synthesis
+with an empty `PATH`.
+
+External evidence requires separately supplied, hash-checked artifacts:
+
+| Runner | Evidence |
 | --- | --- |
-| Current scope and release gaps | [project-scope.json](research/project-scope.json) |
-| Nikon model coverage and ordinary-RAW format evidence | [pixel-shift-camera-support.json](research/pixel-shift-camera-support.json), [inspect_camera_source.py](tools/inspect_camera_source.py) |
-| Nine-mode replay, publication, isolated wheel, resource measurements | [pixel-shift-native-modes.json](research/pixel-shift-native-modes.json) |
+| `tools/verify_native_modes.py --executable build/release/cnefx` | Nine modes against the saved synthetic Nikon output matrix. |
+| `tools/verify_native_cli.py --executable build/release/cnefx` | Saved synthetic vendor output with optional radial correction. |
+| `tools/verify_firmware_reference.py` | Integer lattice/pair/green arithmetic against the pinned external firmware project; excludes sparse repair and serialization. |
+
+Inspect each runner's `--help` and record explicit time, memory and concurrency
+limits before expensive work. Reports pin revisions, binaries, inputs and
+references. Retain failures and partial evidence. The native replay tools patch
+identity metadata on synthetic copies; they are not authentic-capture runners.
+
+The correctness reference is
+[NikonFirmwarePatch/z8pixelshift](https://github.com/XinmiaoZhao/NikonFirmwarePatch/tree/13c3709a35c58f9cf6fc9c1043705712074651eb/z8pixelshift),
+pinned to `13c3709a35c58f9cf6fc9c1043705712074651eb`. Its code is an external test
+oracle, not a product dependency. Sparse repair, radial correction and container
+behavior are checked against pinned independent expectations and saved Nikon outputs.
+
+## Evidence and remaining acceptance
+
+| Question | Record |
+| --- | --- |
+| Product scope and release gaps | [project-scope.json](research/project-scope.json) |
+| C++ migration, validation, portability and resource results | [pixel-shift-native-modes.json](research/pixel-shift-native-modes.json), `cpp_refactor_20261029`, `review_followup_20261030` |
+| Model layouts and ordinary-RAW evidence | [pixel-shift-camera-support.json](research/pixel-shift-camera-support.json) |
 | Reconstruction and sparse repair | [pixel-shift-algorithm.json](research/pixel-shift-algorithm.json), [pixel-shift-sparse-pipeline.json](research/pixel-shift-sparse-pipeline.json) |
-| NEFX layout, metadata, and writer evidence | [pixel-shift-nefx-writer.json](research/pixel-shift-nefx-writer.json), [pixel-shift-serialization.json](research/pixel-shift-serialization.json) |
-| Correction and compression limits | [pixel-shift-native-radial.json](research/pixel-shift-native-radial.json), [pixel-shift-compression.json](research/pixel-shift-compression.json) |
+| NEFX format and writer | [pixel-shift-nefx-writer.json](research/pixel-shift-nefx-writer.json), [pixel-shift-serialization.json](research/pixel-shift-serialization.json) |
+| Radial correction and compression | [pixel-shift-native-radial.json](research/pixel-shift-native-radial.json), [pixel-shift-compression.json](research/pixel-shift-compression.json) |
 | Previous capture-data search | [pixel-shift-capture-search.json](research/pixel-shift-capture-search.json) |
 
-Research records are dated evidence, not live verification. Earlier records can
-contain gaps resolved by later work; reconcile them with current scope, source,
-and the native-modes record. Full-resolution repeated-RAW measurements are
-synthetic resource observations, not authentic image-quality results or universal
-memory bounds.
+These are dated records, not live verification. Large datasets, binaries and
+reports remain outside Git. Historical workstation paths under
+`/workspaces/LumaForge/nxc-data/` are artifact references, not runtime dependencies.
+Verify availability and hashes before relying on them. Historical commands and
+source paths apply to their recorded revisions; recover old tooling from Git
+when reproducing those runs.
 
-The next acceptance work requires authentic ordered lossless 14-bit FX captures
-for each enabled camera model and matching NX Studio NEFX references across the
-supported modes and correction
-settings, followed by version-pinned Lightroom import, Develop, and export checks.
-Preserve original files and record their provenance and hashes. Run the native
-merger without metadata patching; compare decoded samples, dimensions, selected
-metadata, previews, and downstream behavior as distinct checks. Record the exact
-application versions and settings with the results.
-
-Until those inputs are available, address concrete synthesis defects and explicitly
-requested maintenance. Do not infer acceptance from LibRaw/Adobe SDK decoding,
-restart exhausted public searches without a new lead, or reopen general renderer
-development to fill an unrelated validation gap.
+Acceptance still requires complete authentic lossless 14-bit FX sequences for
+each enabled model, with matching NX Studio NEFX references across modes and
+correction settings. Preserve original provenance and hashes, run without
+metadata patching, and compare samples, dimensions, metadata and previews
+separately. Then record version-pinned Lightroom import, Develop and export
+results. Repeated ordinary RAW at full resolution measures synthetic resource
+use and sample agreement, not authentic image quality.

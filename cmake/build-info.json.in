@@ -1,0 +1,15 @@
+{
+  "project": "cNEFX",
+  "version": "@PROJECT_VERSION@",
+  "revision": "@CNEFX_REVISION@",
+  "dirty": @CNEFX_DIRTY@,
+  "compiler": "@CMAKE_CXX_COMPILER_ID@ @CMAKE_CXX_COMPILER_VERSION@",
+  "configuration": "@CNEFX_CONFIG@",
+  "system": "@CMAKE_SYSTEM_NAME@",
+  "architecture": "@CMAKE_SYSTEM_PROCESSOR@",
+  "libraw_version": "@CNEFX_LIBRAW_VERSION@",
+  "libraw_source": "@CNEFX_LIBRAW_SOURCE@",
+  "libraw_archive_sha256": "@CNEFX_LIBRAW_SHA256@",
+  "runtime": "C++20 native NEFX synthesis",
+  "acceptance": "experimental; authentic capture/reference and downstream acceptance remain open"
+}

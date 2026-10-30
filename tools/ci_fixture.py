@@ -2,12 +2,33 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import struct
 from pathlib import Path
 
 import numpy as np
 
-from nx_ctudio._tiff import Directory, Tag, serialize
+from tiff_fixture import Directory, Tag, serialize
+
+GOLDEN_PATH = Path(__file__).resolve().parents[1] / "tests/fixtures/native-golden.json"
+GOLDEN = json.loads(GOLDEN_PATH.read_text())
+GOLDEN_SHA256 = hashlib.sha256(GOLDEN_PATH.read_bytes()).hexdigest()
+
+
+def merge_expectations(
+    model: str, count: int, outputs: int, *, pattern: str = "spatial"
+) -> dict:
+    return GOLDEN["merges"][f"{pattern}/{model}/{count}/{outputs}"]
+
+
+def check_rgb(actual: np.ndarray, expected: dict) -> None:
+    assert list(actual.shape) == expected["shape"]
+    assert int(actual.size) == expected["samples"]
+    assert (
+        hashlib.sha256(actual.astype("<u2").tobytes()).hexdigest()
+        == expected["rgb_sha256"]
+    )
 
 
 def pixels(index: int, shape: tuple[int, int] = (48, 64)) -> np.ndarray:

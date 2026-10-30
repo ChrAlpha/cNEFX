@@ -1,51 +1,46 @@
-"""Bounded CI checks and standalone packaging; no vendor or capture assets."""
+"""Native build verification and standalone archive checks; no capture assets."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib.metadata
 import json
 import os
-import platform
-import shutil
+import re
 import subprocess
 import sys
+import tarfile
 import tempfile
-import tomllib
+import zipfile
 from pathlib import Path
 
-import numpy as np
 import rawpy
-from ci_fixture import pixels, sequence
 
-from nx_ctudio.pixel_shift import reconstruct
+from ci_fixture import GOLDEN_SHA256, check_rgb, merge_expectations, sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def run(*args: str, **kwargs) -> subprocess.CompletedProcess:
-    return subprocess.run(args, check=True, timeout=600, **kwargs)
+    return subprocess.run(args, check=True, timeout=300, **kwargs)
 
 
 def version() -> str:
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="ascii"))
-    expected = project["project"]["version"]
-    from nx_ctudio import __version__
-
-    if expected != __version__ or expected != importlib.metadata.version("nx-ctudio"):
-        raise ValueError("Project, installed package, and CLI versions must match.")
+    text = (ROOT / "CMakeLists.txt").read_text(encoding="ascii")
+    match = re.search(r"project\(cNEFX VERSION ([0-9.]+) LANGUAGES CXX\)", text)
+    if not match:
+        raise ValueError("Missing CMake project version.")
+    value = match[1]
     if os.environ.get("GITHUB_REF_TYPE") == "tag":
-        if os.environ.get("GITHUB_REF_NAME") != f"v{expected}":
-            raise ValueError("The version tag must match the package version.")
-    return expected
+        if os.environ.get("GITHUB_REF_NAME") != f"v{value}":
+            raise ValueError("The version tag must match the native project version.")
+    return value
 
 
 def check() -> None:
     version()
     base = os.environ.get("CI_BASE_SHA", "")
     if not base or set(base) == {"0"}:
-        # A new branch/tag or manual dispatch checks its complete branch delta.
         base = run(
             "git", "merge-base", "HEAD", "origin/master", capture_output=True, text=True
         ).stdout.strip()
@@ -57,7 +52,7 @@ def check() -> None:
         ):
             base = "HEAD^"
     run("git", "diff", "--check", base, "HEAD")
-    changed = (
+    paths = (
         run(
             "git",
             "diff",
@@ -71,263 +66,189 @@ def check() -> None:
         .stdout.decode()
         .split("\0")
     )
-    paths = [name for name in changed if name.endswith(".py") and Path(name).is_file()]
-    if paths:
-        run(sys.executable, "-m", "ruff", "check", "--", *paths)
-        run(sys.executable, "-m", "ruff", "format", "--check", "--", *paths)
+    python = [p for p in paths if p.endswith(".py") and Path(p).is_file()]
+    if python:
+        run(sys.executable, "-m", "ruff", "check", "--no-cache", "--", *python)
+        run(
+            sys.executable,
+            "-m",
+            "ruff",
+            "format",
+            "--no-cache",
+            "--check",
+            "--",
+            *python,
+        )
+    for name in paths:
+        path = Path(name)
+        if path.is_file() and path.suffix in {
+            ".py",
+            ".cpp",
+            ".hpp",
+            ".json",
+            ".md",
+            ".cmake",
+            ".yml",
+        }:
+            path.read_text(encoding="ascii")
 
 
-def smoke(executable: Path) -> None:
-    """Exercise the installed/frozen CLI outside the checkout without PATH tools."""
-    expected = version()
-    with tempfile.TemporaryDirectory(prefix="nxc-smoke-") as directory:
-        work = Path(directory)
-        env = os.environ.copy()
-        for name in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"):
-            env.pop(name, None)
-        env["PATH"] = ""
+def executable(build: Path, config: str, name: str) -> Path:
+    name += ".exe" if os.name == "nt" else ""
+    for path in (build / name, build / config / name):
+        if path.is_file():
+            return path.resolve()
+    raise ValueError(f"Missing built executable: {name}")
 
-        def invoke(*args: str, code: int = 0) -> subprocess.CompletedProcess:
-            result = subprocess.run(
-                [str(executable), *args],
-                cwd=work,
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=60,
+
+def verify(build: Path, config: str) -> None:
+    output = build / "verification"
+    if output.exists():
+        raise ValueError(
+            "Verification directory exists; preserve it or choose a fresh build."
+        )
+    output.mkdir()
+    for script, program in (
+        ("core", "cnefx_core_test"),
+        ("format", "cnefx_format_test"),
+        ("cli", "cnefx"),
+    ):
+        args = [
+            sys.executable,
+            str(ROOT / f"tools/verify_cpp_{script}.py"),
+            "--executable",
+            str(executable(build, config, program)),
+            "--work-directory",
+            str(output / script),
+        ]
+        if script == "cli":
+            args += ["--injector", str(executable(build, config, "cnefx_merge_test"))]
+        run(*args)
+
+
+def smoke(program: Path, work: Path) -> dict:
+    env = {"PATH": ""}
+    for key in ("SYSTEMROOT", "WINDIR", "TEMP", "TMP"):
+        if key in os.environ:
+            env[key] = os.environ[key]
+
+    def invoke(*args: str) -> subprocess.CompletedProcess:
+        return run(
+            str(program), *args, cwd=work, env=env, capture_output=True, text=True
+        )
+
+    assert invoke("--version").stdout.strip() == f"cNEFX {version()}"
+    assert "Usage:" in invoke("--help").stdout
+    cases = []
+    for count, outputs in ((4, 1), (32, 4)):
+        folder = work / f"capture-{count}"
+        folder.mkdir()
+        paths = sequence(folder, count)
+        destination = work / ("single.nefx" if outputs == 1 else "set")
+        option = "--output" if outputs == 1 else "--output-directory"
+        result = invoke(
+            "merge",
+            *map(str, paths),
+            option,
+            str(destination),
+            "--outputs",
+            str(outputs),
+            "--json",
+        )
+        report = json.loads(result.stdout)
+        assert report["status"] == "ok"
+        items = report["outputs"] if outputs > 1 else [report]
+        golden = merge_expectations("NIKON Z 8", count, outputs, pattern="constant")
+        assert [hashlib.sha256(p.read_bytes()).hexdigest() for p in paths] == golden[
+            "input_sha256"
+        ]
+        for item, expected in zip(items, golden["outputs"], strict=True):
+            assert (
+                item.get("input_indices", list(range(count)))
+                == expected["input_indices"]
             )
-            if result.returncode != code:
-                raise RuntimeError(f"CLI {args}: {result.returncode}: {result.stderr}")
-            return result
-
-        assert invoke("--version").stdout.strip() == f"NX Ctudio {expected}"
-        assert "merge" in invoke("--help").stdout
-        assert "--chromatic-aberration-correction" in invoke("merge", "--help").stdout
-        assert "usage:" in invoke("merge", code=2).stderr
-        report = json.loads(invoke("inspect", "missing.NEF", "--json", code=2).stdout)
-        assert report["error"]["code"] == "dependency_missing"
-        report = json.loads(
-            invoke(
-                "merge",
-                "missing.NEF",
-                "-o",
-                "out.nefx",
-                "--json",
-                code=1,
-            ).stdout
-        )
-        assert report["error"]["code"] == "merge_failed"
-        source = work / "source.NEF"
-        source.write_bytes(b"synthetic duplicate input")
-        report = json.loads(
-            invoke(
-                "merge",
-                *([str(source)] * 4),
-                "-o",
-                "out.nefx",
-                "--json",
-                code=1,
-            ).stdout
-        )
-        assert "Duplicate" in report["error"]["message"]
-        files = [work / f"invalid-{i}.NEF" for i in range(4)]
-        for item in files:
-            item.write_bytes(b"synthetic invalid TIFF")
-        report = json.loads(
-            invoke(
-                "merge",
-                *map(str, files),
-                "-o",
-                "out.nefx",
-                "--json",
-                code=1,
-            ).stdout
-        )
-        assert report["error"]["code"] == "merge_failed"
-        assert set(work.iterdir()) == {source, *files}
-        expected_pixels = reconstruct(
-            [pixels(i) for i in range(4)],
-            (4, 4, 56, 40),
-            b"0100\x01" + bytes(23),
-            100,
-        )
-        models = ("NIKON Z 8", "NIKON Z f", "NIKON Z6_3", "NIKON Z5_2")
-        for model in models:
-            camera_work = work / model.replace(" ", "-")
-            camera_work.mkdir()
-            inputs = sequence(camera_work, model=model)
-            original_hashes = [
-                hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs
-            ]
-            for corrected in (False, True):
-                target = camera_work / f"merged-{corrected}.nefx"
-                args = ["merge", *map(str, inputs), "-o", str(target), "--json"]
-                if corrected:
-                    args.append("--chromatic-aberration-correction")
-                report = json.loads(invoke(*args).stdout)
-                assert report["status"] == "ok"
-                assert report["camera"]["model"] == model
-                assert report["samples_verified"] == expected_pixels.size
-                assert report["chromatic_aberration_correction"] is corrected
-                assert [item["sha256"] for item in report["inputs"]] == original_hashes
-                with rawpy.imread(str(target)) as decoded:
-                    np.testing.assert_array_equal(
-                        decoded.raw_image[..., :3], expected_pixels
-                    )
-                digest = hashlib.sha256(target.read_bytes()).hexdigest()
-                assert digest == report["sha256"]
-                rejected = json.loads(invoke(*args, code=1).stdout)
-                assert "already exists" in rejected["error"]["message"]
-                assert hashlib.sha256(target.read_bytes()).hexdigest() == digest
-            assert [
-                hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs
-            ] == original_hashes
-            target_directory = camera_work / "batch"
-            batch_args = [
-                "merge",
-                *map(str, inputs),
-                "--output-directory",
-                str(target_directory),
-                "--json",
-            ]
-            if sys.platform == "linux":
-                batch = json.loads(invoke(*batch_args).stdout)
-                assert batch["status"] == "ok" and batch["output_count"] == 1
-                assert batch["camera"]["model"] == model
-                assert (
-                    json.loads((target_directory / "manifest.json").read_text())
-                    == batch
-                )
-                with rawpy.imread(str(target_directory / "merged-01.nefx")) as decoded:
-                    np.testing.assert_array_equal(
-                        decoded.raw_image[..., :3], expected_pixels
-                    )
-            else:
-                batch = json.loads(invoke(*batch_args, code=1).stdout)
-                assert "currently require Linux" in batch["error"]["message"]
-                assert not target_directory.exists()
-        assert not list(work.rglob(".nxc-*"))
-    print(
-        json.dumps(
+            with rawpy.imread(item["output"]) as image:
+                check_rgb(image.raw_image[..., :3], expected)
+        cases.append(
             {
-                "status": "ok",
-                "executable": str(executable),
-                "version": expected,
-                "camera_models": models,
+                "inputs": count,
+                "outputs": outputs,
+                "samples_verified": report["samples_verified"],
             }
         )
-    )
-
-
-def build(target: str) -> None:
-    expected = version()
-    lock = (ROOT / "uv.lock").read_bytes()
-    if lock != run("git", "show", "HEAD:uv.lock", capture_output=True).stdout:
-        raise ValueError("Build dependency lock must match the committed bytes.")
-    machine = {"aarch64": "arm64", "AMD64": "x86_64"}.get(
-        platform.machine(), platform.machine()
-    )
-    system = {"Linux": "linux", "Darwin": "macos", "Windows": "windows"}[
-        platform.system()
-    ]
-    if target != f"{system}-{machine}":
-        raise ValueError("Build target must match the native runner architecture.")
-    dist = ROOT / "dist"
-    work = ROOT / "build" / target
-    work.mkdir(parents=True, exist_ok=True)
-    run(
-        sys.executable,
-        "-m",
-        "PyInstaller",
-        "--noconfirm",
-        "--clean",
-        "--onedir",
-        "--name",
-        "nxc",
-        "--distpath",
-        str(work / "dist"),
-        "--workpath",
-        str(work / "work"),
-        "--specpath",
-        str(work),
-        "--collect-all",
-        "rawpy",
-        "--copy-metadata",
-        "numpy",
-        "--copy-metadata",
-        "rawpy",
-        "--copy-metadata",
-        "tifffile",
-        str(ROOT / "src/nx_ctudio/__main__.py"),
-        cwd=ROOT,
-    )
-    bundle = work / "dist/nxc"
-    manifest = {
-        "schema_version": 1,
-        "version": expected,
-        "target": target,
-        "revision": run(
-            "git", "rev-parse", "HEAD", capture_output=True, text=True
-        ).stdout.strip(),
-        "python": platform.python_version(),
-        "dependencies": {
-            name: importlib.metadata.version(name)
-            for name in ("numpy", "rawpy", "tifffile", "pyinstaller")
-        },
-        "lock_sha256": hashlib.sha256(lock).hexdigest(),
-        "limitations": [
-            "Experimental; authentic capture and downstream application "
-            "acceptance remain open.",
-            "Output-directory publication requires Linux renameat2 "
-            "and RENAME_NOREPLACE.",
-            "Metadata inspection requires a separately installed ExifTool on PATH.",
-            "Unsigned build; platform signing and notarization are not provided.",
-        ],
+    return {
+        "passed": True,
+        "path_empty": True,
+        "expectations_sha256": GOLDEN_SHA256,
+        "cases": cases,
     }
-    (bundle / "build-info.json").write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="ascii"
+
+
+def package(build: Path, config: str) -> None:
+    destination = build / "packages"
+    run(
+        "cpack",
+        "--config",
+        str(build / "CPackConfig.cmake"),
+        "-C",
+        config,
+        "-B",
+        str(destination),
     )
-    dist.mkdir(exist_ok=True)
-    archive = shutil.make_archive(
-        str(dist / f"nxc-{expected}-{target}"),
-        "zip" if system == "windows" else "gztar",
-        root_dir=bundle.parent,
-        base_dir=bundle.name,
+    archives = sorted(destination.glob("cnefx-*.tar.gz")) + sorted(
+        destination.glob("cnefx-*.zip")
     )
-    with tempfile.TemporaryDirectory(prefix="nxc-extracted-") as directory:
-        shutil.unpack_archive(archive, directory)
-        smoke(Path(directory) / "nxc" / ("nxc.exe" if system == "windows" else "nxc"))
-    artifacts = sorted(
-        path
-        for path in dist.iterdir()
-        if path.is_file() and path.name.endswith((".whl", ".tar.gz", ".zip"))
-    )
-    checksums = []
-    for path in artifacts:
-        with path.open("rb") as stream:
-            digest = hashlib.file_digest(stream, "sha256").hexdigest()
-        checksums.append(f"{digest}  {path.name}\n")
-    (dist / "SHA256SUMS").write_text("".join(checksums), encoding="ascii")
+    if len(archives) != 1:
+        raise ValueError("Expected one native package archive.")
+    archive = archives[0]
+    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+    assert Path(str(archive) + ".sha256").read_text().split()[0] == digest
+    with tempfile.TemporaryDirectory(prefix="package-check-", dir=build) as temporary:
+        work = Path(temporary)
+        if archive.suffix == ".zip":
+            with zipfile.ZipFile(archive) as source:
+                source.extractall(work)
+        else:
+            with tarfile.open(archive) as source:
+                source.extractall(work, filter="data")
+        binaries = list(work.glob("*/bin/cnefx")) + list(work.glob("*/bin/cnefx.exe"))
+        assert len(binaries) == 1
+        info_path = next(work.glob("*/share/cnefx/build-info.json"))
+        info = json.loads(info_path.read_text())
+        assert info["version"] == version() and info["libraw_version"] == "0.22.3"
+        head = run(
+            "git", "rev-parse", "HEAD", cwd=ROOT, capture_output=True, text=True
+        ).stdout.strip()
+        if info["revision"] != head:
+            raise ValueError("Build provenance is stale; rebuild before packaging.")
+        assert (
+            info["libraw_archive_sha256"]
+            == "789f3c33466210a1a0907f747a97c715d21bbf4af712f257fcbbd90111b227e4"
+        )
+        assert (info_path.parent / "libraw" / "COPYRIGHT").is_file()
+        report = smoke(binaries[0], work)
+        report.update(
+            build=info,
+            archive_sha256=digest,
+            archive_bytes=archive.stat().st_size,
+            executable_bytes=binaries[0].stat().st_size,
+        )
+    (destination / "verification.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(json.dumps(report, indent=2))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("check")
-    smoke_parser = commands.add_parser("smoke")
-    smoke_parser.add_argument("--executable", type=Path)
-    build_parser = commands.add_parser("build")
-    build_parser.add_argument("--target", required=True)
+    parser.add_argument("command", choices=("check", "verify", "package"))
+    parser.add_argument("--build-dir", type=Path, default=Path("build/release"))
+    parser.add_argument("--config", default="Release")
     args = parser.parse_args()
     if args.command == "check":
         check()
-    elif args.command == "build":
-        build(args.target)
+    elif args.command == "verify":
+        verify(args.build_dir.resolve(), args.config)
     else:
-        executable = args.executable or Path(sys.executable).with_name(
-            "nxc.exe" if sys.platform == "win32" else "nxc"
-        )
-        smoke(executable.resolve(strict=True))
+        package(args.build_dir.resolve(), args.config)
 
 
 if __name__ == "__main__":

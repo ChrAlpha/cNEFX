@@ -8,12 +8,12 @@ import json
 import logging
 import struct
 import subprocess
-import sys
 from pathlib import Path
 
 import numpy as np
 import rawpy
 import tifffile
+
 from verify_native_cli import digest, shutter_field
 
 
@@ -32,11 +32,15 @@ def main() -> int:
     parser.add_argument("--matrix", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--executable", type=Path, required=True, help="Native cnefx executable."
+    )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     if args.output.resolve().is_relative_to(root):
         parser.error("Research output must be outside the repository.")
     args.output.mkdir(exist_ok=False)
+    cli_prefix = [str(args.executable.resolve())]
     logging.getLogger("tifffile").setLevel(logging.ERROR)
     pins: dict[Path, str] = {}
 
@@ -53,10 +57,14 @@ def main() -> int:
         "evidence_kind": "native_cli_saved_synthetic_nine_mode_comparison",
         "passed": False,
         "cases": [],
+        "runtime": "cnefx",
         "code_sha256": {
             str(p): pin(p)
             for p in [
-                *sorted((root / "src/nx_ctudio").glob("*.py")),
+                *sorted((root / "src").glob("*.cpp")),
+                *sorted((root / "src").glob("*.hpp")),
+                *sorted((root / "include/cnefx").glob("*.hpp")),
+                root / "CMakeLists.txt",
                 Path(__file__),
                 Path(__file__).with_name("verify_native_cli.py"),
             ]
@@ -67,6 +75,14 @@ def main() -> int:
         ),
     }
     try:
+        report["executable_sha256"] = pin(args.executable.resolve())
+        report["executable_version"] = subprocess.run(
+            [*cli_prefix, "--version"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        ).stdout.strip()
         pin(args.matrix)
         pin(args.manifest)
         matrix = json.loads(args.matrix.read_text())
@@ -121,9 +137,7 @@ def main() -> int:
                 raise ValueError("Saved vendor case is incomplete or failed.")
             directory = args.output / f"merge-{count}-{outputs}"
             command = [
-                sys.executable,
-                "-m",
-                "nx_ctudio.cli",
+                *cli_prefix,
                 "merge",
                 *map(str, copies[count]),
                 "--output-directory",

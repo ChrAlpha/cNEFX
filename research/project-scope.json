@@ -1,35 +1,39 @@
 {
   "schema_version": 1,
-  "project": "NX Ctudio",
-  "cli": "nxc",
-  "updated_on": "2026-09-20",
-  "objective": "Focused native pixel-shift synthesis, not a CLI clone of NX Studio",
+  "project": "cNEFX",
+  "cli": "cnefx",
+  "updated_on": "2026-10-30",
+  "objective": "C++20 native Nikon pixel-shift synthesis exclusively to NEFX",
   "user_decisions": {
-    "primary_platform": "Native Linux; other platforms follow",
+    "primary_platform": "Native Linux, with verified native packaging for Linux x86_64/ARM64, macOS ARM64 and Windows x86_64",
     "vendor_runtime": "Wine and Nikon DLLs are research oracles only, not a product backend",
-    "primary_merge_output": "NEFX",
-    "secondary_interchange": "Existing Linear DNG research is secondary to NEFX synthesis",
+    "primary_merge_output": "NEFX only",
     "public_artifacts": "English only; repository text is ASCII",
-    "first_release_features": [
-      "Pixel-shift synthesis for most Nikon cameras with official pixel-shift shooting; initial model set: Z8, Zf, Z6III and Z5II",
-      "NEFX output fidelity and downstream workflow compatibility"
-    ],
     "excluded_from_active_scope": [
       "Flexible Color / Picture Control",
       "General RAW rendering and other NX Studio features",
-      "A CLI clone of NX Studio"
-    ]
+      "A CLI clone of NX Studio",
+      "Linear DNG output and metadata inspection commands",
+      "GUI and WASM delivery"
+    ],
+    "implementation": "C++20 reusable numerical and merge library with a thin CLI; Python is limited to native verification tooling, with no retained Python product implementation.",
+    "product_features": [
+      "Pixel-shift synthesis for most Nikon cameras with official pixel-shift shooting; initial model set: Z8, Zf, Z6III and Z5II",
+      "NEFX output fidelity and downstream workflow compatibility"
+    ],
+    "decision_context": "The explicit 2026-10-30 cleanup request supersedes retention of the Python reference implementation. Historical source is recoverable from Git, including v0.0.1."
   },
   "current_capabilities": {
-    "inspect": "Metadata and file hashes via ExifTool",
-    "merge": "Experimental native complete 4/8/16/32-frame Nikon Z8, Zf, Z6III or Z5II sequence to one NEFX or a complete output directory; all nine supported input/output combinations",
-    "output_set_publication": "Linux no-replace atomic directory publication after all outputs and the full sequence pass validation",
+    "merge": "Experimental C++20 synthesis of complete 4/8/16/32-frame Nikon Z8, Zf, Z6III or Z5II sequences to NEFX; all nine input/output combinations",
+    "output_set_publication": "Linux renameat2(RENAME_NOREPLACE), macOS renamex_np(RENAME_EXCL), or Windows exclusive move after all outputs and the complete sequence pass validation",
     "chromatic_aberration_correction": "Optional native source-metadata red/blue radial correction before crop; disabled by default",
-    "sequence_validation": "Explicit capture order, consecutive shot numbers, consistent observed metadata, no duplicate files",
+    "sequence_validation": "Explicit capture order, consecutive shot numbers, consistent observed metadata, distinct file identities, descriptor-bound decoding and final immutable source hashes",
     "nefx_writer": "Native packed14 RGB, Nikon metadata updates and CRCs, private preview, preserved source JPEGs, atomic no-overwrite publication",
-    "dng": "Secondary library/research path with raw-sample and Adobe SDK validation"
+    "build": "CMake/CTest; hash-pinned static LibRaw 0.22.3, no optional external codecs, LCMS, OpenMP or vendor SDK; native archives include provenance and dependency licenses",
+    "api": "Public C++20 numerical and merge contracts; synchronous cancellation and progress callbacks; JSON schema_version 1",
+    "resource_ownership": "One decode per capture index, bounded source-plane retention, sparse original-value snapshots and streaming TIFF image payloads; decoder buffers, output RGB and radial correction remain additional memory"
   },
-  "historical_research": "Existing Picture Control and renderer code and evidence are retained, but are not active work or synthesis release requirements.",
+  "historical_research": "Obsolete Python synthesis, DNG, inspection, Picture Control and renderer implementations, tools and tests are removed. Synthesis format and validation records remain dated evidence for their recorded revisions.",
   "acceptance_boundaries": [
     "Synthetic fixture and saved vendor-output agreement is not authentic capture validation.",
     "LibRaw or Adobe SDK decoding is not Lightroom Classic acceptance.",
@@ -43,16 +47,22 @@
     "Source Adobe XMP defaults are preserved; vendor-equivalent default sharpening and noise reduction are not established. This is an appearance limitation, not evidence of different merged RAW samples.",
     "HE/HE* decoding is unsupported. HLG, non-FX image areas, other firmware and broader correction parameters remain unvalidated.",
     "Full-resolution resource measurements cover synthetic repeated-RAW cases, not authentic capture quality or a universal memory bound.",
-    "LibRaw 0.22.1 has no XYZ-to-camera matrix for Z5II. Native NEFX aggregation preserves source color metadata and reports the missing matrix; it does not substitute calibration or implement rendering."
+    "If LibRaw lacks a Z5II XYZ-to-camera matrix, synthesis reports that limitation and preserves source color metadata; it does not substitute calibration or render RAW data.",
+    "No-replace publication requires the relevant operating-system and filesystem primitives; published outputs survive parent-sync or cleanup warnings."
   ],
   "deferred_work": [
     "Exact vendor Adobe-default calibration is ancillary compatibility work and does not authorize Picture Control or general renderer development.",
-    "Cross-platform packaging follows native Linux synthesis."
+    "GUI, installed stable SDK/ABI, and WASM require separately agreed scope and acceptance."
   ],
   "active_priorities": [
-    "Maintain strict four-model native aggregation and per-model acceptance records in pixel-shift-camera-support.json; preserve all nine merge modes.",
+    "Maintain strict C++20 four-model synthesis, all nine merge modes, pinned independent regression expectations and saved Nikon/firmware oracle comparisons.",
     "Validate ordered synthesis against authentic capture and matching reference files when they become available.",
     "Resolve concrete merge, NEFX serialization or resource defects demonstrated by capture validation.",
     "Retain experimental status until authentic capture and downstream acceptance are established."
-  ]
+  ],
+  "reference_project": {
+    "url": "https://github.com/XinmiaoZhao/NikonFirmwarePatch/tree/13c3709a35c58f9cf6fc9c1043705712074651eb/z8pixelshift",
+    "revision": "13c3709a35c58f9cf6fc9c1043705712074651eb",
+    "role": "External arithmetic oracle only; no product code or runtime dependency is imported."
+  }
 }

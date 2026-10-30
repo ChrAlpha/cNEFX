@@ -218,9 +218,203 @@
       "Authentic complete captures and matching NX Studio references for all four models, and version-pinned Lightroom import/Develop/export acceptance, remain open."
     ]
   },
+  "cpp_refactor_20261029": {
+    "status": "C++20 NEFX-only refactor complete; clean-revision native packages, four-platform CI, sanitizers, differential checks and bounded resource comparisons passed. Product remains experimental.",
+    "portability_regression": {
+      "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/arm13-audit.json",
+      "sha256": "72c96272a85378cd3478c27d059ca3571f1e29fa14e453b8222ab2d204c5323c",
+      "before_exit_code": 134,
+      "after_exit_code": 1,
+      "libraw_object_bytes": 768512,
+      "result": "QEMU GCC13.3 AArch64 Release-LTO: 32 format cases and 14 rejections pass with heap-owned decoder state. Subsequent real ARM64 CI passes."
+    },
+    "baseline_revision": "3464cdb4a5b97f33a521c129f238430a6be326ae",
+    "native_runtime_revision": "ec04a2d096d146773a929d8f26fdf9dc5d9f6e06",
+    "native_build_revision": "ec04a2d096d146773a929d8f26fdf9dc5d9f6e06",
+    "dependency": {
+      "name": "LibRaw",
+      "version": "0.22.3",
+      "archive_sha256": "789f3c33466210a1a0907f747a97c715d21bbf4af712f257fcbbd90111b227e4",
+      "configuration": "Static, no optional external codecs, LCMS, OpenMP or vendor SDK."
+    },
+    "reference": {
+      "url": "https://github.com/XinmiaoZhao/NikonFirmwarePatch/tree/13c3709a35c58f9cf6fc9c1043705712074651eb/z8pixelshift",
+      "revision": "13c3709a35c58f9cf6fc9c1043705712074651eb",
+      "scope": "External source oracle for pair averaging, phase mapping and integer green truncation; not product runtime code.",
+      "initial_failure": "Reference plan validation rejects a top=3 crop in 32-frame mode; the corrected harness uses crops supported by both implementations. Initial failure and nine completed fixtures retained in firmware-reference/failure.json."
+    },
+    "baseline_tests": {
+      "result": "358 passed in 7.17s",
+      "evidence": "Ten existing Python synthesis test files at baseline; no authentic inputs."
+    },
+    "authored_checks": {
+      "core": "128 cases and 2284800 samples, zero differences against Python, in Release and ASan/UBSan.",
+      "format": "32 four-model/count/correction roundtrips; full metadata/payload comparison and exact LibRaw readback; 14 rejection cases.",
+      "cli": "36 four-model/nine-mode cases, ten lifecycle injections, unicode JSON, manifests and SIGINT cancellation.",
+      "sanitizers": "Project and pinned LibRaw are instrumented with ASan/UBSan and -fno-sanitize-recover=all; all authored checks passed locally."
+    },
+    "saved_vendor_commands": [
+      "timeout --kill-after=5s 180s prlimit --as=2147483648 -- env OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run --locked python tools/verify_native_modes.py --executable build/release/cnefx --matrix /workspaces/LumaForge/nxc-data/scratch/matrix-distinct-v2/report.json --manifest /workspaces/LumaForge/nxc-data/scratch/packed14-distinct-v2/manifest.json --output /workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/vendor-modes-v2",
+      "tools/verify_native_cli.py: same 180s/2GiB budget, sparse-pipeline-v1, sparse-pipeline-scale2 and sparse-pipeline-radial reports, with and without --chromatic-aberration-correction."
+    ],
+    "concurrency": "At most two saved-output replays; each is serial with a 2 GiB address-space and 180 second wall limit. External C oracle: serial, 2 GiB, 60 seconds.",
+    "artifacts": [
+      {
+        "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/vendor-modes/report.json",
+        "sha256": "83feb5ea1462ad2893d61e9756d596cdf5040d71efc042a72ece4f7a2696624c",
+        "passed": false,
+        "cases": 1,
+        "samples": 803904,
+        "error": {
+          "type": "TypeError",
+          "message": "Value after * must be an iterable, not PosixPath"
+        }
+      },
+      {
+        "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/vendor-modes-v2/report.json",
+        "sha256": "7db938d81eb8465927801da5e1f81d5191550eae9cda70315b90da38d644e6cd",
+        "passed": true,
+        "cases": 9,
+        "samples": 28940544,
+        "error": null
+      },
+      {
+        "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/vendor-uncorrected/report.json",
+        "sha256": "67b927390536c862dc8ce88ba32be4be0459c73d45c46028f502d2a124f71f53",
+        "passed": true,
+        "cases": 12,
+        "samples": 24117120,
+        "error": null
+      },
+      {
+        "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/vendor-radial/report.json",
+        "sha256": "2fe8118691509699fbec6990718f3ef4cd6b65f6920fd94eb0bb0f6777be5670",
+        "passed": true,
+        "cases": 12,
+        "samples": 24117120,
+        "error": null
+      },
+      {
+        "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/firmware-reference-v2/report.json",
+        "sha256": "d5df52d8fb52ac78a0098d1cde932d749a7e8c446a11b438832f75466cf9721e",
+        "passed": true,
+        "cases": 12,
+        "samples": 201600,
+        "error": null
+      }
+    ],
+    "limits": [
+      "Authored fixtures and saved synthetic Nikon outputs are distinct from authentic capture/reference and version-pinned downstream application acceptance, which remain open.",
+      "Initial 8af3d06 CI found ARM64 exception propagation and a Windows-invalid test filename; both are fixed. 8905ae5 passed all runtime jobs but failed moved-package lint; ec04a2d passes every job.",
+      "The indexed clean code revision precedes the evidence-only closeout commit; final-head CI is linked by the branch and handoff."
+    ],
+    "closeout": {
+      "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-cpp/closeout-ec04a2d.json",
+      "sha256": "36e7edca227b9e9419a15a5fc30ddb9b00896f35ebf6331d51416cde8fabe67a",
+      "code_revision": "ec04a2d096d146773a929d8f26fdf9dc5d9f6e06",
+      "ci": "https://github.com/ChrAlpha/cNEFX/actions/runs/40944994283",
+      "result": "Release and ASan/UBSan: four CTest executables, 128 core cases, 32 format roundtrips, 14 rejections, 36 CLI cases and ten lifecycle injections pass. Fresh final vendor replay: 77174784 matching samples; external firmware arithmetic: 201600 matching samples.",
+      "package": "Linux x86_64: 1692464-byte executable, 748413-byte archive, exact clean-revision provenance; empty-PATH 4-to-1 and 32-to-4 smoke passes.",
+      "benchmark_32_to_4": "Two alternating pairs, 545292288 samples per comparison: C++ 32.261/31.508 seconds and 626664/626568 KiB peak RSS; Python 49.854/48.214 seconds and 819520/819660 KiB. Zero differing samples.",
+      "benchmark_32_to_1_radial": "One pair, 545292288 samples: C++ 43.513 seconds and 2491456 KiB peak RSS; Python 150.756 seconds and 2617940 KiB. Zero differing samples.",
+      "resource_boundary": "Synthetic repeated ordinary RAW; warm file cache; serial targets; 300 seconds and 4 GiB address space per run. GNU time excludes parent RSS.",
+      "measurement_correction": "Early direct-wait4 RSS values inherited the runner peak and are superseded; raw reports and the instrumentation regression are retained in the closeout index.",
+      "reference_archive": "14 Python implementation modules are byte-identical to baseline 3464cdb and now reside in reference/nx_ctudio. The product uses C++20 and static pinned LibRaw, with no Python, ExifTool, Wine or vendor DLL runtime.",
+      "review": "Fresh manual source/diff review with source hashes is recorded; this is primary-agent review, not an independent reviewer."
+    }
+  },
   "limits": [
     "No authentic pixel-shift capture or Lightroom acceptance is established.",
     "Adobe default metadata updates for per-output 8/32 inputs remain unimplemented.",
     "Other firmware, compression and image-area variants remain outside validated coverage."
-  ]
+  ],
+  "python_cleanup_20261030": {
+    "code_revision": "ca60723e2f66d01b8cba1f39c98ffe12d31bf359",
+    "runtime_unchanged_from": "95bb544c836a990d8f973e54db9acfb4263ada5f",
+    "decision": "Remove the obsolete Python implementation instead of keeping it as a reference; historical source is recoverable from Git tags.",
+    "removed_files": 220,
+    "retained_python": "Nine native verification runners/helpers only; virtual uv environment, no installed Python product/reference package, no pytest or packaging backend.",
+    "expectations": {
+      "path": "tests/fixtures/native-golden.json",
+      "sha256": "8b28101edf9e9f77437c64e89d96ca467df8fef7fd302d2d103d4402ed359295",
+      "source_revision": "95bb544c836a990d8f973e54db9acfb4263ada5f",
+      "scope": "Pinned sample/fixture/tree hashes and groups; no retained Python synthesis, RAW decoder or NEFX encoder."
+    },
+    "verification": {
+      "release": "4/4 CTest; 128 core cases/2284800 samples; 32 format cases/14 rejections; 36 CLI cases/10 lifecycle injections; SIGINT cancellation.",
+      "sanitize": "Same CTest and saved-expectation suites under ASan/UBSan, including pinned LibRaw.",
+      "package": "CPack checksum/provenance/licenses and extracted binary synthesis with empty PATH passed.",
+      "mutation_probes": "Six single-sample, model, tag type, Nikon header, preview and image-payload changes detected.",
+      "vendor_modes": {
+        "modes": 9,
+        "outputs": 24,
+        "samples": 28940544,
+        "different_samples": 0
+      },
+      "vendor_radial": {
+        "cases": 4,
+        "samples": 8039040,
+        "different_samples": 0
+      },
+      "review": "Fresh manual diff and behavior review; confirmed native sources/CMake/native unit tests unchanged, retained helper dependency closure, valid docs links, ASCII/JSON, scoped Ruff and diff checks. No separate reviewer rerun."
+    },
+    "evidence": {
+      "report": "/workspaces/LumaForge/nxc-data/scratch/cnefx-python-cleanup-20261030/summary.json",
+      "sha256": "8e816c3782a82869650cc93f1640642742b87717ea71628f5b1f3c8099321a4b"
+    },
+    "limitations": [
+      "Frozen expectations are synthetic regression evidence, not a live differential oracle.",
+      "Historical research commands apply to their recorded revisions.",
+      "Authentic ordered captures with matching NX Studio references and version-pinned Lightroom acceptance remain open."
+    ]
+  },
+  "review_followup_20261030": {
+    "code_revision": "08eb0e4d6ec6f45f058a8d13e5eee2f5d24525ab",
+    "baseline_revision": "5267b1e5d78d872408c97adb18008e3f2dcdbbf4",
+    "trigger": "Requested review of correctness, performance and best practice, followed by fixes for every finding and an independent read-only review of the fixes.",
+    "changes": [
+      "Publication uses an exclusive rename for files and directories; files fall back to a no-replace hard link only without filesystem support. Transfer errors are no longer replaced by the destination lookup error.",
+      "Each decode reads the source once and parses and decodes the hashed bytes; serialization requires bytes reproducing the recorded hash; pre-publication hashing is unchanged.",
+      "Sequence order, numbering, mode and radial support are validated from TIFF metadata before decoding; decoded metadata must reproduce preflight metadata.",
+      "Core reads planes in batches of four frames or one pair; merge decodes a batch on up to --jobs threads and radial correction splits row blocks; callbacks stay on the caller's thread.",
+      "SHA-256 message schedule runs in SHA-NI or ARMv8 instructions.",
+      "CMake subprojects get no tests, install rules or runtime override and see only include/; build-info.json is regenerated per build and packaging requires it to match HEAD."
+    ],
+    "evidence_class": "Authored native tests, saved-expectation checks, saved synthetic vendor-output replays and synthetic full-resolution resource runs. No authentic capture, NX Studio reference or Lightroom acceptance.",
+    "report": {
+      "path": "/workspaces/LumaForge/nxc-data/scratch/review-20261030/report.json",
+      "sha256": "414fa36e7f64a3e863ad80a409dcf9e382c96abca6df02e92f15e35d8718b305"
+    },
+    "verification": {
+      "release": "4/4 CTest; 128 core cases/2284800 samples; 32 format cases; 36 CLI cases, two --jobs 1 cases and 11 lifecycle injections including misordered input; SIGINT cancellation; package check with current provenance.",
+      "sanitize": "Same suites under ASan/UBSan with pinned LibRaw.",
+      "thread_sanitizer": "Local TSan build: core tests, parallel merges with and without radial correction and cancellation/failure injections; only a suppressed glibc tzset_internal report.",
+      "aarch64": "Cross-built hash and core tests pass under qemu-aarch64 (max, cortex-a53).",
+      "vendor_modes": {
+        "modes": 9,
+        "outputs": 24,
+        "samples": 28940544,
+        "different_samples": 0
+      },
+      "vendor_cli": "12 uncorrected and 12 radial cases, 24117120 samples each, passed.",
+      "ci": "Six Native CI jobs passed on a8532e6; later fixes are verified locally and pushed."
+    },
+    "resources": {
+      "host": "AMD Ryzen 7 7700, 16 hardware threads, WSL2, warm cache; serial runs, 300 s and 4 GiB each.",
+      "32_to_4": "32.42 s/612 MiB baseline; 16.35 s/730 MiB default jobs; 25.75 s/611 MiB with --jobs 1.",
+      "32_to_1_radial": "43.51 s/2.38 GiB recorded baseline; 18.06 s default jobs; 38.60 s with --jobs 1; 2.38 GiB.",
+      "misordered_32_to_4": "Rejected after 29.07 s before; under 0.01 s after.",
+      "sha256": "394 MiB/s portable; 2359 MiB/s accelerated in memory (867 MiB/s file throughput before).",
+      "sigint_latency": "0.04-0.51 s at four points of a full-resolution 32-to-4 run, exit 130, no output or staging.",
+      "equivalence": "TIFF tree digests, which cover samples and every tag except 305/306, equal the baseline and saved outputs for all runs."
+    },
+    "unchanged_decisions": [
+      "DateTime 0x132 stays host local time, matching the recorded NX Studio behavior; output file hashes therefore differ between runs.",
+      "JSON reports keep surrogate escapes for invalid UTF-8 path bytes so byte paths remain recoverable."
+    ],
+    "limits": [
+      "Synthetic repeated ordinary RAW only; authentic per-model capture/reference and version-pinned Lightroom acceptance remain open.",
+      "Windows and macOS were exercised by CI only."
+    ]
+  }
 }

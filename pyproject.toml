@@ -1,11 +1,7 @@
-[build-system]
-requires = ["hatchling>=1.27,<2"]
-build-backend = "hatchling.build"
-
 [project]
-name = "nx-ctudio"
+name = "cnefx-checks"
 version = "0.0.1"
-description = "Native Nikon pixel-shift synthesis with NEFX output."
+description = "Development checks for the native cNEFX executable."
 requires-python = ">=3.12"
 dependencies = [
     "numpy==2.4.6",
@@ -13,21 +9,15 @@ dependencies = [
     "tifffile==2026.9.15",
 ]
 
-[project.scripts]
-nxc = "nx_ctudio.cli:main"
-
 [dependency-groups]
-dev = ["pytest>=8,<10", "ruff>=0.12,<1"]
-build = ["pyinstaller==6.22.3"]
+dev = ["ruff>=0.12,<1"]
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/nx_ctudio"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
+[tool.uv]
+package = false
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
+src = ["tools"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]

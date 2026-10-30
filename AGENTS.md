@@ -6,16 +6,20 @@ commit messages, and new documentation must be English ASCII.
 
 ## Mission and scope
 
-- Build native Nikon pixel-shift synthesis with NEFX as the primary output,
-  prioritizing Linux. Target Z8, Zf, Z6III and Z5II; add models only with official
-  shooting support and recorded file-format evidence. Keep per-model acceptance
+- Build cNEFX as a C++20 library and thin CLI exclusively for native Nikon
+  pixel-shift synthesis to NEFX, prioritizing Linux. Target Z8, Zf, Z6III and Z5II;
+  add models only with official shooting support and recorded file-format
+  evidence. Keep per-model acceptance
   distinct from synthetic coverage.
 - Treat [research/project-scope.json](research/project-scope.json) as the recorded
   scope decision. The current user request takes precedence over recorded scope.
 - Keep Wine and Nikon DLLs outside the product runtime. They are external research
   oracles, not dependencies, fallbacks, or distributable assets.
-- Keep Linear DNG secondary. Existing Picture Control, Flexible Color, rendering,
-  and `picture-curve` code is retained research, not an active feature backlog.
+- Keep Linear DNG, inspection, Picture Control, Flexible Color and rendering
+  outside the active scope. Recover historical implementations from Git tags;
+  do not retain duplicate product implementations as reference code.
+- Use the pinned, unmodified static LibRaw build. Optional system LibRaw is for
+  development; external codecs, GUI frameworks and vendor SDKs are not required.
 - Retain experimental status until authentic capture/reference comparisons and
   version-pinned downstream application acceptance establish the missing evidence.
 
@@ -30,8 +34,9 @@ commit messages, and new documentation must be English ASCII.
    git diff --cached --stat
    ```
 
-2. Read `research/project-scope.json`, `pyproject.toml`, and the relevant source and
-   tests. Use the README routing tables before exploring historical research.
+2. Read `research/project-scope.json`, `CMakeLists.txt`, and the relevant source
+   and tests. Read `pyproject.toml` for verification tooling. Use the README
+   routing tables before exploring historical research.
 3. If `agent-handoff` is available, run `agent-handoff show --json`. Reconcile its
    objective and saved state with the current request. Saved checks and unchanged
    Git metadata do not establish fresh verification.
@@ -46,30 +51,34 @@ commit messages, and new documentation must be English ASCII.
 | Boundary | Required behavior |
 | --- | --- |
 | Input identity | Preserve explicit capture order, complete sequence size, consecutive shot numbers, matching sequence metadata, and immutable source hashes. Reject duplicate files and hard links. |
-| RAW decoding | Keep `raw.py` strict about supported Nikon metadata, compression, CFA, geometry, and crop. Do not patch real capture metadata or relax validation to accept an unsupported file. |
-| Numerical core | Keep reconstruction independent of file decoding and capture identity. Preserve integer arithmetic, truncation, ordered sparse repair, phase mapping, and the special 32-to-4 grouping. |
-| Resource ownership | Preserve one read per capture index and bounded source-plane retention. The final RGB buffer still consumes memory; radial correction has a larger working set. |
+| RAW decoding | Keep `metadata.cpp` and `raw.cpp` strict about supported Nikon metadata, compression, CFA, geometry, and crop. Read each source once from its owned descriptor; hash, parse and decode those same bytes. Do not patch real capture metadata or relax validation to accept an unsupported file. |
+| Numerical core | Keep reconstruction independent of file decoding and capture identity. Preserve integer arithmetic, truncation, ordered sparse repair, phase mapping, and the special 32-to-4 grouping. Disable floating-point contraction and fast math for calibrated arithmetic. |
+| Resource ownership | Preserve one decode per capture index and bounded source-plane retention. Keep LibRaw state on the heap with callbacks, streams and source bytes alive through its destruction. Source bytes, decoder buffers, final RGB and radial correction consume additional memory. Run callbacks only on the caller's thread; workers poll a stop flag, and outputs must not depend on the job count. |
 | NEFX serialization | Preserve required source metadata and JPEG payloads, update recovered Nikon blocks and CRCs, and verify decoded RGB samples exactly before publication. Do not equate this with byte-identical Nikon output. |
 | Publication | Stage privately beside the destination; publish without replacement only after validation. Pre-publication failures must not expose partial output sets. |
 | Post-publication failure | Retain published output and report parent-sync or cleanup warnings. Do not delete a valid output or imply that retrying the same destination is safe. |
-| CLI | Keep orchestration thin. Preserve JSON reports, process exit codes, cancellation behavior, limitations, and warnings. Argparse errors are not JSON reports. |
+| CLI | Keep orchestration thin. Preserve versioned JSON reports, process exit codes, cancellation behavior, limitations, and warnings. Argument errors use stderr, not JSON reports. |
 
-Do not introduce a vendor backend, external subprocess, or import from `tools/`
-into the merge runtime. `inspect` has a separate, explicit ExifTool dependency.
-Keep reusable computation in `src/nx_ctudio/`; put bounded probes in `tools/` and
-small regression cases in `tests/`.
+Do not introduce a vendor backend, Python dependency or external subprocess into
+the merge runtime. Keep reusable computation in `src/`, public contracts in
+`include/cnefx/`, bounded probes in `tools/` and small native cases in `tests/cpp/`.
+Keep fixture helpers separate from the product. Saved expectations must come
+from independently verified evidence, never the executable being tested.
 
 ## Verification and evidence
 
-- Use the locked `uv` environment and existing pytest/Ruff configuration. Follow
-  the README commands; do not introduce another package manager or test framework.
+- Use CMake/CTest and the pinned LibRaw source for the product. Use the locked
+  `uv` environment and Ruff configuration for native verification runners.
+  Follow the README commands and preserve existing synthesis evidence.
 - For behavior changes, reproduce the failure with a focused test when practical.
-  Run affected tests first; use the focused synthesis suite for changes spanning
-  decoding, reconstruction, writing, or publication.
-- Lint and format only modified Python paths. There is no configured typechecker;
-  do not add one as incidental cleanup. Do not weaken or skip a failing test to
-  obtain a passing result.
-- Keep evidence classes separate: unit fixtures, saved vendor-output replays,
+  Run affected CTest cases first, then the core/format/CLI regression suites
+  for changes spanning decoding, reconstruction, writing or publication. Run the
+  ASan/UBSan preset for native ownership, bounds and numerical changes.
+- Format changed C++ with `.clang-format`; lint and format only modified Python
+  paths with Ruff. There is no configured Python typechecker. Do not weaken or
+  skip a failing test to obtain a passing result.
+- Keep evidence classes separate: unit fixtures, saved expectation checks,
+  saved vendor-output replays,
   live vendor oracle runs, authentic capture comparisons, and downstream
   application acceptance. Label repeated ordinary RAW and metadata-patched inputs
   as synthetic, including at full resolution.
