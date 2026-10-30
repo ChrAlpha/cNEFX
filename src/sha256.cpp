@@ -28,11 +28,17 @@ bool sha256_hardware_available() {
     __cpuid(registers, 0);
     if (registers[0] < 7)
       return false;
+    __cpuidex(registers, 1, 0);
+    const auto features = static_cast<unsigned>(registers[2]);
+    if (!(features & (1u << 9)) || !(features & (1u << 19)))
+      return false;
     __cpuidex(registers, 7, 0);
     return (static_cast<unsigned>(registers[1]) & (1u << 29)) != 0;
 #elif defined(__x86_64__)
     unsigned a{}, b{}, c{}, d{};
-    return __get_cpuid_count(7, 0, &a, &b, &c, &d) && (b & (1u << 29));
+    // SHA-NI plus the SSSE3 shuffles and SSE4.1 blends used around it.
+    return __get_cpuid(1, &a, &b, &c, &d) && (c & (1u << 9)) && (c & (1u << 19)) &&
+           __get_cpuid_count(7, 0, &a, &b, &c, &d) && (b & (1u << 29));
 #elif defined(__aarch64__) && defined(__linux__)
     return (getauxval(AT_HWCAP) & HWCAP_SHA2) != 0;
 #elif defined(__aarch64__) && defined(__APPLE__)
@@ -56,56 +62,123 @@ constexpr std::uint32_t constants[] = {
     0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2};
 
-// Keep ISA-specific rounds behind the capability check. Padding and the message
-// schedule share the portable implementation, including its uint32 arithmetic.
+// ISA-specific code runs only behind the capability check. It computes the
+// message schedule and rounds for consecutive blocks with the state in vector
+// registers; padding is shared with the portable implementation.
 #if defined(__x86_64__) || defined(_M_X64)
+#ifdef _MSC_VER
+#define CNEFX_SHA_TARGET
+#else
+#define CNEFX_SHA_TARGET __attribute__((target("sha,sse4.1")))
+#endif
+namespace x86 {
+CNEFX_SHA_TARGET inline void rounds(__m128i &abef, __m128i &cdgh, __m128i message, unsigned group) {
+  const auto schedule = _mm_add_epi32(
+      message, _mm_loadu_si128(reinterpret_cast<const __m128i *>(constants + 4 * group)));
+  cdgh = _mm_sha256rnds2_epu32(cdgh, abef, schedule);
+  abef = _mm_sha256rnds2_epu32(abef, cdgh, _mm_shuffle_epi32(schedule, 0x0e));
+}
+// W[t..t+3] from W[t-16..t-13], W[t-12..t-9], W[t-8..t-5] and W[t-4..t-1].
+CNEFX_SHA_TARGET inline __m128i next(__m128i a, __m128i b, __m128i c, __m128i d) {
+  return _mm_sha256msg2_epu32(_mm_add_epi32(_mm_sha256msg1_epu32(a, b), _mm_alignr_epi8(d, c, 4)),
+                              d);
+}
+CNEFX_SHA_TARGET inline __m128i load(const std::uint8_t *data, unsigned i) {
+  const auto order = _mm_set_epi64x(0x0c0d0e0f08090a0bULL, 0x0405060700010203ULL);
+  return _mm_shuffle_epi8(_mm_loadu_si128(reinterpret_cast<const __m128i *>(data + 16 * i)), order);
+}
+} // namespace x86
 #ifdef _MSC_VER
 __declspec(noinline)
 #else
-__attribute__((target("sha"), noinline))
+__attribute__((target("sha,sse4.1"), noinline))
 #endif
-void hardware_rounds(std::array<std::uint32_t, 8>& h, const std::uint32_t* w) {
-  auto abef = _mm_set_epi32(h[0], h[1], h[4], h[5]);
-  auto cdgh = _mm_set_epi32(h[2], h[3], h[6], h[7]);
-  for (unsigned i = 0; i < 64; i += 4) {
-    const auto message =
-        _mm_add_epi32(_mm_loadu_si128(reinterpret_cast<const __m128i *>(w + i)),
-                      _mm_loadu_si128(reinterpret_cast<const __m128i *>(constants + i)));
-    cdgh = _mm_sha256rnds2_epu32(cdgh, abef, message);
-    abef = _mm_sha256rnds2_epu32(abef, cdgh, _mm_srli_si128(message, 8));
+void hardware_blocks(std::array<std::uint32_t, 8> &h, const std::uint8_t *data,
+                     std::size_t blocks) {
+  // Rearrange ABCD/EFGH into the ABEF/CDGH lanes used by sha256rnds2.
+  auto cdab = _mm_shuffle_epi32(_mm_loadu_si128(reinterpret_cast<const __m128i *>(h.data())), 0xb1);
+  auto hgfe =
+      _mm_shuffle_epi32(_mm_loadu_si128(reinterpret_cast<const __m128i *>(h.data() + 4)), 0x1b);
+  auto abef = _mm_alignr_epi8(cdab, hgfe, 8), cdgh = _mm_blend_epi16(hgfe, cdab, 0xf0);
+  for (; blocks; --blocks, data += 64) {
+    const auto saved_abef = abef, saved_cdgh = cdgh;
+    auto m0 = x86::load(data, 0), m1 = x86::load(data, 1), m2 = x86::load(data, 2),
+         m3 = x86::load(data, 3);
+    x86::rounds(abef, cdgh, m0, 0);
+    x86::rounds(abef, cdgh, m1, 1);
+    x86::rounds(abef, cdgh, m2, 2);
+    x86::rounds(abef, cdgh, m3, 3);
+    for (unsigned group = 4; group < 16; group += 4) {
+      m0 = x86::next(m0, m1, m2, m3);
+      x86::rounds(abef, cdgh, m0, group);
+      m1 = x86::next(m1, m2, m3, m0);
+      x86::rounds(abef, cdgh, m1, group + 1);
+      m2 = x86::next(m2, m3, m0, m1);
+      x86::rounds(abef, cdgh, m2, group + 2);
+      m3 = x86::next(m3, m0, m1, m2);
+      x86::rounds(abef, cdgh, m3, group + 3);
+    }
+    abef = _mm_add_epi32(abef, saved_abef);
+    cdgh = _mm_add_epi32(cdgh, saved_cdgh);
   }
-  std::uint32_t a[4], b[4];
-  _mm_storeu_si128(reinterpret_cast<__m128i *>(a), abef);
-  _mm_storeu_si128(reinterpret_cast<__m128i *>(b), cdgh);
-  h[0] += a[3];
-  h[1] += a[2];
-  h[2] += b[3];
-  h[3] += b[2];
-  h[4] += a[1];
-  h[5] += a[0];
-  h[6] += b[1];
-  h[7] += b[0];
+  const auto feba = _mm_shuffle_epi32(abef, 0x1b), dchg = _mm_shuffle_epi32(cdgh, 0xb1);
+  _mm_storeu_si128(reinterpret_cast<__m128i *>(h.data()), _mm_blend_epi16(feba, dchg, 0xf0));
+  _mm_storeu_si128(reinterpret_cast<__m128i *>(h.data() + 4), _mm_alignr_epi8(dchg, feba, 8));
 }
 #elif defined(__aarch64__) && !defined(_MSC_VER)
+#if defined(__clang__)
+#define CNEFX_SHA_TARGET __attribute__((target("sha2")))
+#else
+#define CNEFX_SHA_TARGET __attribute__((target("+sha2")))
+#endif
+namespace arm {
+CNEFX_SHA_TARGET inline void rounds(uint32x4_t &abcd, uint32x4_t &efgh, uint32x4_t message,
+                                    unsigned group) {
+  const auto schedule = vaddq_u32(message, vld1q_u32(constants + 4 * group));
+  const auto previous = abcd;
+  abcd = vsha256hq_u32(abcd, efgh, schedule);
+  efgh = vsha256h2q_u32(efgh, previous, schedule);
+}
+CNEFX_SHA_TARGET inline uint32x4_t next(uint32x4_t a, uint32x4_t b, uint32x4_t c, uint32x4_t d) {
+  return vsha256su1q_u32(vsha256su0q_u32(a, b), c, d);
+}
+} // namespace arm
 #if defined(__clang__)
 __attribute__((target("sha2"), noinline))
 #else
 __attribute__((target("+sha2"), noinline))
 #endif
-void hardware_rounds(std::array<std::uint32_t, 8>& h, const std::uint32_t* w) {
+void hardware_blocks(std::array<std::uint32_t, 8> &h, const std::uint8_t *data,
+                     std::size_t blocks) {
   auto abcd = vld1q_u32(h.data()), efgh = vld1q_u32(h.data() + 4);
-  const auto original_abcd = abcd, original_efgh = efgh;
-  for (unsigned i = 0; i < 64; i += 4) {
-    const auto message = vaddq_u32(vld1q_u32(w + i), vld1q_u32(constants + i));
-    const auto previous = abcd;
-    abcd = vsha256hq_u32(abcd, efgh, message);
-    efgh = vsha256h2q_u32(efgh, previous, message);
+  for (; blocks; --blocks, data += 64) {
+    const auto saved_abcd = abcd, saved_efgh = efgh;
+    const auto load = [&](unsigned i) {
+      return vreinterpretq_u32_u8(vrev32q_u8(vld1q_u8(data + 16 * i)));
+    };
+    auto m0 = load(0), m1 = load(1), m2 = load(2), m3 = load(3);
+    arm::rounds(abcd, efgh, m0, 0);
+    arm::rounds(abcd, efgh, m1, 1);
+    arm::rounds(abcd, efgh, m2, 2);
+    arm::rounds(abcd, efgh, m3, 3);
+    for (unsigned group = 4; group < 16; group += 4) {
+      m0 = arm::next(m0, m1, m2, m3);
+      arm::rounds(abcd, efgh, m0, group);
+      m1 = arm::next(m1, m2, m3, m0);
+      arm::rounds(abcd, efgh, m1, group + 1);
+      m2 = arm::next(m2, m3, m0, m1);
+      arm::rounds(abcd, efgh, m2, group + 2);
+      m3 = arm::next(m3, m0, m1, m2);
+      arm::rounds(abcd, efgh, m3, group + 3);
+    }
+    abcd = vaddq_u32(abcd, saved_abcd);
+    efgh = vaddq_u32(efgh, saved_efgh);
   }
-  vst1q_u32(h.data(), vaddq_u32(abcd, original_abcd));
-  vst1q_u32(h.data() + 4, vaddq_u32(efgh, original_efgh));
+  vst1q_u32(h.data(), abcd);
+  vst1q_u32(h.data() + 4, efgh);
 }
 #else
-void hardware_rounds(std::array<std::uint32_t, 8> &, const std::uint32_t *) {}
+void hardware_blocks(std::array<std::uint32_t, 8> &, const std::uint8_t *, std::size_t) {}
 #endif
 
 class Hash {
@@ -124,10 +197,6 @@ class Hash {
       const auto a = w[i - 15], b = w[i - 2];
       w[i] = w[i - 16] + (std::rotr(a, 7) ^ std::rotr(a, 18) ^ (a >> 3)) + w[i - 7] +
              (std::rotr(b, 17) ^ std::rotr(b, 19) ^ (b >> 10));
-    }
-    if (accelerated_) {
-      hardware_rounds(h_, w);
-      return;
     }
     auto [a, b, c, d, e, f, g, h] = h_;
     for (unsigned i = 0; i < 64; ++i) {
@@ -153,6 +222,14 @@ class Hash {
     h_[6] += g;
     h_[7] += h;
   }
+  void blocks(const std::uint8_t *p, std::size_t count) {
+    if (accelerated_) {
+      hardware_blocks(h_, p, count);
+      return;
+    }
+    for (; count; --count, p += 64)
+      compress(p);
+  }
 
 public:
   explicit Hash(bool accelerate) : accelerated_(accelerate && sha256_hardware_available()) {}
@@ -160,8 +237,9 @@ public:
     total_ += data.size();
     while (!data.empty()) {
       if (!used_ && data.size() >= 64) {
-        compress(data.data());
-        data = data.subspan(64);
+        const auto count = data.size() / 64;
+        blocks(data.data(), count);
+        data = data.subspan(count * 64);
         continue;
       }
       const auto n = std::min(data.size(), 64 - used_);
@@ -169,7 +247,7 @@ public:
       used_ += n;
       data = data.subspan(n);
       if (used_ == 64) {
-        compress(block_.data());
+        blocks(block_.data(), 1);
         used_ = 0;
       }
     }
@@ -179,13 +257,13 @@ public:
     block_[used_++] = 0x80;
     if (used_ > 56) {
       std::fill(block_.begin() + used_, block_.end(), 0);
-      compress(block_.data());
+      blocks(block_.data(), 1);
       used_ = 0;
     }
     std::fill(block_.begin() + used_, block_.begin() + 56, 0);
     for (unsigned i = 0; i < 8; ++i)
       block_[63 - i] = (bits >> (8 * i)) & 255;
-    compress(block_.data());
+    blocks(block_.data(), 1);
     const char *digits = "0123456789abcdef";
     std::string result;
     for (auto v : h_)

@@ -35,7 +35,7 @@ Payload payload(Bytes bytes) {
           [bytes = std::move(bytes)](const Sink &sink, const Check &) { sink(bytes); }};
 }
 void hashing(const fs::path &root) {
-  std::cout << "SHA-256 hardware rounds available: " << sha256_hardware_available() << '\n';
+  std::cout << "SHA-256 hardware available: " << sha256_hardware_available() << '\n';
   CHECK(sha256(Bytes{}) == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
   CHECK(sha256(Bytes{'a', 'b', 'c'}) ==
         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
@@ -50,6 +50,14 @@ void hashing(const fs::path &root) {
     const auto data = std::span(boundary).first(size);
     CHECK(sha256(data) == sha256(data, false));
   }
+  // Hardware block runs must agree with the portable path at any alignment.
+  Bytes blocks(8 + 64 * 70);
+  for (unsigned i = 0; i < blocks.size(); ++i)
+    blocks[i] = (i * 197 + i / 13) & 255;
+  for (unsigned start = 0; start < 8; ++start)
+    for (const std::size_t size : {63u, 64u, 65u, 128u, 191u, 1000u, 64u * 70})
+      CHECK(sha256(std::span(blocks).subspan(start, size)) ==
+            sha256(std::span(blocks).subspan(start, size), false));
   Bytes multiple_chunks(2 * 1024 * 1024 + 37);
   for (unsigned i = 0; i < multiple_chunks.size(); ++i)
     multiple_chunks[i] = (i * 131 + i / 7) & 255;
