@@ -51,7 +51,7 @@ else()
   target_compile_options(cnefx_io PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-add_library(cnefx_format STATIC src/raw.cpp src/metadata.cpp src/nefx.cpp)
+add_library(cnefx_format STATIC src/raw.cpp src/metadata.cpp src/nefx.cpp src/ticoraw.cpp)
 target_link_libraries(cnefx_format PUBLIC cnefx_io PRIVATE cnefx_libraw)
 target_compile_definitions(cnefx_format PRIVATE CNEFX_VERSION="${PROJECT_VERSION}")
 if(MSVC)

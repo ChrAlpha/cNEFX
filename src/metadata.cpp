@@ -118,9 +118,9 @@ Metadata read_metadata(const Directory &root) {
   const auto &maker = child(note);
   const auto &compression = block(maker, 0x51, "0102", 24);
   m.compression = u16(compression, 10);
-  require(m.compression != 13 && m.compression != 14 && m.compression != 15,
-          "Nikon HE/HE* is unsupported; use lossless-compressed 14-bit NEF.");
-  require(m.compression == 3 || m.compression == 10, "Unsupported Nikon RAW compression code.");
+  // Lossless, packed, HE and HE*.
+  require(m.compression == 3 || m.compression == 10 || m.compression == 13 || m.compression == 14,
+          "Unsupported Nikon RAW compression code.");
   require(!maker.tags.contains(0x0e2d), "Expected a source NEF, not merged NEFX.");
   block(maker, 0x97, "0803", 166);
   const auto &capture = block(maker, 0x56, "0100", 16);
@@ -148,6 +148,9 @@ Metadata read_metadata(const Directory &root) {
   require(raw->at(258).number() == 14 && raw->at(277).number() == 1 &&
               raw->at(259).number() == 34713,
           "Expected a 14-bit Nikon Bayer RAW image.");
+  const auto &offsets = raw->at(273), &lengths = raw->at(279);
+  require(offsets.count == 1 && lengths.count == 1, "Expected a single-strip Nikon Bayer RAW.");
+  result.strip = {offsets.number(), lengths.number()};
   require(raw->at(33421).integers() == std::vector<std::uint32_t>({2, 2}) &&
               raw->at(33422).data == Bytes{0, 1, 1, 2},
           "Only the observed RGGB source CFA layout is supported.");

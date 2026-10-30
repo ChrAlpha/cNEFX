@@ -20,11 +20,15 @@ struct SequenceMetadata {
   Selection selection;
   std::array<std::pair<std::int64_t, std::int64_t>, 3> exposure{};
   Calibration calibration;
+  // Nikon HE and HE* store a TicoRAW codestream that LibRaw cannot unpack.
+  bool high_efficiency() const { return compression == 13 || compression == 14; }
   bool operator==(const SequenceMetadata &) const = default;
 };
 struct Metadata {
   SequenceMetadata sequence;
   std::uint32_t shot{};
+  // Offset and length of the single RAW strip within the source bytes.
+  std::pair<std::uint64_t, std::uint64_t> strip{};
   std::string timestamp;
   std::optional<RadialCorrection> radial;
   std::string radial_error;

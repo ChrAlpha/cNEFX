@@ -150,7 +150,7 @@ MergeReport merge(std::span<const fs::path> inputs, const MergeOptions &options,
       options.directory ? std::make_unique<Publication>(report.options.output, true) : nullptr;
   std::vector<std::pair<fs::path, FileState>> retained;
   unsigned decoded = 0, written = 0, verified = 0, published = 0;
-  bool missing_matrix = false;
+  bool missing_matrix = false, high_efficiency = false;
   const auto synthesize = [&](unsigned index) {
     const auto &plan = plans[index];
     std::vector<Source> sources;
@@ -250,6 +250,7 @@ MergeReport merge(std::span<const fs::path> inputs, const MergeOptions &options,
     if (used.size() != needed)
       throw std::logic_error("Every needed capture must be decoded exactly once.");
     missing_matrix |= calibration->missing_matrix;
+    high_efficiency |= preflight.front().sequence.high_efficiency();
     // Record the first count outputs as published, with their warnings.
     const auto finish = [&](std::size_t count) {
       for (std::size_t i = 0; i < count && !set; ++i) {
@@ -311,9 +312,12 @@ MergeReport merge(std::span<const fs::path> inputs, const MergeOptions &options,
   report.limitations = {
       "Experimental: authentic capture and Lightroom validation is partial.",
       "Adobe XMP defaults are preserved without updates.",
-      "HE/HE* decoding is not implemented; use lossless-compressed 14-bit NEF inputs.",
       "Sequences are grouped by Nikon burst identity and ordered by shot number; each must be "
       "complete."};
+  if (high_efficiency)
+    report.limitations.push_back(
+        "HE/HE* decoding matches Adobe DNG Converter on ordinary captures; "
+        "NX Studio HE references are unvalidated.");
   if (missing_matrix)
     report.limitations.push_back(
         "LibRaw has no XYZ-to-camera matrix for this input; NEFX preserves source color metadata. "

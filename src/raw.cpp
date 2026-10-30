@@ -1,4 +1,5 @@
 #include "raw.hpp"
+#include "ticoraw.hpp"
 
 #include <libraw/libraw.h>
 
@@ -74,14 +75,15 @@ struct Control {
       throw std::invalid_argument("LibRaw reported corrupt RAW data.");
   }
 };
-template <class Open> void decode(LibRaw &raw, Control &control, Open open) {
+template <class Open> void open(LibRaw &raw, Control &control, Open open) {
   raw.set_progress_handler(Control::progress, &control);
   raw.set_dataerror_handler(Control::error, &control);
   control.result(open());
-  control.result(raw.unpack());
 }
+// Read after opening: LibRaw's unpack-time copy is identical for lossless inputs,
+// and HE inputs are never unpacked by LibRaw.
 Calibration calibration(const LibRaw &raw, const std::string &model) {
-  const auto &color = raw.imgdata.rawdata.color;
+  const auto &color = raw.imgdata.color;
   Calibration result;
   result.white = color.maximum;
   const auto rows = color.cblack[4], cols = color.cblack[5];
@@ -107,7 +109,7 @@ Calibration calibration(const LibRaw &raw, const std::string &model) {
     throw std::invalid_argument("Missing white balance or unequal green gains are unsupported.");
   for (unsigned y = 0; y < 3; ++y)
     for (unsigned x = 0; x < 3; ++x)
-      result.matrix[y * 3 + x] = raw.imgdata.color.cam_xyz[y][x];
+      result.matrix[y * 3 + x] = color.cam_xyz[y][x];
   const auto &m = result.matrix;
   result.missing_matrix =
       model == "NIKON Z5_2" && std::all_of(m.begin(), m.end(), [](auto v) { return v == 0; });
@@ -153,6 +155,7 @@ std::pair<Plane, Metadata> read_frame(Source &source, const Check &check) {
     check();
   // Metadata and LibRaw both read the hashed bytes, never the file again.
   const auto memory = source.read(check);
+  const auto bytes = memory->bytes();
   auto metadata = read_metadata(read_tiff(memory));
   auto &m = metadata.sequence;
   Control control{check, {}};
@@ -160,28 +163,35 @@ std::pair<Plane, Metadata> read_frame(Source &source, const Check &check) {
   // the source bytes and callback control must outlive its destructor.
   auto decoder = std::make_unique<LibRaw>();
   auto &raw = *decoder;
-  decode(raw, control, [&] {
-    const auto bytes = memory->bytes();
-    return raw.open_buffer(bytes.data(), bytes.size());
-  });
+  open(raw, control, [&] { return raw.open_buffer(bytes.data(), bytes.size()); });
   const auto &sizes = raw.imgdata.sizes;
-  if (!raw.imgdata.rawdata.raw_image || raw.imgdata.idata.colors != 3 ||
-      std::strcmp(raw.imgdata.idata.cdesc, "RGBG") || raw.COLOR(0, 0) != 0 ||
-      raw.COLOR(0, 1) != 1 || raw.COLOR(1, 0) != 3 || raw.COLOR(1, 1) != 2)
+  if (raw.imgdata.idata.colors != 3 || std::strcmp(raw.imgdata.idata.cdesc, "RGBG") ||
+      raw.COLOR(0, 0) != 0 || raw.COLOR(0, 1) != 1 || raw.COLOR(1, 0) != 3 || raw.COLOR(1, 1) != 2)
     throw std::invalid_argument("Decoded CFA layout is incompatible with the recovered mapping.");
   const auto &crop = sizes.raw_inset_crops[0];
   if (sizes.raw_width != m.width || sizes.raw_height != m.height || sizes.top_margin ||
       sizes.left_margin || sizes.pixel_aspect != 1 ||
-      Crop{crop.cleft, crop.ctop, crop.cwidth, crop.cheight} != m.crop ||
-      sizes.raw_pitch < m.width * sizeof(Sample) || sizes.raw_pitch % 2)
+      Crop{crop.cleft, crop.ctop, crop.cwidth, crop.cheight} != m.crop)
     throw std::invalid_argument("Decoded crop or pixel geometry disagrees with Nikon metadata.");
   m.calibration = calibration(raw, m.model);
-  Plane plane{m.width, m.height, std::vector<Sample>(sample_count(m.width, m.height, 1))};
-  for (unsigned y = 0; y < m.height; ++y) {
-    if (check && y % 128 == 0)
-      check();
-    const auto *row = raw.imgdata.rawdata.raw_image + std::size_t(y) * sizes.raw_pitch / 2;
-    std::copy_n(row, m.width, plane.pixels.begin() + std::size_t(y) * m.width);
+  Plane plane;
+  if (m.high_efficiency()) {
+    // Never let LibRaw unpack these strips: it can misread an HE strip as another
+    // Nikon format.
+    const auto [offset, length] = metadata.strip;
+    plane = decode_ticoraw(bytes.subspan(offset, length), m.width, m.height, check);
+  } else {
+    control.result(raw.unpack());
+    if (!raw.imgdata.rawdata.raw_image || sizes.raw_pitch < m.width * sizeof(Sample) ||
+        sizes.raw_pitch % 2)
+      throw std::invalid_argument("Decoded RAW pixel geometry disagrees with Nikon metadata.");
+    plane = {m.width, m.height, std::vector<Sample>(sample_count(m.width, m.height, 1))};
+    for (unsigned y = 0; y < m.height; ++y) {
+      if (check && y % 128 == 0)
+        check();
+      const auto *row = raw.imgdata.rawdata.raw_image + std::size_t(y) * sizes.raw_pitch / 2;
+      std::copy_n(row, m.width, plane.pixels.begin() + std::size_t(y) * m.width);
+    }
   }
   if (*std::max_element(plane.pixels.begin(), plane.pixels.end()) > 16383)
     throw std::invalid_argument("RAW samples exceed 14 bits.");
@@ -194,7 +204,8 @@ void verify_rgb(const fs::path &path, const Rgb &expected, const Check &check) {
   Control control{check, {}};
   auto decoder = std::make_unique<LibRaw>();
   auto &raw = *decoder;
-  decode(raw, control, [&] { return raw.open_datastream(&stream); });
+  open(raw, control, [&] { return raw.open_datastream(&stream); });
+  control.result(raw.unpack());
   const auto &sizes = raw.imgdata.sizes;
   const auto &data = raw.imgdata.rawdata;
   if (sizes.raw_width != expected.width || sizes.raw_height != expected.height ||

@@ -1,4 +1,5 @@
 #include "nefx.hpp"
+#include "ticoraw.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -123,8 +124,27 @@ void merge(int argc, char **argv, bool corrected) {
   });
   pending.cleanup();
 }
+// Writes the decoded RAW plane of one capture as little-endian samples.
+void decode(const char *output, const char *input) {
+  Source source(input);
+  const auto plane = read_frame(source).first;
+  Bytes bytes(plane.pixels.size() * 2);
+  for (std::size_t i = 0; i < plane.pixels.size(); ++i)
+    put16(bytes, 2 * i, plane.pixels[i]);
+  File file(output, FileMode::create);
+  file.write(0, bytes);
+}
+void high_efficiency() {
+  // Header checks run before any allocation for the frame.
+  Bytes stream{0xff, 0x10, 0xff, 0x50, 0, 0x22};
+  require(rejects([&] { decode_ticoraw({}, 64, 48); }));
+  require(rejects([&] { decode_ticoraw(stream, 64, 48); }));
+  stream.resize(40);
+  require(rejects([&] { decode_ticoraw(stream, 64, 48); }));
+}
 void tests() {
   sequences();
+  high_efficiency();
   require(crc16(Bytes{'1', '2', '3', '4', '5', '6', '7', '8', '9'}) == 0x29b1);
   const Rgb values{4, 1, {0, 1, 16382, 16383, 1, 2, 3, 4, 5, 6, 7, 8}};
   auto payload = packed14(values);
@@ -172,6 +192,8 @@ int main(int argc, char **argv) {
   try {
     if (argc == 1)
       tests();
+    else if (argc == 4 && std::string(argv[1]) == "--decode")
+      decode(argv[2], argv[3]);
     else if (argc >= 7 &&
              (std::string(argv[1]) == "--merge" || std::string(argv[1]) == "--merge-corrected"))
       merge(argc, argv, std::string(argv[1]) == "--merge-corrected");
