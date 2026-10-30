@@ -14,6 +14,7 @@ from pathlib import Path
 import rawpy
 
 import ci_fixture
+import ticoraw_fixture
 import verify_cpp_discovery
 import verify_cpp_sequences
 from tiff_fixture import tree_digest
@@ -24,6 +25,32 @@ def command(argv: list[str], code: int = 0) -> subprocess.CompletedProcess:
     result = subprocess.run(argv, capture_output=True, text=True, timeout=45)
     assert result.returncode == code, (argv, result)
     return result
+
+
+HIGH_EFFICIENCY = "HE/HE* decoding matches Adobe DNG Converter"
+
+
+def high_efficiency(executable: Path, directory: Path) -> dict:
+    # The report states the HE validation limit only when an HE sequence is merged.
+    folder = directory / "high-efficiency"
+    folder.mkdir()
+    sources = ticoraw_fixture.sequence(folder, 4, model="NIKON Z f", code=14, seed=0)[0]
+    output = folder / "result"
+    report = json.loads(
+        command(
+            [
+                str(executable),
+                "merge",
+                *map(str, sources),
+                "--output-directory",
+                str(output),
+                "--json",
+            ]
+        ).stdout
+    )
+    assert report["status"] == "ok" and report["output_count"] == 1
+    assert sum(HIGH_EFFICIENCY in item for item in report["limitations"]) == 1
+    return {"samples": report["samples_verified"], "limitation_reported": True}
 
 
 def run(executable: Path, injector: Path, directory: Path) -> dict:
@@ -65,6 +92,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
             assert report["sequences"][0]["camera"]["model"] == model
             assert report["output_count"] == outputs
             assert report["warnings"] == []
+            assert not any(HIGH_EFFICIENCY in item for item in report["limitations"])
             assert len(list(output.iterdir())) == outputs + 1
             golden = ci_fixture.merge_expectations(model, count, outputs)
             assert [
@@ -236,6 +264,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
         "passed": True,
         "cases": cases,
         "serial_cases": serial,
+        "high_efficiency": high_efficiency(executable, directory),
         "injected_failures": injected,
         "cancellation": cancellation,
         "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
