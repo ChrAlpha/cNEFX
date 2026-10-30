@@ -1,4 +1,4 @@
-"""Synthetic AE bracket batching, independent saved pixels and failure atomicity."""
+"""Synthetic AE bracket batching: saved pixels, per-exposure isolation, atomicity."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ import numpy as np
 import rawpy
 
 import ci_fixture
-from tiff_fixture import read, serialize
+from tiff_fixture import read, serialize, tree_digest
 from verify_cpp_format import pixels as spatial_pixels
 
 MODES = ((4, 1), (8, 1), (8, 2), (16, 1), (16, 4), (32, 1), (32, 2), (32, 4), (32, 8))
@@ -37,10 +37,13 @@ def sequence(
             folder = directory / f"exposure-{bracket}"
             folder.mkdir()
 
-            def pixels(index, shape, offset=bracket * 256):
+            def pixels(index, shape, bracket=bracket):
                 if pattern == "spatial":
                     return spatial_pixels(index, shape)
-                return np.full(shape, 1400 + index * 4 + offset, dtype=np.uint16)
+                if pattern == "random":
+                    generator = np.random.default_rng((bracket, index))
+                    return generator.integers(0, 16384, shape, dtype=np.uint16)
+                return np.full(shape, 1400 + index * 4 + bracket * 256, dtype=np.uint16)
 
             ci_fixture.pixels = pixels
             current = ci_fixture.sequence(folder, count, model=model)
@@ -180,6 +183,93 @@ def check_case(
         "input_sha256": hashes,
         "output_sha256": [o["sha256"] for o in report["outputs"]],
     }
+
+
+def configure(source, target, count, capture, iso, selection, radial):
+    """Write exposure-specific ISO, sparse selection and radial metadata."""
+    tree = read(source.read_bytes())
+    exif = tree.tags[34665].children[0]
+    maker = exif.tags[37500].children[0]
+    correction = tree.tags[330].children[1].tags[0xC7D5].children[0]
+    exif.numbers(34855, 3, iso)
+    mode = (4, 8, 16, 32).index(count) + 1
+    fields = (mode, capture + 1, 48, 64, 2, 6 + selection * 4, 0, 0, 1, 1, 1, 0, 5)
+    maker.set(0x5E, 7, b"0100" + struct.pack("<BB6H3BxBxB3x", *fields))
+    center = (radial * 400 + capture * 80, 256, -200 - radial * 300, 256)
+    maker.set(0x54, 7, b"0100" + struct.pack("<4i", *center))
+    coefficients = bytearray(correction.tags[7].payload)
+    values = (10000 + radial * 2500, 8000, -1000, -6000, 4000, 2000)
+    for offset, value in zip((44, 28, 20, 80, 64, 56), values, strict=True):
+        struct.pack_into("<i", coefficients, offset, value)
+    correction.set(7, 7, bytes(coefficients))
+    target.write_bytes(serialize(tree))
+
+
+def samples(path):
+    with rawpy.imread(str(path)) as image:
+        return image.raw_image[..., :3].copy()
+
+
+def isolation(executable, directory):
+    """Batch outputs equal separate merges; each exposure keeps its own settings."""
+
+    def settings(bracket):
+        # Sparse repair applies only at ISO 3200 or below.
+        iso = (3200, 3200, 6400)[bracket]
+        return {"iso": iso, "selection": bracket, "radial": bracket}
+
+    cases = []
+    for count, outputs in ((4, 1), (32, 4)):
+        folder = directory / f"isolation-{count}-{outputs}"
+        folder.mkdir()
+        paths = sequence(folder, count, 3, calibration=True, pattern="random")
+        for index, path in enumerate(paths):
+            bracket, capture = divmod(index, count)
+            configure(path, path, count, capture, **settings(bracket))
+
+        def merge(sources, target):
+            args = arguments(executable, sources, target, outputs=outputs)
+            result = command(args + ["--chromatic-aberration-correction"])
+            return [Path(o["output"]) for o in json.loads(result.stdout)["outputs"]]
+
+        separate = [
+            merge(paths[i * count : (i + 1) * count], folder / f"separate-{i}")
+            for i in range(3)
+        ]
+        for index, path in enumerate(merge(paths, folder / "batch")):
+            expected = separate[index // outputs][index % outputs]
+            assert tree_digest(path.read_bytes()) == tree_digest(expected.read_bytes())
+        # Negative controls: giving one exposure the first exposure's setting
+        # changes samples, so the comparison above detects a shared setting.
+        controls = {}
+        for field, bracket in (("selection", 1), ("iso", 2), ("radial", 1)):
+            control = folder / f"control-{field}"
+            control.mkdir()
+            changed = settings(bracket) | {field: settings(0)[field]}
+            copies = []
+            for capture in range(count):
+                source = paths[bracket * count + capture]
+                copies.append(control / source.name)
+                configure(source, copies[-1], count, capture, **changed)
+            differences = [
+                int(np.count_nonzero(samples(left) != samples(right)))
+                for left, right in zip(
+                    separate[bracket], merge(copies, control / "result"), strict=True
+                )
+            ]
+            assert all(differences), (count, field, differences)
+            controls[field] = differences
+        cases.append(
+            {
+                "captures_per_exposure": count,
+                "outputs_per_exposure": outputs,
+                "input_sha256": [
+                    hashlib.sha256(p.read_bytes()).hexdigest() for p in paths
+                ],
+                "control_changed_samples": controls,
+            }
+        )
+    return cases
 
 
 def rejections(executable, directory):
@@ -391,6 +481,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
         "rawpy": rawpy.__version__,
         "rawpy_libraw": rawpy.libraw_version,
         "cases": cases,
+        "isolation": isolation(executable, directory),
         "rejections": failures,
         "injected_failures": injected,
         "acceptance_gaps": [
