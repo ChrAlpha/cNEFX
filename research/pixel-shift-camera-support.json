@@ -121,6 +121,59 @@
     "ordinary_input_rejection": "All three unchanged downloaded ordinary NEFs still fail with the active pixel-shift metadata requirement.",
     "evidence_class": "Authored small packed14 fixtures and actual LibRaw decode, plus unchanged ordinary-RAW inspection. No new authentic capture or vendor-output comparison."
   },
+  "ae_bracketing": {
+    "observed_on": "2026-10-30",
+    "status": "experimental_explicit_exposure_batch",
+    "official_sources": [
+      {
+        "model": "NIKON Z 8",
+        "url": "https://onlinemanual.nikonimglib.com/technicalguide/z8/pixelshift/en/pixel_shift_shooting_ae_bracketing_available_17.html",
+        "finding": "C firmware 3.00 adds AE bracketing under Pixel shift shooting > Options."
+      },
+      {
+        "model": "NIKON Z6_3",
+        "url": "https://onlinemanual.nikonimglib.com/z6III/en/psm_pixel_shift_shooting_167.html",
+        "finding": "Options includes AE bracketing with exposure count and increment."
+      }
+    ],
+    "user_requested_scope": "Process each exposure as its own native pixel-shift sequence, then publish all NEFX outputs together. HDR fusion remains downstream.",
+    "interface": "--ae-bracketing N --output-directory DIR; N is an explicit 2-9 exposure count, --outputs applies per exposure.",
+    "grouping_contract": "Contiguous complete sequences with equal capture modes, strict within-sequence metadata, common camera/geometry, distinct exposure settings and consecutive absolute shutter counts across the supplied batch. Per-exposure shot numbers may reset. No undocumented Nikon AE-program tag is interpreted.",
+    "functional_revision": "dc32e1f96837c39f799724ecac2dd72eca0ae964",
+    "ci": {
+      "url": "https://github.com/ChrAlpha/cNEFX/actions/runs/41028390178",
+      "revision": "dc32e1f96837c39f799724ecac2dd72eca0ae964",
+      "result": "All seven jobs passed: Linux x86_64/ARM64, macOS ARM64, Windows x86_64, ASan/UBSan, changed-file checks and npm package assembly/smoke. Native jobs include all AE regressions and standalone package checks.",
+      "record": "/workspaces/LumaForge/nxc-data/acceptance/20261030-ae-bracketing/ci-dc32e1f.json",
+      "record_sha256": "e4d46d3b3a537c1f8f57c3ad3a10965b77a3068f6299169e5e91ea15131cc0ad"
+    },
+    "evidence_kind": "Synthetic small packed14 fixtures, saved pre-C++ sample expectations, actual LibRaw readback, and separately recorded metamorphic batch-isolation probes.",
+    "verification": {
+      "commands": [
+        "cmake --preset release",
+        "cmake --build --preset release",
+        "ctest --preset release",
+        "uv run --locked python tools/ci.py verify --build-dir build/release",
+        "cmake --preset sanitize",
+        "cmake --build --preset sanitize",
+        "ctest --preset sanitize",
+        "uv run --locked python tools/ci.py verify --build-dir build/sanitize --config Debug"
+      ],
+      "result": "Both presets pass 4 CTests, 128 core cases, 32 format cases, 36 regular CLI cases and 38 AE cases; AE checks also cover 16 invalid inputs and 11 injected lifecycle failures.",
+      "ae_modes": "Z8/Z6III x nine modes x jobs/correction pairs (1/off, 2/on); separate 2- and 9-exposure bounds. All modes use existing independent saved expectations.",
+      "independent_review": "Standards and Spec approve. Spec reviewer ran 18 CLI commands with varying ISO, WB, sparse selection, nonzero radial coefficients and centers; 15 batch outputs match separate merges in decoded samples and normalized TIFF trees. Negative controls confirm sensitivity.",
+      "expectations_sha256": "8b28101edf9e9f77437c64e89d96ca467df8fef7fd302d2d103d4402ed359295",
+      "pinned_product_libraw": "0.22.3",
+      "record": "/workspaces/LumaForge/nxc-data/acceptance/20261030-ae-bracketing/evidence.json",
+      "record_sha256": "d0c7ad982e6026c99f4736df6b4cc803289946eb42b0a6f0e1c16865fa234a5b",
+      "limits": "Small synthetic fixtures; each AE verification subprocess has a 45-second timeout and each aggregate ci.py runner a 300-second timeout. No full-resolution or vendor run."
+    },
+    "acceptance_gaps": [
+      "Authentic AE capture metadata, camera order and bracket-program identity",
+      "Matching NX Studio NEFX references per exposure",
+      "Version-pinned Lightroom HDR acceptance"
+    ]
+  },
   "coverage_limits": [
     "This is the four-model set confirmed from official manuals, not a promise to cover future firmware or every Nikon model.",
     "Z9, Z6II, Z5, Zfc, Z50II and ZR manual indexes did not expose a pixel-shift shooting entry in this bounded check; they are not allowlisted. Z7II manual URL returned 404, so no negative support claim is inferred.",

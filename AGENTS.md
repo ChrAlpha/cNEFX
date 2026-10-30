@@ -51,7 +51,7 @@ comments, commit messages, and new documentation must be English ASCII.
 
 | Boundary | Required behavior |
 | --- | --- |
-| Input identity | Preserve explicit capture order, complete sequence size, consecutive shot numbers, matching sequence metadata, and immutable source hashes. Reject duplicate files and hard links. |
+| Input identity | Preserve explicit capture order, complete sequence size, consecutive shot numbers within each exposure, matching sequence metadata, and immutable source hashes. AE batches additionally require the declared exposure count, common camera/geometry, distinct exposure settings and consecutive absolute shutter counts. Reject duplicate files and hard links across the entire batch. |
 | RAW decoding | Keep `metadata.cpp` and `raw.cpp` strict about supported Nikon metadata, compression, CFA, geometry, and crop. Read each source once from its owned descriptor; hash, parse and decode those same bytes. Do not patch real capture metadata or relax validation to accept an unsupported file. |
 | Numerical core | Keep reconstruction independent of file decoding and capture identity. Preserve integer arithmetic, truncation, ordered sparse repair, phase mapping, and the special 32-to-4 grouping. Disable floating-point contraction and fast math for calibrated arithmetic. |
 | Resource ownership | Preserve one decode per capture index and bounded source-plane retention. Keep LibRaw state on the heap with callbacks, streams and source bytes alive through its destruction. Source bytes, decoder buffers, final RGB and radial correction consume additional memory. Run callbacks only on the caller's thread; workers poll a stop flag, and outputs must not depend on the job count. |
@@ -128,9 +128,9 @@ ctest --preset sanitize
 uv run --locked python tools/ci.py verify --build-dir build/sanitize --config Debug
 ```
 
-`verify` runs numerical, format, four-model/nine-mode CLI and failure-injection
-checks. Reports go to `build/<preset>/verification/`. Preserve that directory
-before rerunning: the command refuses to overwrite it. Individual
+`verify` runs numerical, format, four-model/nine-mode CLI, two-model AE batch and
+failure-injection checks. Reports go to `build/<preset>/verification/`. Preserve
+that directory before rerunning: the command refuses to overwrite it. Individual
 `tools/verify_cpp_*.py` runners accept a fresh `--work-directory`. The sanitizer
 preset instruments both cNEFX and LibRaw.
 
@@ -197,7 +197,7 @@ binary ABI or installed SDK is promised.
 | Descriptor ownership, SHA-256, bounded TIFF graph, publication | `src/io.cpp`, `src/sha256.cpp`, `src/tiff.cpp` | `tests/cpp/io_test.cpp`, format/CLI lifecycle checks |
 | Strict Nikon metadata and RAW decode | `src/metadata.cpp`, `src/raw.cpp` | `tests/cpp/format_test.cpp`, `tools/verify_cpp_format.py` |
 | NEFX packing, Nikon blocks, CRCs, previews | `src/nefx.cpp` | Saved format expectations and vendor replays |
-| Sequence orchestration and reports | `src/merge.cpp`, `src/report.cpp` | `tests/cpp/merge_test.cpp`, `tools/verify_cpp_cli.py` |
+| Sequence orchestration and reports | `src/merge.cpp`, `src/report.cpp` | `tests/cpp/merge_test.cpp`, `tools/verify_cpp_cli.py`, `tools/verify_cpp_brackets.py` |
 | CLI argument handling and signals | `src/cli.cpp` | CLI regression, cancellation and package smoke checks |
 | Build, packaging and release | `CMakeLists.txt`, `cmake/`, `package.json`, `npm/`, `.github/workflows/` | Four native platforms, ASan/UBSan, empty-PATH package and npm launcher checks |
 
@@ -213,6 +213,17 @@ Groups are consecutive except 32-to-4: it pairs four-frame blocks at zero-based
 capture offsets `0/16`, `4/20`, `8/24` and `12/28`. Each output inherits metadata
 from its group's first source.
 
+`MergeOptions::brackets` defaults to one. Values 2-9 declare AE exposure sequences
+from a Z8 or Z6III and require a directory destination; `outputs` applies to each
+exposure. Every exposure has the same 4/8/16/32-frame capture mode and passes the
+ordinary sequence checks. `validate_brackets` checks common camera identity and
+geometry, distinct shutter/aperture/ISO settings, consecutive absolute shutter
+counts and ordered timestamps across exposures. Per-sequence shot numbers may
+reset. Sparse selection, ISO and decoder calibration belong to each exposure;
+radial centers remain per capture. All exposures share one publication boundary.
+The explicit count and observed fields validate the supplied batch, not an
+unrecovered camera AE-program tag. Authentic AE/reference acceptance remains open.
+
 ## CLI reports and publication
 
 With `--json`, stdout carries a report with `schema_version: 1`:
@@ -225,6 +236,14 @@ With `--json`, stdout carries a report with `schema_version: 1`:
 - An output set has `output_directory`, `output_count`, `outputs`, total
   `samples_verified` and zero-based `input_indices` for each output. It contains
   `merged-01.nefx` through `merged-NN.nefx` and `manifest.json`.
+- With `--ae-bracketing N`, `sequence_validation` is
+  `complete_consecutive_exposure_sequences`. `ae_bracketing` contains
+  `exposure_count`, `outputs_per_exposure`, `grouping` set to
+  `explicit_count_contiguous_sequences`, and `exposures`. Each exposure has a
+  zero-based `bracket_index`, global `input_indices`, `iso`, and reduced
+  `[numerator, denominator]` pairs for `exposure_time` (seconds), `f_number` and
+  `exposure_bias_ev`. Outputs add `bracket_index` and use
+  `bracket-01-merged-01.nefx` names; `output_count` counts all exposures' outputs.
 - Runtime failure has `status: "error"` and `error` with `code` and `message`.
   Codes are `merge_failed` or `cancelled`.
 
