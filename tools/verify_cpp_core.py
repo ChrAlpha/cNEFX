@@ -10,7 +10,8 @@ import subprocess
 from pathlib import Path
 
 import numpy as np
-from ci_fixture import GOLDEN
+
+from ci_fixture import GOLDEN, GOLDEN_SHA256
 
 
 def run(executable: Path, directory: Path) -> dict:
@@ -85,6 +86,7 @@ def run(executable: Path, directory: Path) -> dict:
                         raise AssertionError(json.dumps(case))
     report = {
         "evidence_kind": "synthetic_native_saved_reference_regression",
+        "expectations_sha256": GOLDEN_SHA256,
         "passed": True,
         "cases": cases,
         "samples": sum(case["samples"] for case in cases),

@@ -11,8 +11,9 @@ import subprocess
 import time
 from pathlib import Path
 
-import ci_fixture
 import rawpy
+
+import ci_fixture
 from tiff_fixture import tree_digest
 from verify_cpp_format import pixels
 
@@ -189,6 +190,7 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
                 process.wait()
     report = {
         "evidence_kind": "authored_native_cli_modes_and_lifecycle",
+        "expectations_sha256": ci_fixture.GOLDEN_SHA256,
         "passed": True,
         "cases": cases,
         "injected_failures": injected,

@@ -10,9 +10,10 @@ import struct
 import subprocess
 from pathlib import Path
 
-import ci_fixture
 import numpy as np
 import rawpy
+
+import ci_fixture
 from tiff_fixture import read, serialize, tree_digest
 
 
@@ -148,6 +149,7 @@ def run(executable: Path, directory: Path) -> dict:
                 )
     report = {
         "evidence_kind": "authored_native_saved_format_regression_real_libraw",
+        "expectations_sha256": ci_fixture.GOLDEN_SHA256,
         "passed": True,
         "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
         "rawpy": rawpy.__version__,

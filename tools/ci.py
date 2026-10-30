@@ -15,7 +15,8 @@ import zipfile
 from pathlib import Path
 
 import rawpy
-from ci_fixture import check_rgb, merge_expectations, sequence
+
+from ci_fixture import GOLDEN_SHA256, check_rgb, merge_expectations, sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -175,7 +176,12 @@ def smoke(program: Path, work: Path) -> dict:
                 "samples_verified": report["samples_verified"],
             }
         )
-    return {"passed": True, "path_empty": True, "cases": cases}
+    return {
+        "passed": True,
+        "path_empty": True,
+        "expectations_sha256": GOLDEN_SHA256,
+        "cases": cases,
+    }
 
 
 def package(build: Path, config: str) -> None:

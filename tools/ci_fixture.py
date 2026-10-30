@@ -8,13 +8,12 @@ import struct
 from pathlib import Path
 
 import numpy as np
+
 from tiff_fixture import Directory, Tag, serialize
 
-GOLDEN = json.loads(
-    (
-        Path(__file__).resolve().parents[1] / "tests/fixtures/native-golden.json"
-    ).read_text()
-)
+GOLDEN_PATH = Path(__file__).resolve().parents[1] / "tests/fixtures/native-golden.json"
+GOLDEN = json.loads(GOLDEN_PATH.read_text())
+GOLDEN_SHA256 = hashlib.sha256(GOLDEN_PATH.read_bytes()).hexdigest()
 
 
 def merge_expectations(
