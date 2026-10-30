@@ -19,13 +19,15 @@ void help() {
   std::cout << "cNEFX " << cnefx::version()
             << " - native Nikon pixel-shift NEFX synthesis\n\n"
                "Usage: cnefx merge FILE... --output FILE.nefx [--json]\n"
-               "       cnefx merge FILE... --outputs N --output-directory DIR [--json]\n\n"
+               "       cnefx merge FILE... --outputs N --output-directory DIR [--json]\n"
+               "       cnefx merge FILE... --ae-bracketing N --output-directory DIR [--json]\n\n"
                "Pass a complete sequence in explicit capture order. Destinations must not exist.\n"
                "Modes: 4->1, 8->1/2, 16->1/4, 32->1/2/4/8.\n\n"
                "Options:\n"
                "  -o, --output FILE.nefx             Write one verified NEFX\n"
                "  --output-directory DIR            Publish a complete output set\n"
-               "  --outputs N                       Number of outputs (default 1)\n"
+               "  --outputs N                       Outputs per exposure sequence (default 1)\n"
+               "  --ae-bracketing N                  2-9 complete exposure sequences, Z8/Z6III\n"
                "  --jobs N                          Worker threads, 1-256 (default: all cores)\n"
                "  --chromatic-aberration-correction  Apply supported source radial correction\n"
                "  --json                            Write a JSON report to stdout\n"
@@ -55,7 +57,8 @@ int run(const std::vector<std::string> &args) {
     }
     if (args[0] != "merge")
       throw std::invalid_argument("Expected the merge command.");
-    bool positional = false, have_output = false, have_count = false, have_jobs = false;
+    bool positional = false, have_output = false, have_count = false, have_jobs = false,
+         have_brackets = false;
     for (std::size_t i = 1; i < args.size(); ++i) {
       const auto &arg = args[i];
       if (!positional && (arg == "--help" || arg == "-h")) {
@@ -75,11 +78,20 @@ int run(const std::vector<std::string> &args) {
         continue;
       }
       if (!positional && (arg == "-o" || arg == "--output" || arg == "--output-directory" ||
-                          arg == "--outputs" || arg == "--jobs")) {
+                          arg == "--outputs" || arg == "--jobs" || arg == "--ae-bracketing")) {
         if (i + 1 >= args.size() || args[i + 1].empty() || args[i + 1].starts_with("--"))
           throw std::invalid_argument("Missing value for " + arg + ".");
         const auto &value = args[++i];
-        if (arg == "--jobs") {
+        if (arg == "--ae-bracketing") {
+          if (have_brackets)
+            throw std::invalid_argument("--ae-bracketing was specified more than once.");
+          const auto result =
+              std::from_chars(value.data(), value.data() + value.size(), options.brackets);
+          if (result.ec != std::errc{} || result.ptr != value.data() + value.size() ||
+              options.brackets < 2 || options.brackets > 9)
+            throw std::invalid_argument("--ae-bracketing requires an integer from 2 to 9.");
+          have_brackets = true;
+        } else if (arg == "--jobs") {
           if (have_jobs)
             throw std::invalid_argument("--jobs was specified more than once.");
           const auto result =
@@ -114,6 +126,8 @@ int run(const std::vector<std::string> &args) {
       throw std::invalid_argument("Input files and an output destination are required.");
     if (!options.directory && options.outputs != 1)
       throw std::invalid_argument("Multiple outputs require --output-directory.");
+    if (have_brackets && !options.directory)
+      throw std::invalid_argument("AE bracketing requires --output-directory.");
   } catch (const std::exception &e) {
     std::cerr << "cnefx: " << e.what() << '\n';
     return 2;

@@ -15,9 +15,21 @@ const char *version() { return CNEFX_VERSION; }
 
 MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, const Check &check,
                   const Progress &progress) {
-  if (paths.size() > 32)
-    throw std::invalid_argument("Expected at most 32 ordered input captures.");
-  const auto groups = output_groups(paths.size(), options.outputs);
+  if (!options.brackets || options.brackets > 9)
+    throw std::invalid_argument("Expected 1 to 9 exposure sequences.");
+  if (options.brackets > 1 && !options.directory)
+    throw std::invalid_argument("AE bracketing requires an output directory.");
+  if (paths.size() > 32 * options.brackets || paths.size() % options.brackets)
+    throw std::invalid_argument("Expected complete exposure sequences of at most 32 captures.");
+  const unsigned count = paths.size() / options.brackets;
+  const auto local_groups = output_groups(count, options.outputs);
+  Groups groups;
+  for (unsigned bracket = 0; bracket < options.brackets; ++bracket)
+    for (auto members : local_groups) {
+      for (auto &member : members)
+        member += bracket * count;
+      groups.push_back(std::move(members));
+    }
   if (options.output.empty())
     throw std::invalid_argument("An output destination is required.");
   if (!options.directory) {
@@ -43,7 +55,7 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
     if (!identities.emplace(state.device, state.inode).second)
       throw std::invalid_argument("Duplicate input file or hard link.");
   }
-  // Validate the complete sequence from its TIFF metadata before any decode.
+  // Validate every exposure sequence from its TIFF metadata before any decode.
   std::vector<Metadata> preflight;
   preflight.reserve(sources.size());
   for (const auto &source : sources) {
@@ -51,13 +63,16 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
       check();
     preflight.push_back(read_metadata(read_tiff(source.file)));
   }
-  validate_sequence(preflight, options.chromatic_aberration_correction);
+  if (options.brackets == 1)
+    validate_sequence(preflight, options.chromatic_aberration_correction);
+  else
+    validate_brackets(preflight, options.brackets, options.chromatic_aberration_correction);
   const auto &information = preflight.front();
   if (progress)
     progress(Stage::preflight, paths.size(), paths.size());
   Publication pending(output, options.directory);
   std::vector<bool> consumed(paths.size());
-  std::optional<Calibration> calibration;
+  std::vector<std::optional<Calibration>> calibrations(options.brackets);
   unsigned decoded = 0;
   auto accept = [&](unsigned index, std::pair<Plane, Metadata> frame) {
     // Decoded bytes must carry the validated metadata; LibRaw adds calibration.
@@ -65,6 +80,7 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
     expected.sequence.calibration = frame.second.sequence.calibration;
     if (frame.second != expected)
       throw std::invalid_argument("Input metadata changed after preflight.");
+    auto &calibration = calibrations[index / count];
     if (!calibration)
       calibration = frame.second.sequence.calibration;
     else if (*calibration != frame.second.sequence.calibration)
@@ -99,8 +115,18 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
   report.decoder_version = decoder_version();
   report.options = options;
   report.options.output = output;
+  if (options.brackets > 1)
+    for (unsigned bracket = 0; bracket < options.brackets; ++bracket) {
+      const auto &sequence = preflight[bracket * count].sequence;
+      BracketReport item{sequence.iso, sequence.exposure, {}};
+      for (unsigned i = 0; i < count; ++i)
+        item.input_indices.push_back(bracket * count + i);
+      report.brackets.push_back(std::move(item));
+    }
   for (unsigned index = 0; index < groups.size(); ++index) {
     const auto &members = groups[index];
+    const auto &sequence = preflight[members[0]].sequence;
+    const auto bracket = index / options.outputs;
     auto pixels = reconstruct(
         members.size(),
         [&](std::span<const unsigned> batch) {
@@ -109,17 +135,18 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
             captures.push_back(members.at(i));
           return load(captures);
         },
-        information.sequence.crop, information.sequence.selection, information.sequence.iso,
+        sequence.crop, sequence.selection, sequence.iso,
         options.chromatic_aberration_correction ? preflight[members[0]].radial : std::nullopt,
         check, options.jobs);
     const auto name =
-        "merged-" + std::string(index < 9 ? "0" : "") + std::to_string(index + 1) + ".nefx";
+        (options.brackets > 1 ? "bracket-0" + std::to_string(bracket + 1) + "-" : "") + "merged-0" +
+        std::to_string(index % options.outputs + 1) + ".nefx";
     const auto candidate = options.directory ? pending.temporary() / name : pending.temporary();
     write_nefx(sources[members[0]], candidate, pixels, members.size(), check);
     verify_rgb(candidate, pixels, check);
     File file(candidate);
     report.outputs.push_back({options.directory ? output / name : output, sha256(file, check),
-                              pixels.width, pixels.height, pixels.pixels.size(), members});
+                              pixels.width, pixels.height, pixels.pixels.size(), members, bracket});
     if (progress)
       progress(Stage::write, index + 1, groups.size());
   }
@@ -129,8 +156,15 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
       "Experimental: authentic capture and Lightroom validation is partial.",
       "Adobe XMP defaults are preserved without updates.",
       "HE/HE* decoding is not implemented; use lossless-compressed 14-bit NEF inputs.",
-      "Input order must follow consecutive capture numbers in a single sequence."};
-  if (calibration->missing_matrix)
+      options.brackets > 1
+          ? "AE brackets require complete exposure sequences in consecutive shutter order."
+          : "Input order must follow consecutive capture numbers in a single sequence."};
+  if (options.brackets > 1)
+    report.limitations.push_back(
+        "AE bracket grouping uses the supplied exposure count and observed metadata; authentic "
+        "AE capture/reference and downstream HDR acceptance remain unvalidated.");
+  if (std::any_of(calibrations.begin(), calibrations.end(),
+                  [](const auto &calibration) { return calibration->missing_matrix; }))
     report.limitations.push_back(
         "LibRaw has no XYZ-to-camera matrix for this input; NEFX preserves source color metadata. "
         "Color rendering is unvalidated.");

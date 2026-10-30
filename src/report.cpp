@@ -66,19 +66,23 @@ std::string strings(const std::vector<std::string> &values) {
   }
   return out + "]";
 }
-std::string output(const OutputReport &o, bool indices) {
+std::string indices(std::span<const unsigned> values) {
+  std::string out = "[";
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    if (i)
+      out += ',';
+    out += std::to_string(values[i]);
+  }
+  return out + ']';
+}
+std::string output(const OutputReport &o, bool directory, bool bracketed = false) {
   std::string out = "\"output\":" + quote(path_utf8(o.path)) + ",\"sha256\":" + quote(o.sha256) +
                     ",\"shape\":[" + std::to_string(o.height) + "," + std::to_string(o.width) +
                     ",3],\"samples_verified\":" + std::to_string(o.samples_verified);
-  if (indices) {
-    out += ",\"input_indices\":[";
-    for (std::size_t i = 0; i < o.input_indices.size(); ++i) {
-      if (i)
-        out += ',';
-      out += std::to_string(o.input_indices[i]);
-    }
-    out += ']';
-  }
+  if (directory)
+    out += ",\"input_indices\":" + indices(o.input_indices);
+  if (bracketed)
+    out += ",\"bracket_index\":" + std::to_string(o.bracket_index);
   return out;
 }
 } // namespace
@@ -91,8 +95,10 @@ std::string report_json(const MergeReport &r) {
                     "format\":\"NEFX\",\"version\":" +
                     quote(version()) + ",\"libraw_version\":" + quote(r.decoder_version) +
                     ",\"camera\":{\"make\":" + quote(r.make) + ",\"model\":" + quote(r.model) +
-                    "},\"sequence_validation\":\"complete_consecutive_metadata_consistent\","
-                    "\"chromatic_aberration_correction\":" +
+                    "},\"sequence_validation\":" +
+                    quote(r.options.brackets > 1 ? "complete_consecutive_exposure_sequences"
+                                                 : "complete_consecutive_metadata_consistent") +
+                    ",\"chromatic_aberration_correction\":" +
                     (r.options.chromatic_aberration_correction ? "true" : "false") +
                     ",\"inputs\":[";
   for (std::size_t i = 0; i < r.inputs.size(); ++i) {
@@ -104,6 +110,28 @@ std::string report_json(const MergeReport &r) {
   }
   out +=
       "],\"limitations\":" + strings(r.limitations) + ",\"warnings\":" + strings(r.warnings) + ",";
+  if (r.options.brackets > 1) {
+    if (r.brackets.size() != r.options.brackets)
+      throw std::logic_error("An AE bracket report needs every exposure sequence.");
+    out += "\"ae_bracketing\":{\"exposure_count\":" + std::to_string(r.options.brackets) +
+           ",\"outputs_per_exposure\":" + std::to_string(r.options.outputs) +
+           ",\"grouping\":\"explicit_count_contiguous_sequences\",\"exposures\":[";
+    for (std::size_t i = 0; i < r.brackets.size(); ++i) {
+      if (i)
+        out += ',';
+      const auto &bracket = r.brackets[i];
+      out += "{\"bracket_index\":" + std::to_string(i) + ",\"iso\":" + std::to_string(bracket.iso) +
+             ",\"input_indices\":" + indices(bracket.input_indices);
+      constexpr const char *names[] = {"exposure_time", "f_number", "exposure_bias_ev"};
+      for (unsigned j = 0; j < bracket.exposure.size(); ++j) {
+        const auto [numerator, denominator] = bracket.exposure[j];
+        out += "," + quote(names[j]) + ":[" + std::to_string(numerator) + "," +
+               std::to_string(denominator) + "]";
+      }
+      out += '}';
+    }
+    out += "]},";
+  }
   if (r.options.directory) {
     out += "\"output_directory\":" + quote(path_utf8(r.options.output)) +
            ",\"output_count\":" + std::to_string(r.outputs.size()) + ",\"outputs\":[";
@@ -111,7 +139,7 @@ std::string report_json(const MergeReport &r) {
     for (std::size_t i = 0; i < r.outputs.size(); ++i) {
       if (i)
         out += ',';
-      out += '{' + output(r.outputs[i], true) + '}';
+      out += '{' + output(r.outputs[i], true, r.options.brackets > 1) + '}';
       total += r.outputs[i].samples_verified;
     }
     out += "],\"samples_verified\":" + std::to_string(total);

@@ -14,6 +14,7 @@ from pathlib import Path
 import rawpy
 
 import ci_fixture
+import verify_cpp_brackets
 from tiff_fixture import tree_digest
 from verify_cpp_format import pixels
 
@@ -230,6 +231,9 @@ def run(executable: Path, injector: Path, directory: Path) -> dict:
         "injected_failures": injected,
         "cancellation": cancellation,
         "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+        "ae_bracketing": verify_cpp_brackets.run(
+            executable, injector, directory / "ae-bracketing"
+        ),
     }
     (directory / "report.json").write_text(json.dumps(report, indent=2) + "\n")
     return report

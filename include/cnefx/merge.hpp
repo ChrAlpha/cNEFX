@@ -20,6 +20,9 @@ struct MergeOptions {
   // correction; zero selects the hardware concurrency. Outputs do not depend on
   // it; one keeps all work on the caller's thread.
   unsigned jobs = 0;
+  // One sequence by default; 2-9 explicitly ordered AE exposure sequences require
+  // a directory. outputs applies to each sequence, with identical capture modes.
+  unsigned brackets = 1;
 };
 struct InputReport {
   std::filesystem::path path;
@@ -32,6 +35,13 @@ struct OutputReport {
   std::uint32_t width{}, height{};
   std::uint64_t samples_verified{};
   std::vector<unsigned> input_indices;
+  unsigned bracket_index{};
+};
+struct BracketReport {
+  std::uint32_t iso{};
+  // Exact reduced EXIF rationals: exposure seconds, f-number, exposure bias EV.
+  std::array<std::pair<std::int64_t, std::int64_t>, 3> exposure{};
+  std::vector<unsigned> input_indices;
 };
 struct MergeReport {
   std::string make, model, decoder_version;
@@ -39,6 +49,7 @@ struct MergeReport {
   std::vector<InputReport> inputs;
   std::vector<OutputReport> outputs;
   std::vector<std::string> limitations, warnings;
+  std::vector<BracketReport> brackets;
 };
 
 // Callbacks run synchronously on the caller's thread. Throw Cancelled from check

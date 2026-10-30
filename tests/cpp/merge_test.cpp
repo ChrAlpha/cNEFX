@@ -23,9 +23,10 @@ void mutate(const fs::path &path, bool restore) {
     fs::last_write_time(path, time);
   }
 }
-void inject(int argc, char **argv) {
+void inject(int argc, char **argv, bool bracketed) {
   const std::string mode = argv[2];
-  MergeOptions options{argv[3], 2, true, false};
+  MergeOptions options{argv[3], bracketed ? 1u : 2u, true, false};
+  options.brackets = bracketed ? 3 : 1;
   std::vector<fs::path> paths(argv + 4, argv + argc);
   bool fired = false, cancel = false, rejected = false, progressed = false;
   if (mode == "order") {
@@ -130,8 +131,9 @@ int main(int argc, char **argv) {
   try {
     if (argc == 1)
       tests();
-    else if (argc == 12 && std::string(argv[1]) == "--inject")
-      inject(argc, argv);
+    else if ((argc == 12 && std::string(argv[1]) == "--inject") ||
+             (argc == 16 && std::string(argv[1]) == "--inject-brackets"))
+      inject(argc, argv, std::string(argv[1]) == "--inject-brackets");
     else
       return 2;
     return 0;
