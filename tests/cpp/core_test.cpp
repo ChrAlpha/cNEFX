@@ -20,6 +20,15 @@ template <class F> void rejects(F f) {
   }
   require(rejected);
 }
+// Adapts a per-index plane source to the batch reader contract.
+template <class F> Reader each(F plane) {
+  return [plane](std::span<const unsigned> batch) {
+    std::vector<Plane> planes;
+    for (const auto i : batch)
+      planes.push_back(plane(i));
+    return planes;
+  };
+}
 unsigned read32(std::istream &input) {
   unsigned result = 0;
   for (unsigned i = 0; i < 4; ++i) {
@@ -46,8 +55,7 @@ void replay(const char *source, const char *destination) {
   const auto offset = input.tellg();
   std::vector<unsigned> reads(count);
   const auto result = reconstruct(
-      count,
-      [&](unsigned index) {
+      count, each([&](unsigned index) {
         require(reads.at(index)++ == 0);
         Plane plane{width, height, std::vector<Sample>(sample_count(width, height, 1))};
         input.seekg(offset + std::streamoff(index * plane.pixels.size() * 2));
@@ -58,7 +66,7 @@ void replay(const char *source, const char *destination) {
           v = a | (b << 8);
         }
         return plane;
-      },
+      }),
       crop, Selection::parse(selector), iso, corrected ? std::optional(radial) : std::nullopt);
   require(std::all_of(reads.begin(), reads.end(), [](auto n) { return n == 1; }));
   std::ofstream output(destination, std::ios::binary);
@@ -84,37 +92,32 @@ void tests() {
   Selection empty;
   empty.outer_count = 0;
   auto result = reconstruct(
-      4,
-      [](unsigned i) {
+      4, each([](unsigned i) {
         return Plane{8, 8, std::vector<Sample>(64, std::array<Sample, 4>{100, 201, 300, 400}[i])};
-      },
+      }),
       {2, 2, 2, 2}, empty, 3201);
   require(result.pixels ==
           std::vector<Sample>({100, 300, 300, 201, 200, 400, 400, 200, 201, 300, 300, 100}));
   result = reconstruct(
-      16, [](unsigned i) { return Plane{8, 8, std::vector<Sample>(64, 100 * (i / 4 + 1))}; },
+      16, each([](unsigned i) { return Plane{8, 8, std::vector<Sample>(64, 100 * (i / 4 + 1))}; }),
       {2, 2, 1, 1}, empty, 3201);
   require(result.pixels ==
           std::vector<Sample>({100, 100, 100, 200, 200, 200, 400, 400, 400, 300, 300, 300}));
-  result = reconstruct(
-      8,
-      [](unsigned i) {
-        Plane p{8, 8, std::vector<Sample>(64, i < 4 ? 100 : 201)};
-        if (i >= 4)
-          std::fill(p.pixels.begin() + 16, p.pixels.end(), 401);
-        return p;
-      },
-      {3, 3, 1, 1}, empty, 3201);
+  result = reconstruct(8, each([](unsigned i) {
+                         Plane p{8, 8, std::vector<Sample>(64, i < 4 ? 100 : 201)};
+                         if (i >= 4)
+                           std::fill(p.pixels.begin() + 16, p.pixels.end(), 401);
+                         return p;
+                       }),
+                       {3, 3, 1, 1}, empty, 3201);
   require(result.pixels == std::vector<Sample>({150, 150, 150}));
   rejects([&] {
-    reconstruct(
-        4, [](unsigned) { return Plane{9, 8, std::vector<Sample>(72)}; }, {1, 1, 4, 4}, empty,
-        3201);
+    reconstruct(4, each([](unsigned) { return Plane{9, 8, std::vector<Sample>(72)}; }),
+                {1, 1, 4, 4}, empty, 3201);
   });
   rejects([&] {
-    reconstruct(
-        4, [](unsigned) { return Plane{8, 8, std::vector<Sample>(64, 16384)}; }, {1, 1, 4, 4},
-        empty, 3201);
+    reconstruct(4, each([](unsigned) { return Plane{8, 8, std::vector<Sample>(64, 16384)}; }),
+                {1, 1, 4, 4}, empty, 3201);
   });
   Selection unsafe{8, 8, 2, 1};
   rejects([&] { unsafe.coordinates(8, 8); });
@@ -123,13 +126,58 @@ void tests() {
   rejects([&] { costly.coordinates(8, 8); });
   bool cancelled = false;
   try {
-    reconstruct(
-        4, [](unsigned) { return Plane{}; }, {1, 1, 4, 4}, empty, 3201, {},
-        [] { throw std::runtime_error("cancelled"); });
+    reconstruct(4, each([](unsigned) { return Plane{}; }), {1, 1, 4, 4}, empty, 3201, {},
+                [] { throw std::runtime_error("cancelled"); });
   } catch (const std::runtime_error &e) {
     cancelled = std::string(e.what()) == "cancelled";
   }
   require(cancelled);
+  // Batches are four consecutive frames, or one averaging pair in paired modes.
+  for (const unsigned count : {4u, 8u, 16u, 32u}) {
+    std::vector<std::vector<unsigned>> batches;
+    reconstruct(
+        count,
+        [&](std::span<const unsigned> batch) {
+          batches.emplace_back(batch.begin(), batch.end());
+          return std::vector<Plane>(batch.size(), Plane{8, 8, std::vector<Sample>(64, 100)});
+        },
+        {2, 2, 4, 4}, empty, 3201);
+    std::vector<unsigned> seen;
+    for (const auto &batch : batches) {
+      require(batch.size() == (count == 8 || count == 32 ? 2u : 4u));
+      seen.insert(seen.end(), batch.begin(), batch.end());
+    }
+    std::sort(seen.begin(), seen.end());
+    for (unsigned i = 0; i < count; ++i)
+      require(seen.at(i) == i);
+    require(seen.size() == count);
+  }
+  rejects([&] {
+    reconstruct(
+        4, [](std::span<const unsigned>) { return std::vector<Plane>(3); }, {1, 1, 4, 4}, empty,
+        3201);
+  });
+  // Radial correction is row-parallel; results must not depend on the job count.
+  Rgb full{2 * 63, 2 * 95, std::vector<Sample>(sample_count(2 * 63, 2 * 95, 3))};
+  for (std::size_t i = 0; i < full.pixels.size(); ++i)
+    full.pixels[i] = static_cast<Sample>((i * 2654435761u) % 16384);
+  const RadialCorrection correction{{300, -200}, {{{1200, -3400, 560}, {-900, 2100, -330}}}};
+  const auto serial = correct_crop(full, 64, 96, 2, {3, 2, 56, 80}, correction, {}, 1);
+  require(serial.pixels == correct_crop(full, 64, 96, 2, {3, 2, 56, 80}, correction, {}, 8).pixels);
+  bool stopped = false;
+  try {
+    unsigned calls = 0;
+    correct_crop(
+        full, 64, 96, 2, {3, 2, 56, 80}, correction,
+        [&] {
+          if (++calls == 1)
+            throw std::runtime_error("cancelled");
+        },
+        8);
+  } catch (const std::runtime_error &e) {
+    stopped = std::string(e.what()) == "cancelled";
+  }
+  require(stopped);
 }
 } // namespace
 int main(int argc, char **argv) {

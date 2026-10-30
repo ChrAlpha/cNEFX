@@ -86,56 +86,68 @@ Groups output_groups(unsigned count, unsigned outputs) {
 }
 
 Rgb reconstruct(unsigned count, const Reader &reader, Crop crop, const Selection &selection,
-                unsigned iso, const std::optional<RadialCorrection> &radial, const Check &check) {
+                unsigned iso, const std::optional<RadialCorrection> &radial, const Check &check,
+                unsigned jobs) {
   output_groups(count, 1);
   if (!iso)
     throw std::invalid_argument("Expected a positive ISO value.");
-  if (check)
-    check();
-  auto first = reader(0);
-  const auto width = first.width, height = first.height;
-  if (width < 8 || height < 8 || width % 2 || height % 2)
-    throw std::invalid_argument("Expected even RAW planes at least 8x8.");
-  const auto size = sample_count(width, height, 1);
-  auto load = [&](unsigned index) {
-    if (check)
-      check();
-    auto plane = index == 0 ? std::move(first) : reader(index);
-    if (plane.width != width || plane.height != height || plane.pixels.size() != size)
-      throw std::invalid_argument("RAW frames must have identical geometry.");
-    if (*std::max_element(plane.pixels.begin(), plane.pixels.end()) > 16383)
-      throw std::invalid_argument("RAW samples exceed 14 bits.");
-    return plane;
-  };
-  validate_crop(crop, width, height);
-  const auto coordinates =
-      iso <= 3200 ? selection.coordinates(width, height) : std::vector<std::pair<int, int>>{};
   const bool paired = count == 8 || count == 32;
   const unsigned reduced = paired ? count / 2 : count;
   const unsigned scale = reduced == 16 ? 2 : 1;
-  const Crop sampling = radial ? Crop{1, 1, width - 1, height - 1} : crop;
-  Rgb output{scale * sampling.width, scale * sampling.height, {}};
-  output.pixels.resize(sample_count(output.width, output.height, 3));
+  std::uint32_t width = 0, height = 0;
+  std::size_t size = 0;
+  std::vector<std::pair<int, int>> coordinates;
+  Crop sampling{};
+  Rgb output;
+  // The first plane fixes the geometry; every plane must match it.
+  const auto prepare = [&](const Plane &plane) {
+    width = plane.width;
+    height = plane.height;
+    if (width < 8 || height < 8 || width % 2 || height % 2)
+      throw std::invalid_argument("Expected even RAW planes at least 8x8.");
+    size = sample_count(width, height, 1);
+    validate_crop(crop, width, height);
+    coordinates =
+        iso <= 3200 ? selection.coordinates(width, height) : std::vector<std::pair<int, int>>{};
+    sampling = radial ? Crop{1, 1, width - 1, height - 1} : crop;
+    output = {scale * sampling.width, scale * sampling.height, {}};
+    output.pixels.resize(sample_count(output.width, output.height, 3));
+  };
+  const auto fetch = [&](std::span<const unsigned> indices) {
+    if (check)
+      check();
+    auto planes = reader(indices);
+    if (planes.size() != indices.size())
+      throw std::invalid_argument("Reader returned an incomplete batch.");
+    for (const auto &plane : planes) {
+      if (!size)
+        prepare(plane);
+      if (plane.width != width || plane.height != height || plane.pixels.size() != size)
+        throw std::invalid_argument("RAW frames must have identical geometry.");
+      if (*std::max_element(plane.pixels.begin(), plane.pixels.end()) > 16383)
+        throw std::invalid_argument("RAW samples exceed 14 bits.");
+    }
+    return planes;
+  };
   for (unsigned start = 0; start < reduced; start += 4) {
     if (paired) {
       for (unsigned i = 0; i < 4; ++i) {
-        auto a = load(start + i);
-        {
-          auto b = load(start + i + count / 2);
-          average(a, b, coordinates, check);
-        }
-        sample(output, a, sampling, scale, start / 4, i, check);
+        auto pair = fetch(std::array{start + i, start + i + count / 2});
+        average(pair[0], pair[1], coordinates, check);
+        pair.pop_back();
+        sample(output, pair[0], sampling, scale, start / 4, i, check);
       }
     } else {
-      std::array<Plane, 4> frames;
-      for (unsigned i = 0; i < 4; ++i)
-        frames[i] = load(start + i);
+      auto planes = fetch(std::array{start, start + 1, start + 2, start + 3});
+      std::array<Plane, 4> frames{std::move(planes[0]), std::move(planes[1]), std::move(planes[2]),
+                                  std::move(planes[3])};
+      planes.clear();
       detail::repair(frames, coordinates, check);
       for (unsigned i = 0; i < 4; ++i)
         sample(output, frames[i], sampling, scale, start / 4, i, check);
     }
   }
-  return radial ? correct_crop(output, width, height, scale, crop, *radial, check)
+  return radial ? correct_crop(output, width, height, scale, crop, *radial, check, jobs)
                 : std::move(output);
 }
 } // namespace cnefx

@@ -86,8 +86,15 @@ MergeReport merge(std::span<const fs::path> paths, const MergeOptions &options, 
   for (unsigned index = 0; index < groups.size(); ++index) {
     const auto &members = groups[index];
     auto pixels = reconstruct(
-        members.size(), [&](unsigned i) { return load(members[i]); }, information.sequence.crop,
-        Selection::parse(information.sequence.selector), information.sequence.iso,
+        members.size(),
+        [&](std::span<const unsigned> batch) {
+          std::vector<Plane> planes;
+          for (const auto i : batch)
+            planes.push_back(load(members[i]));
+          return planes;
+        },
+        information.sequence.crop, Selection::parse(information.sequence.selector),
+        information.sequence.iso,
         options.chromatic_aberration_correction ? information.radial : std::nullopt, check);
     const auto name =
         "merged-" + std::string(index < 9 ? "0" : "") + std::to_string(index + 1) + ".nefx";

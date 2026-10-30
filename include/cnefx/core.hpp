@@ -38,17 +38,24 @@ struct Selection {
   std::vector<std::pair<int, int>> coordinates(int width, int height) const;
 };
 
-using Reader = std::function<Plane(unsigned)>;
+// Returns the planes for one batch of zero-based capture indices, in request
+// order. reconstruct requests every index exactly once, in batches of four
+// consecutive frames or, for paired modes, one averaging pair, and retains at
+// most one batch. A reader may decode a batch concurrently.
+using Reader = std::function<std::vector<Plane>(std::span<const unsigned>)>;
 using Groups = std::vector<std::vector<unsigned>>;
 Groups output_groups(unsigned count, unsigned outputs);
 std::size_t sample_count(std::uint32_t width, std::uint32_t height, unsigned channels);
 void validate_crop(Crop crop, std::uint32_t width, std::uint32_t height);
+// jobs bounds the worker threads for radial correction; zero selects the
+// hardware concurrency. Results do not depend on jobs. check runs only on the
+// caller's thread.
 Rgb reconstruct(unsigned count, const Reader &reader, Crop crop, const Selection &selection,
                 unsigned iso, const std::optional<RadialCorrection> &radial = {},
-                const Check &check = {});
+                const Check &check = {}, unsigned jobs = 0);
 Rgb correct_crop(const Rgb &image, std::uint32_t raw_width, std::uint32_t raw_height,
                  unsigned scale, Crop crop, const RadialCorrection &correction,
-                 const Check &check = {});
+                 const Check &check = {}, unsigned jobs = 0);
 
 namespace detail {
 void repair(std::array<Plane, 4> &frames, const std::vector<std::pair<int, int>> &coordinates,

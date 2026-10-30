@@ -30,12 +30,18 @@ void merge(int argc, char **argv, bool corrected) {
     throw std::invalid_argument(info.radial_error);
   auto pixels = reconstruct(
       count,
-      [&](unsigned i) {
-        if (!i)
-          return std::move(first.first);
-        auto frame = read_frame(sources[i]);
-        metadata[i] = std::move(frame.second);
-        return std::move(frame.first);
+      [&](std::span<const unsigned> batch) {
+        std::vector<Plane> planes;
+        for (const auto i : batch) {
+          if (!i) {
+            planes.push_back(std::move(first.first));
+            continue;
+          }
+          auto frame = read_frame(sources[i]);
+          metadata[i] = std::move(frame.second);
+          planes.push_back(std::move(frame.first));
+        }
+        return planes;
       },
       info.sequence.crop, Selection::parse(info.sequence.selector), info.sequence.iso,
       corrected ? info.radial : std::nullopt);
