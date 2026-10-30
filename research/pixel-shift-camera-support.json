@@ -174,6 +174,35 @@
       "Version-pinned Lightroom HDR acceptance"
     ]
   },
+  "automatic_ae_grouping": {
+    "observed_on": "2026-10-30",
+    "status": "experimental_metadata_exposure_grouping",
+    "supersedes": "The required explicit-count interface in the preceding ae_bracketing checkpoint. Its historical verification remains unchanged.",
+    "functional_revision": "77e2f3bede96de053787c16db4a13206fac1f8e8",
+    "interface": "Exposure sequences are detected by default; --ae-bracketing N optionally requires 2-9 exposures. The C++ API uses brackets=0 for automatic grouping and brackets=1 to require one sequence.",
+    "grouping_contract": "Nikon 0x005e capture mode establishes each sequence length before total input count is interpreted. All complete blocks then pass existing sequence and cross-exposure identity, geometry, exposure and shutter-order validation. Multiple groups require a directory before decoding or publication.",
+    "report_contract": "ae_bracketing.exposure_count records the detected count; grouping is metadata_contiguous_sequences by default, explicit_count_contiguous_sequences with an expected count.",
+    "completeness_boundary": "Complete supplied exposure sequences do not establish the original camera AE-program count or identity. Missing entire leading or trailing exposures require an expected count to detect; internal shutter gaps still reject automatically.",
+    "source_metadata_observation": {
+      "tool": "ExifTool 13.59, read-only; product runtime uses the native metadata parser.",
+      "input": "/workspaces/LumaForge/nxc-data/20261030-z8/SGL_6128.NEF",
+      "observation": "PixelShiftActive=Yes and PixelShiftNumberShots=32 coexist with BracketSet=AE/Flash and BracketProgram=Disabled in this authentic single-exposure capture. A bracket menu type alone does not identify active AE.",
+      "primary_source": "https://raw.githubusercontent.com/exiftool/exiftool/master/lib/Image/ExifTool/Nikon.pm",
+      "limit": "This is not an AE bracket capture and does not validate AE-program fields in pixel-shift AE mode."
+    },
+    "verification": {
+      "result": "Release and ASan/UBSan each pass 4 CTests, 128 core, 32 format, 36 regular CLI and 45 AE cases, with 18 AE invalid-input cases and 11 fault injections.",
+      "additional_cases": "Metadata-disambiguated totals, optional expected-count mismatches, inferred groups with a file destination, and explicit API single-sequence behavior.",
+      "independent_reviews": "Standards: six API probes plus serializer checks. Spec: ten bounded synthetic/API checks. Both approve; expected-count report variable shadowing was fixed and both CLI suites rerun.",
+      "record": "/workspaces/LumaForge/nxc-data/acceptance/20261030-ae-bracketing/automatic/evidence.json",
+      "record_sha256": "34a0eacec7e8067bea12e2aae2ed9be05bf6edde312b262a7f5645b6dc6aaa86"
+    },
+    "acceptance_gaps": [
+      "Authentic AE capture and per-exposure NX Studio references",
+      "Camera AE-program count/identity for pixel-shift AE mode",
+      "Version-pinned Lightroom HDR acceptance"
+    ]
+  },
   "coverage_limits": [
     "This is the four-model set confirmed from official manuals, not a promise to cover future firmware or every Nikon model.",
     "Z9, Z6II, Z5, Zfc, Z50II and ZR manual indexes did not expose a pixel-shift shooting entry in this bounded check; they are not allowlisted. Z7II manual URL returned 404, so no negative support claim is inferred.",

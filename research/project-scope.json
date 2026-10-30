@@ -25,7 +25,7 @@
   },
   "current_capabilities": {
     "merge": "Experimental C++20 synthesis of complete 4/8/16/32-frame Nikon Z8, Zf, Z6III or Z5II sequences to NEFX; all nine input/output combinations",
-    "ae_bracketing": "Experimental explicit --ae-bracketing N for 2-9 complete Z8/Z6III exposure sequences, all nine modes per exposure, one atomic output directory; source exposure settings and global input mappings in the manifest. Authentic AE/reference acceptance remains unvalidated.",
+    "ae_bracketing": "Experimental automatic metadata grouping of 2-9 complete Z8/Z6III exposure sequences, all nine modes per exposure, one atomic output directory; --ae-bracketing N optionally requires an expected exposure count. The manifest records grouping provenance, exposure settings and input mappings. Camera AE-program completeness and authentic AE/reference acceptance remain unvalidated.",
     "output_set_publication": "Linux renameat2(RENAME_NOREPLACE), macOS renamex_np(RENAME_EXCL), or Windows exclusive move after all outputs and the complete sequence pass validation",
     "chromatic_aberration_correction": "Optional native source-metadata red/blue radial correction before crop; disabled by default",
     "sequence_validation": "Explicit capture order, consecutive shot numbers, consistent observed metadata, distinct file identities, descriptor-bound decoding and final immutable source hashes",
