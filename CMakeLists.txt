@@ -1,14 +1,21 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.21)
 project(cNEFX VERSION 0.1.0 LANGUAGES CXX)
 
-include(CTest)
+# As a subproject, cNEFX builds no tests, installs nothing and keeps the
+# consumer's runtime library; cnefx::cnefx exposes only include/.
+if(PROJECT_IS_TOP_LEVEL)
+  include(CTest)
+endif()
 include(GNUInstallDirs)
 option(CNEFX_SANITIZE "Enable address and undefined behavior sanitizers" OFF)
 option(CNEFX_USE_SYSTEM_LIBRAW "Use system LibRaw instead of the pinned static build" OFF)
 option(CNEFX_LTO "Enable release link-time optimization" ON)
-option(CNEFX_STATIC_RUNTIME "Link the GNU C++ runtime into the Linux executable" ON)
+option(CNEFX_STATIC_RUNTIME "Link the C++ runtime statically into a top-level build" ON)
+option(CNEFX_INSTALL "Install and package the executable" ${PROJECT_IS_TOP_LEVEL})
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+if(PROJECT_IS_TOP_LEVEL AND CNEFX_STATIC_RUNTIME)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 if(CNEFX_LTO)
   include(CheckIPOSupported)
   check_ipo_supported(RESULT cnefx_ipo LANGUAGES CXX)
@@ -54,7 +61,7 @@ else()
 endif()
 
 add_library(cnefx_merge STATIC src/merge.cpp src/report.cpp)
-target_link_libraries(cnefx_merge PUBLIC cnefx_format PRIVATE Threads::Threads)
+target_link_libraries(cnefx_merge PUBLIC cnefx_core PRIVATE cnefx_format Threads::Threads)
 target_compile_definitions(cnefx_merge PRIVATE CNEFX_VERSION="${PROJECT_VERSION}")
 add_library(cnefx::cnefx ALIAS cnefx_merge)
 add_executable(cnefx src/cli.cpp)
@@ -70,7 +77,7 @@ else()
   endif()
 endif()
 
-if(BUILD_TESTING)
+if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
   add_executable(cnefx_core_test tests/cpp/core_test.cpp)
   target_link_libraries(cnefx_core_test PRIVATE cnefx_core)
   add_test(NAME core COMMAND cnefx_core_test)
@@ -81,11 +88,12 @@ if(BUILD_TESTING)
   target_link_libraries(cnefx_format_test PRIVATE cnefx_format)
   add_test(NAME format COMMAND cnefx_format_test)
   add_executable(cnefx_merge_test tests/cpp/merge_test.cpp)
-  target_link_libraries(cnefx_merge_test PRIVATE cnefx_merge)
+  target_link_libraries(cnefx_merge_test PRIVATE cnefx_merge cnefx_io)
   add_test(NAME merge COMMAND cnefx_merge_test)
 endif()
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CNEFX_STATIC_RUNTIME AND NOT CNEFX_SANITIZE)
+if(PROJECT_IS_TOP_LEVEL AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CNEFX_STATIC_RUNTIME AND
+   NOT CNEFX_SANITIZE)
   target_link_options(cnefx PRIVATE -static-libgcc -static-libstdc++)
 endif()
 if(APPLE)
@@ -95,17 +103,22 @@ elseif(UNIX)
 elseif(MSVC)
   target_link_options(cnefx PRIVATE /OPT:REF /OPT:ICF)
 endif()
-execute_process(COMMAND git rev-parse HEAD WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
-  OUTPUT_VARIABLE CNEFX_REVISION OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-execute_process(COMMAND git status --porcelain WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
-  OUTPUT_VARIABLE cnefx_dirty ERROR_QUIET)
-set(CNEFX_DIRTY false)
-if(cnefx_dirty)
-  set(CNEFX_DIRTY true)
+if(NOT CNEFX_INSTALL)
+  return()
 endif()
+# Build provenance is regenerated on every build, so a rebuild after a commit
+# or edit records the current revision and working-tree state.
+set(CNEFX_REVISION "@CNEFX_REVISION@")
+set(CNEFX_DIRTY "@CNEFX_DIRTY@")
+set(CNEFX_CONFIG "@CNEFX_CONFIG@")
 configure_file(cmake/build-info.json.in build-info.json.in @ONLY)
-file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/build-info.json"
-  INPUT "${CMAKE_CURRENT_BINARY_DIR}/build-info.json.in")
+add_custom_target(cnefx_build_info ALL
+  COMMAND "${CMAKE_COMMAND}" "-DSOURCE=${PROJECT_SOURCE_DIR}"
+    "-DINPUT=${CMAKE_CURRENT_BINARY_DIR}/build-info.json.in"
+    "-DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/build-info.json" "-DCONFIG=$<CONFIG>"
+    -P "${PROJECT_SOURCE_DIR}/cmake/BuildInfo.cmake"
+  BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/build-info.json"
+  VERBATIM)
 install(TARGETS cnefx RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/build-info.json"
   DESTINATION ${CMAKE_INSTALL_DATADIR}/cnefx)

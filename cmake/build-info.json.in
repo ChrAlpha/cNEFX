@@ -4,7 +4,7 @@
   "revision": "@CNEFX_REVISION@",
   "dirty": @CNEFX_DIRTY@,
   "compiler": "@CMAKE_CXX_COMPILER_ID@ @CMAKE_CXX_COMPILER_VERSION@",
-  "configuration": "$<CONFIG>",
+  "configuration": "@CNEFX_CONFIG@",
   "system": "@CMAKE_SYSTEM_NAME@",
   "architecture": "@CMAKE_SYSTEM_PROCESSOR@",
   "libraw_version": "@CNEFX_LIBRAW_VERSION@",

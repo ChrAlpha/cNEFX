@@ -172,7 +172,9 @@ planning a retry.
 
 The reusable public API is [core.hpp](include/cnefx/core.hpp) and
 [merge.hpp](include/cnefx/merge.hpp). CMake consumers can use `add_subdirectory`
-and link `cnefx::cnefx`; no stable binary ABI or installed SDK is promised.
+and link `cnefx::cnefx`, which exposes only `include/`; a subproject builds no
+tests, installs nothing and keeps the consumer's runtime library. No stable
+binary ABI or installed SDK is promised.
 Cancellation and progress callbacks run synchronously on the caller's thread;
 worker threads only decode and correct rows, and stop at their next poll after
 a failure or cancellation.
@@ -237,8 +239,10 @@ platform after unit and saved-reference checks. To package a local release build
 uv run --locked python tools/ci.py package --build-dir build/release
 ```
 
-The package check verifies checksums/provenance, extracts the archive, and runs
-4-to-1 and 32-to-4 synthesis with an empty `PATH`.
+Every build rewrites `build-info.json` with the current revision and
+working-tree state. The package check requires that revision to be `HEAD`,
+verifies checksums, extracts the archive, and runs 4-to-1 and 32-to-4 synthesis
+with an empty `PATH`.
 
 External evidence requires separately supplied, hash-checked artifacts:
 

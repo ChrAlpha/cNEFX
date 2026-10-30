@@ -216,6 +216,11 @@ def package(build: Path, config: str) -> None:
         info_path = next(work.glob("*/share/cnefx/build-info.json"))
         info = json.loads(info_path.read_text())
         assert info["version"] == version() and info["libraw_version"] == "0.22.3"
+        head = run(
+            "git", "rev-parse", "HEAD", cwd=ROOT, capture_output=True, text=True
+        ).stdout.strip()
+        if info["revision"] != head:
+            raise ValueError("Build provenance is stale; rebuild before packaging.")
         assert (
             info["libraw_archive_sha256"]
             == "789f3c33466210a1a0907f747a97c715d21bbf4af712f257fcbbd90111b227e4"
